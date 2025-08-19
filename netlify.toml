@@ -1,6 +1,6 @@
 ﻿[build]
-  functions = "netlify/functions"
-  publish = "."
+  publish = "out"
+  command = "npm run build && npm run export"
 
 [functions]
   directory = "netlify/functions"
@@ -11,7 +11,7 @@
   status = 200
 
 [[redirects]]
-  from = "/dashboard/"
+  from = "/dashboard/"  
   to = "/dashboard.html"
   status = 200
 
