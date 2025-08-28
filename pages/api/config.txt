@@ -1,0 +1,101 @@
+// Configuración global (en memoria - en producción usarías una base de datos)
+let globalConfig = {
+  tiempoEntrega: 90,
+  rmbToUsd: 0.14,
+  usdToClp: 980,
+  comisionChinaPct: 0.03,
+  ivaPct: 0.19,
+  fleteMaritimoUSD: 1950,
+  seguroContenedorUSD: 60,
+  comisionBancariaUSD: 600,
+  gastosChileUSD: 428000 / 980, // 428,000 CLP convertido a USD
+  containerCBM: 68,
+  precioVentaReferencia: 29990
+};
+
+// Función para obtener la configuración actual
+function getCurrentConfig() {
+  return { ...globalConfig };
+}
+
+// Función para actualizar la configuración
+function updateConfig(newConfig) {
+  globalConfig = { ...globalConfig, ...newConfig };
+  return globalConfig;
+}
+
+export default async function handler(req, res) {
+  if (req.method === 'GET') {
+    // Obtener configuración actual
+    try {
+      res.status(200).json({ 
+        config: getCurrentConfig(),
+        message: 'Configuración obtenida exitosamente' 
+      });
+    } catch (error) {
+      console.error('Error obteniendo configuración:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+
+  } else if (req.method === 'POST') {
+    // Actualizar configuración
+    try {
+      const { config } = req.body;
+
+      if (!config || typeof config !== 'object') {
+        return res.status(400).json({ error: 'Configuración inválida' });
+      }
+
+      // Validar campos requeridos y tipos
+      const requiredFields = [
+        'tiempoEntrega', 'rmbToUsd', 'usdToClp', 'comisionChinaPct', 
+        'ivaPct', 'fleteMaritimoUSD', 'seguroContenedorUSD', 
+        'comisionBancariaUSD', 'gastosChileUSD', 'containerCBM', 'precioVentaReferencia'
+      ];
+
+      for (const field of requiredFields) {
+        if (config[field] === undefined || config[field] === null) {
+          return res.status(400).json({ error: `Campo requerido faltante: ${field}` });
+        }
+        if (typeof config[field] !== 'number' || config[field] < 0) {
+          return res.status(400).json({ error: `Campo inválido: ${field} debe ser un número positivo` });
+        }
+      }
+
+      // Validaciones adicionales
+      if (config.containerCBM <= 0) {
+        return res.status(400).json({ error: 'La capacidad del contenedor debe ser mayor a 0' });
+      }
+
+      if (config.comisionChinaPct > 1 || config.ivaPct > 1) {
+        return res.status(400).json({ error: 'Los porcentajes deben estar entre 0 y 1 (ej: 0.19 para 19%)' });
+      }
+
+      // Actualizar configuración
+      const updatedConfig = updateConfig(config);
+
+      console.log('Configuración actualizada:', updatedConfig);
+
+      res.status(200).json({ 
+        config: updatedConfig,
+        message: 'Configuración actualizada exitosamente' 
+      });
+
+    } catch (error) {
+      console.error('Error actualizando configuración:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+
+  } else {
+    // Método no permitido
+    res.status(405).json({ error: 'Método no permitido' });
+  }
+
+}
+
+// Exportar las funciones para que puedan ser usadas por otros módulos
+module.exports = {
+  getCurrentConfig,
+  updateConfig,
+  handler: module.exports.default
+};

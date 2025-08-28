@@ -1,0 +1,60 @@
+// Archivo: pages/api/analysis.js (Versi n con Calculadora y L gica Completa)
+
+const database = { /* ... (datos de productos se mantienen igual que en la versi n anterior) ... */ };
+const config = { /* ... (configuraci n de costos se mantiene igual que en la versi n anterior) ... */ };
+
+function getFullAnalysis(product, precioVentaCLP = 29990) {
+    const costoFobUSD = product.costoFOB_RMB * config.rmbToUsd;
+    const comisionChinaUSD = costoFobUSD * config.comisionChinaPct;
+    const costoTotalContenedorUSD = config.fleteMaritimoUSD + config.seguroContenedorUSD + config.thcdUSD + config.blUSD + config.aperturaManifiestoUSD + config.gateInUSD + config.comisionBancariaUSD;
+    const costoLogisticoProductoUSD = (costoTotalContenedorUSD / config.containerCBM) * product.cbm;
+    const costoCifUSD = costoFobUSD + comisionChinaUSD + costoLogisticoProductoUSD;
+    const costoTotalInternacionCLP = config.movilizacionNacionalCLP + config.honorariosCLP + config.aforoCLP + config.gastosDespachoCLP + config.movilizacionPuertoCLP + config.peonetasCLP + config.etiquetadoCLP;
+    const costoInternacionProductoCLP = (costoTotalInternacionCLP / config.containerCBM) * product.cbm;
+    const costoCifCLP = costoCifUSD * config.usdToClp;
+    const ivaCLP = costoCifCLP * config.ivaPct;
+    const costoFinalBodegaCLP = costoCifCLP + ivaCLP + costoInternacionProductoCLP;
+
+    const ventaDiaria = product.sku === '649701' ? 2.5 : 5.0;
+    const tiempoEntrega = 90;
+    const stockObjetivo = ventaDiaria * tiempoEntrega;
+    const consumoProyectado = ventaDiaria * tiempoEntrega;
+    const enTransito = database.transit.find(t => t.sku === product.sku)?.cantidad || 0;
+    const stockProyectado = (product.stockActual + enTransito) - consumoProyectado;
+    let cantidadSugerida;
+    if (stockProyectado < 0) { cantidadSugerida = stockObjetivo; }
+    else { cantidadSugerida = stockObjetivo - stockProyectado; }
+    cantidadSugerida = Math.max(0, Math.round(cantidadSugerida));
+
+    const comisionMeliCLP = precioVentaCLP * product.comisionMeliPct;
+    let recargoMeliCLP = 0;
+    if (precioVentaCLP < 9990) recargoMeliCLP = 700;
+    else if (precioVentaCLP <= 19899) recargoMeliCLP = 1000;
+    const envioCLP = (precioVentaCLP > 19990) ? 3500 : 0;
+    const totalCostosVentaCLP = comisionMeliCLP + recargoMeliCLP + envioCLP;
+    const gananciaNetaCLP = precioVentaCLP - costoFinalBodegaCLP - totalCostosVentaCLP;
+    const margen = precioVentaCLP > 0 ? (gananciaNetaCLP / precioVentaCLP) * 100 : 0;
+
+    return {
+        ...product, ventaDiaria, costoFinalBodega: costoFinalBodegaCLP,
+        margen, cantidadSugerida, enTransito,
+        costosVenta: totalCostosVentaCLP, gananciaNeta: gananciaNetaCLP
+    };
+}
+
+export default async function handler(req, res) {
+  const { sku, precioVenta } = req.query;
+  const precio = parseFloat(precioVenta) || undefined;
+  if (sku) {
+    const product = database.products.find(p => p.sku === sku);
+    if (product) {
+      const analysis = getFullAnalysis(product, precio);
+      return res.status(200).json({ results: [analysis] });
+    } else {
+      return res.status(404).json({ error: 'SKU no encontrado' });
+    }
+  } else {
+    const allProductsAnalysis = database.products.map(p => getFullAnalysis(p));
+    return res.status(200).json({ results: allProductsAnalysis });
+  }
+}
