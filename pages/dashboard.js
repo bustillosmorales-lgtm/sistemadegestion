@@ -63,8 +63,8 @@ export default function Dashboard() {
 
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
-        const skuMatch = p.sku.toLowerCase().includes(skuFilter.toLowerCase());
-        const nameMatch = p.descripcion.toLowerCase().includes(nameFilter.toLowerCase());
+        const skuMatch = (p.sku || '').toLowerCase().includes(skuFilter.toLowerCase());
+        const nameMatch = (p.descripcion || p.description || '').toLowerCase().includes(nameFilter.toLowerCase());
         const statusMatch = statusFilter ? p.status === statusFilter : true;
         return skuMatch && nameMatch && statusMatch;
     });
@@ -130,8 +130,8 @@ export default function Dashboard() {
             <div className="bg-white p-4 rounded-lg shadow-sm col-span-full lg:col-span-1">
                 <h4 className="font-bold text-gray-800 mb-2">{title}</h4>
                 <div className="space-y-1 text-sm">
-                    <div className="flex justify-between"><span className="text-gray-600">Cantidad Solicitada:</span><span className="font-mono">{details.quantityToQuote}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-600">Comentarios:</span><span className="font-mono">{details.comments}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600">Cantidad Solicitada:</span><span className="font-mono">{details.quantityToQuote || '-'}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600">Comentarios:</span><span className="font-mono">{details.comments || '-'}</span></div>
                 </div>
                 {ventaDiariaDetails && (
                     <div className="mt-3 pt-2 border-t">
@@ -139,8 +139,8 @@ export default function Dashboard() {
                         <div className="space-y-1 text-sm pl-2">
                             <div className="flex justify-between"><span className="text-gray-600">Fecha Inicial:</span><span className="font-mono">{formatDate(ventaDiariaDetails.fechaInicial)}</span></div>
                             <div className="flex justify-between"><span className="text-gray-600">Fecha Final:</span><span className="font-mono">{formatDate(ventaDiariaDetails.fechaFinal)}</span></div>
-                            <div className="flex justify-between"><span className="text-gray-600">Unidades Vendidas:</span><span className="font-mono">{ventaDiariaDetails.unidadesVendidas}</span></div>
-                            <div className="flex justify-between"><span className="text-gray-600">Venta Diaria Promedio:</span><span className="font-mono">{ventaDiariaDetails.ventaDiariaCalculada}</span></div>
+                            <div className="flex justify-between"><span className="text-gray-600">Unidades Vendidas:</span><span className="font-mono">{ventaDiariaDetails.unidadesVendidas || 0}</span></div>
+                            <div className="flex justify-between"><span className="text-gray-600">Venta Diaria Promedio:</span><span className="font-mono">{ventaDiariaDetails.ventaDiariaCalculada || '0.00'}</span></div>
                         </div>
                     </div>
                 )}
@@ -148,9 +148,9 @@ export default function Dashboard() {
                      <div className="mt-3 pt-2 border-t">
                         <h5 className="font-semibold text-gray-700">Cálculo de Reposición</h5>
                         <div className="space-y-1 text-sm pl-2">
-                            <div className="flex justify-between"><span className="text-gray-600">Stock Objetivo:</span><span className="font-mono">{reposicionDetails.stockObjetivo} un.</span></div>
-                            <div className="flex justify-between"><span className="text-gray-600">Stock Proyectado:</span><span className="font-mono">{reposicionDetails.stockFinalProyectado} un.</span></div>
-                            <div className="flex justify-between"><span className="text-gray-600">Días Disponibles:</span><span className="font-mono">{reposicionDetails.diasCoberturaLlegada} días</span></div>
+                            <div className="flex justify-between"><span className="text-gray-600">Stock Objetivo:</span><span className="font-mono">{reposicionDetails.stockObjetivo || 0} un.</span></div>
+                            <div className="flex justify-between"><span className="text-gray-600">Stock Proyectado:</span><span className="font-mono">{reposicionDetails.stockFinalProyectado || 0} un.</span></div>
+                            <div className="flex justify-between"><span className="text-gray-600">Días Disponibles:</span><span className="font-mono">{reposicionDetails.diasCoberturaLlegada || 0} días</span></div>
                         </div>
                     </div>
                 )}
@@ -165,15 +165,15 @@ export default function Dashboard() {
                 <h4 className={`font-bold mb-2 ${details.approved ? 'text-green-600' : 'text-red-600'}`}>{details.approved ? "👍 Aprobación" : "👎 Rechazo"}</h4>
                 {snapshot && (
                     <div className="text-sm space-y-1 mb-2">
-                        <div className="flex justify-between"><span className="text-gray-600">Precio Venta Usado:</span><span className="font-mono">${parseInt(snapshot.sellingPrice).toLocaleString('es-CL')}</span></div>
-                        <div className="flex justify-between"><span className="text-gray-600">Ganancia Neta:</span><span className="font-mono">${Math.round(snapshot.gananciaNeta).toLocaleString('es-CL')}</span></div>
-                        <div className="flex justify-between"><span className="text-gray-600">Margen:</span><span className="font-mono">{snapshot.margen.toFixed(1)}%</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600">Precio Venta Usado:</span><span className="font-mono">${parseInt(snapshot.sellingPrice || 0).toLocaleString('es-CL')}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600">Ganancia Neta:</span><span className="font-mono">${Math.round(snapshot.gananciaNeta || 0).toLocaleString('es-CL')}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600">Margen:</span><span className="font-mono">{(snapshot.margen || 0).toFixed(1)}%</span></div>
                     </div>
                 )}
                 <div className="border-t pt-2 mt-2 space-y-1 text-sm">
                     <div className="flex justify-between"><span className="text-gray-600">Decisión:</span><span className="font-mono">{details.approved ? 'Aprobado' : 'Rechazado'}</span></div>
-                    {!details.approved && <div className="flex justify-between"><span className="text-gray-600">Precio Objetivo:</span><span className="font-mono">${details.targetPurchasePrice} USD</span></div>}
-                    <div className="flex justify-between"><span className="text-gray-600">Comentarios:</span><span className="font-mono">{details.comments}</span></div>
+                    {!details.approved && <div className="flex justify-between"><span className="text-gray-600">Precio Objetivo:</span><span className="font-mono">${details.targetPurchasePrice || 0} USD</span></div>}
+                    <div className="flex justify-between"><span className="text-gray-600">Comentarios:</span><span className="font-mono">{details.comments || '-'}</span></div>
                 </div>
             </div>
         );
@@ -188,7 +188,7 @@ export default function Dashboard() {
                     return (
                         <div key={key} className="flex justify-between">
                             <span className="text-gray-600">{detailFieldNames[key] || key}:</span>
-                            <span className="font-mono text-right">{isDate ? formatDate(value) : (typeof value === 'boolean' ? (value ? 'Sí' : 'No') : value)}</span>
+                            <span className="font-mono text-right">{isDate ? formatDate(value) : (typeof value === 'boolean' ? (value ? 'Sí' : 'No') : (value || '-'))}</span>
                         </div>
                     )
                 })}
@@ -240,7 +240,7 @@ export default function Dashboard() {
             const currentStatusInfo = statusConfig[product.status] || { text: 'Desconocido', color: 'bg-gray-400' };
             const currentStatusIndex = workflowOrder.indexOf(product.status);
             const isExpanded = expandedSku === product.sku;
-            const diasDeStock = product.ventaDiaria > 0 ? ((product.stockActual + (product.enTransito || 0)) / product.ventaDiaria) : Infinity;
+            const diasDeStock = (product.venta_diaria || product.ventaDiaria || 0) > 0 ? ((product.stock_actual || product.stockActual || 0) + (product.enTransito || 0)) / (product.venta_diaria || product.ventaDiaria || 1) : Infinity;
 
             const detailStages = [
                 { title: "🗣️ Solicitud de Cotización", data: product.requestDetails, statusKey: 'NEEDS_REPLENISHMENT' },
@@ -257,8 +257,8 @@ export default function Dashboard() {
                 <div className="p-6">
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h2 className="text-xl font-bold">{product.descripcion}</h2>
-                      <p className="text-gray-600">SKU: {product.sku}</p>
+                      <h2 className="text-xl font-bold">{product.descripcion || product.description || product.name || 'Sin descripción'}</h2>
+                      <p className="text-gray-600">SKU: {product.sku || 'Sin SKU'}</p>
                       <span className={`text-xs font-bold text-white px-2 py-1 rounded-full ${currentStatusInfo.color}`}>{currentStatusInfo.text}</span>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -284,10 +284,10 @@ export default function Dashboard() {
                   </div>
 
                   <div className="grid md:grid-cols-5 gap-4 text-center md:text-left">
-                    <div><p className="text-xs text-gray-500 font-bold">STOCK ACTUAL</p><p className="text-2xl font-bold">{product.stockActual}</p></div>
+                    <div><p className="text-xs text-gray-500 font-bold">STOCK ACTUAL</p><p className="text-2xl font-bold">{product.stock_actual || product.stockActual || 0}</p></div>
                     <div><p className="text-xs text-gray-500 font-bold">EN TRÁNSITO</p><p className="text-2xl font-bold text-blue-600">{product.enTransito || 0}</p></div>
-                    <div><p className="text-xs text-gray-500 font-bold">CANT. SUGERIDA</p><p className="text-2xl font-bold text-green-600">{product.cantidadSugerida}</p></div>
-                    <div><p className="text-xs text-gray-500 font-bold">VENTA DIARIA</p><p className="text-lg font-bold">{product.ventaDiaria.toFixed(1)}</p></div>
+                    <div><p className="text-xs text-gray-500 font-bold">CANT. SUGERIDA</p><p className="text-2xl font-bold text-green-600">{product.cantidadSugerida || 0}</p></div>
+                    <div><p className="text-xs text-gray-500 font-bold">VENTA DIARIA</p><p className="text-lg font-bold">{(product.venta_diaria || product.ventaDiaria || 0).toFixed(1)}</p></div>
                     <div><p className="text-xs text-gray-500 font-bold">DÍAS DE STOCK</p><p className={`text-lg font-bold ${diasDeStock < 30 ? 'text-red-600' : 'text-green-600'}`}>{diasDeStock === Infinity ? '∞' : diasDeStock.toFixed(0)}</p></div>
                   </div>
                 </div>
