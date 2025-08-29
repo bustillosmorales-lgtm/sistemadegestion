@@ -1,33 +1,31 @@
 ﻿// pages/api/config.js
-import { config } from '../../lib/database';
+import { supabase } from '../../lib/supabaseClient';
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
   if (req.method === 'GET') {
-    return res.status(200).json({ config });
+    const { data, error } = await supabase
+      .from('configuration')
+      .select('data')
+      .eq('id', 1)
+      .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(200).json({ config: data.data });
   }
 
   if (req.method === 'POST') {
-    const newConfig = req.body.config;
-    
-    // Validación simple en el backend
-    if (!newConfig) {
-        return res.status(400).json({ error: 'Falta el objeto de configuración.' });
-    }
+    const { config } = req.body;
+    if (!config) return res.status(400).json({ error: 'Falta el objeto de configuración.' });
 
-    // Actualizamos cada propiedad del objeto config original
-    Object.keys(config).forEach(key => {
-        if (newConfig.hasOwnProperty(key)) {
-            const value = parseFloat(newConfig[key]);
-            if (!isNaN(value)) {
-                config[key] = value;
-            }
-        }
-    });
+    const { error } = await supabase
+      .from('configuration')
+      .update({ data: config })
+      .eq('id', 1);
 
+    if (error) return res.status(500).json({ error: error.message });
     return res.status(200).json({ message: 'Configuración actualizada exitosamente' });
   }
 
   res.setHeader('Allow', ['GET', 'POST']);
-  // LÍNEA CORREGIDA: El mensaje de error ahora está entre comillas.
   res.status(405).end(`Method ${req.method} Not Allowed`);
 }

@@ -1,17 +1,18 @@
 ﻿// pages/api/analysis.js
-import { database, config } from '../../lib/database';
+import { supabase } from '../../lib/supabaseClient';
 
-function getFullAnalysis(product, precioVenta = null) {
+// La lógica de cálculo no cambia, pero ahora recibe 'config' y 'transit' como parámetros.
+function getFullAnalysis(product, config, transit, precioVenta = null) {
     const precioVentaCLP = precioVenta ? parseFloat(precioVenta) : 0;
 
-    // --- CÁLCULOS DE COSTOS (SIN CAMBIOS) ---
-    const costoFobUSD = product.costoFOB_RMB * config.rmbToUsd;
+    const costoFobUSD = product.costo_fob_rmb * config.rmbToUsd;
     const comisionChinaUSD = costoFobUSD * config.costosVariablesPct.comisionChina;
     const costoFobMasComisionUSD = costoFobUSD + comisionChinaUSD;
     const fletePorProductoUSD = (config.costosFijosUSD.fleteMaritimo / config.containerCBM) * product.cbm;
     const baseSeguroUSD = costoFobMasComisionUSD + fletePorProductoUSD;
     const seguroProductoUSD = baseSeguroUSD * config.costosVariablesPct.seguroContenedor;
     const valorCifUSD = costoFobMasComisionUSD + fletePorProductoUSD + seguroProductoUSD;
+
     const totalCostosFijosCLP = Object.values(config.costosFijosCLP).reduce((sum, val) => sum + val, 0);
     const totalCostosFijosUSD_fromCLP = totalCostosFijosCLP / config.usdToClp;
     const { fleteMaritimo, ...otrosCostosFijosUSD } = config.costosFijosUSD;
@@ -19,12 +20,14 @@ function getFullAnalysis(product, precioVenta = null) {
     const costoLogisticoTotalUSD = totalCostosFijosUSD_fromCLP + totalOtrosCostosFijosUSD;
     const costoLogisticoPorCBM_USD = costoLogisticoTotalUSD / config.containerCBM;
     const costoLogisticoProductoUSD = costoLogisticoPorCBM_USD * product.cbm;
+
     const valorCifCLP = valorCifUSD * config.usdToClp;
     const adValoremCLP = valorCifCLP * config.costosVariablesPct.derechosAdValorem;
     const baseIvaCLP = valorCifCLP + adValoremCLP;
     const ivaCLP = baseIvaCLP * config.costosVariablesPct.iva;
     const costoLogisticoProductoCLP = costoLogisticoProductoUSD * config.usdToClp;
     const costoFinalBodegaCLP = valorCifCLP + adValoremCLP + ivaCLP + costoLogisticoProductoCLP;
+
     const ml = config.mercadoLibre;
     const comisionML = precioVentaCLP * ml.comisionPct;
     let recargoML = 0;
@@ -35,62 +38,42 @@ function getFullAnalysis(product, precioVenta = null) {
     const gananciaNeta = precioVentaCLP - costoFinalBodegaCLP - costosVenta;
     const margen = precioVentaCLP > 0 ? (gananciaNeta / precioVentaCLP) * 100 : 0;
 
-    // --- LÓGICA DE CÁLCULO DE REPOSICIÓN AVANZADA ---
     const hoy = new Date();
     const fechaLlegadaPedidoNuevo = new Date(new Date().setDate(hoy.getDate() + config.tiempoEntrega));
-
-    const stockEnTransitoQueLlega = database.transit
+    const stockEnTransitoQueLlega = transit
         .filter(item => item.sku === product.sku && new Date(item.fechaLlegada) < fechaLlegadaPedidoNuevo)
         .reduce((sum, item) => sum + item.cantidad, 0);
-
-    const consumoDuranteLeadTime = product.ventaDiaria * config.tiempoEntrega;
-    const stockFinalProyectado = product.stockActual + stockEnTransitoQueLlega - consumoDuranteLeadTime;
-    const stockObjetivo = product.ventaDiaria * config.stockSaludableMinDias;
+    const consumoDuranteLeadTime = product.venta_diaria * config.tiempoEntrega;
+    const stockFinalProyectado = product.stock_actual + stockEnTransitoQueLlega - consumoDuranteLeadTime;
+    const stockObjetivo = product.venta_diaria * config.stockSaludableMinDias;
     const cantidadSugerida = Math.max(0, Math.round(stockObjetivo - stockFinalProyectado));
+    const diasCoberturaLlegada = product.venta_diaria > 0 ? stockFinalProyectado / product.venta_diaria : 0;
     
-    const diasCoberturaLlegada = product.ventaDiaria > 0 ? stockFinalProyectado / product.ventaDiaria : 0;
-
-    // --- NUEVO: Simulación de datos para el cálculo de venta diaria ---
-    const diasDeVenta = 60; // Simulación: se analizaron 60 días
+    const diasDeVenta = 60;
     const fechaFinal = new Date();
     const fechaInicial = new Date(new Date().setDate(fechaFinal.getDate() - diasDeVenta));
-    const unidadesVendidas = Math.round(product.ventaDiaria * diasDeVenta);
-
+    const unidadesVendidas = Math.round(product.venta_diaria * diasDeVenta);
 
     return {
         ...product,
-        enTransito: database.transit.filter(t => t.sku === product.sku).reduce((sum, item) => sum + item.cantidad, 0),
+        enTransito: transit.filter(t => t.sku === product.sku).reduce((sum, item) => sum + item.cantidad, 0),
         cantidadSugerida,
         costoFinalBodega: costoFinalBodegaCLP,
         costosVenta, gananciaNeta, margen,
         breakdown: {
-            costoFobUSD: costoFobUSD.toFixed(2),
-            comisionChinaUSD: comisionChinaUSD.toFixed(2),
-            fletePorProductoUSD: fletePorProductoUSD.toFixed(2),
-            seguroProductoUSD: seguroProductoUSD.toFixed(2),
-            valorCifUSD: valorCifUSD.toFixed(2),
-            costoLogisticoProductoUSD: costoLogisticoProductoUSD.toFixed(2),
-            adValoremCLP: adValoremCLP.toFixed(0),
-            ivaCLP: ivaCLP.toFixed(0),
-            costoFinalBodegaCLP: costoFinalBodegaCLP.toFixed(0),
-            comisionML: comisionML.toFixed(0),
-            recargoML: recargoML.toFixed(0),
-            totalCostosFijosUSD: (costoLogisticoTotalUSD).toFixed(2),
-            totalCostosFijosCLP: totalCostosFijosCLP.toFixed(0),
             stockObjetivo: stockObjetivo.toFixed(0),
-            stockActual: product.stockActual,
-            stockEnTransitoQueLlega: stockEnTransitoQueLlega,
+            stockActual: product.stock_actual,
+            stockEnTransitoQueLlega,
             consumoDuranteLeadTime: consumoDuranteLeadTime.toFixed(0),
             stockFinalProyectado: stockFinalProyectado.toFixed(0),
-            ventaDiaria: product.ventaDiaria,
+            ventaDiaria: product.venta_diaria,
             tiempoEntrega: config.tiempoEntrega,
             diasCoberturaLlegada: diasCoberturaLlegada.toFixed(0),
-            // --- NUEVOS CAMPOS PARA EL DESGLOSE DE VENTA DIARIA ---
             ventaDiariaDetails: {
                 fechaInicial: fechaInicial.toISOString().split('T')[0],
                 fechaFinal: fechaFinal.toISOString().split('T')[0],
-                unidadesVendidas: unidadesVendidas,
-                ventaDiariaCalculada: product.ventaDiaria.toFixed(2)
+                unidadesVendidas,
+                ventaDiariaCalculada: product.venta_diaria.toFixed(2)
             }
         }
     };
@@ -98,18 +81,31 @@ function getFullAnalysis(product, precioVenta = null) {
 
 export default async function handler(req, res) {
   const { sku, precioVenta } = req.query;
+  
   try {
+    // 1. Obtener la configuración
+    const { data: configData, error: configError } = await supabase.from('configuration').select('data').eq('id', 1).single();
+    if (configError) throw new Error('No se pudo cargar la configuración.');
+    const config = configData.data;
+
+    // 2. Obtener datos de tránsito (simulado por ahora, idealmente sería otra tabla)
+    const transit = []; // Reemplazar con una consulta a la tabla de tránsitos/compras
+
     if (sku) {
-      const product = database.products.find(p => p.sku === sku);
-      if (!product) return res.status(404).json({ error: 'SKU no encontrado' });
-      const analysis = getFullAnalysis(product, precioVenta);
+      const { data: product, error: productError } = await supabase.from('products').select('*').eq('sku', sku).single();
+      if (productError || !product) return res.status(404).json({ error: 'SKU no encontrado' });
+      
+      const analysis = getFullAnalysis(product, config, transit, precioVenta);
       return res.status(200).json({ results: [analysis], configActual: config });
     } else {
-      const results = database.products.map(product => getFullAnalysis(product, product.analysisDetails?.sellingPrice));
+      const { data: products, error: productsError } = await supabase.from('products').select('*');
+      if (productsError) throw new Error('No se pudieron cargar los productos.');
+
+      const results = products.map(product => getFullAnalysis(product, config, transit, product.analysis_details?.sellingPrice));
       return res.status(200).json({ results, configActual: config });
     }
   } catch (error) {
     console.error('Error en API analysis:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor: ' + error.message });
   }
 }

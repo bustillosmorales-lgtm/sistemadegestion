@@ -1,20 +1,19 @@
 // pages/api/users.js
-import { database } from '../../lib/database';
+import { supabase } from '../../lib/supabaseClient';
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
     if (req.method === 'GET') {
-        return res.status(200).json(database.users);
+        const { data, error } = await supabase.from('users').select('*');
+        if (error) return res.status(500).json({ error: error.message });
+        return res.status(200).json(data);
     }
 
     if (req.method === 'POST') {
         const { email, role } = req.body;
+        if (!email || !role) return res.status(400).json({ error: 'Faltan el correo y el rol.' });
 
-        if (!email || !role) {
-            return res.status(400).json({ error: 'Faltan el correo y el rol.' });
-        }
-        if (database.users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
-            return res.status(400).json({ error: 'El correo electrónico ya está registrado.' });
-        }
+        const { data: existingUser } = await supabase.from('users').select('email').eq('email', email).single();
+        if (existingUser) return res.status(400).json({ error: 'El correo electrónico ya está registrado.' });
 
         const newUser = {
             id: `user-${Date.now()}`,
@@ -23,8 +22,9 @@ export default function handler(req, res) {
             name: `${role === 'chile' ? 'Usuario Chile' : 'Usuario China'} (${email.split('@')[0]})`
         };
 
-        database.users.push(newUser);
-        return res.status(201).json(newUser);
+        const { data, error } = await supabase.from('users').insert(newUser).select();
+        if (error) return res.status(500).json({ error: error.message });
+        return res.status(201).json(data[0]);
     }
 
     res.setHeader('Allow', ['GET', 'POST']);
