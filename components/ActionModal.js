@@ -69,18 +69,56 @@ const RequestQuoteForm = ({ data, setData, product }) => {
     );
 };
 
-const QuoteForm = ({ data, setData }) => (
-    <>
-        <div className="flex gap-2 items-end">
-            <div className="flex-grow"><FormField label="Precio Unitario" name="unitPrice" type="number" step="0.01" value={data.unitPrice} onChange={setData} required /></div>
-            <div className="w-1/3"><FormField label="Moneda" name="currency" as="select" value={data.currency} onChange={setData}><option value="RMB">RMB</option><option value="USD">USD</option></FormField></div>
-        </div>
-        <FormField label="Unidades por Bulto" name="unitsPerBox" type="number" value={data.unitsPerBox} onChange={setData} required />
-        <FormField label="CBM por Bulto" name="cbmPerBox" type="number" step="0.001" value={data.cbmPerBox} onChange={setData} required />
-        <FormField label="Días de Producción" name="productionDays" type="number" value={data.productionDays} onChange={setData} required />
-        <FormField label="Comentarios" name="comments" as="textarea" value={data.comments} onChange={setData} rows={2} />
-    </>
-);
+const QuoteForm = ({ data, setData, product, isRejected = false }) => {
+    // Obtener el precio objetivo del rechazo anterior si existe
+    const targetPrice = product.approval_details?.targetPurchasePrice;
+    const rejectionComments = product.approval_details?.comments;
+
+    return (
+        <>
+            {/* Mostrar información del rechazo si es una re-cotización */}
+            {isRejected && targetPrice && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                    <h4 className="font-bold text-red-800 mb-3">❌ Cotización Rechazada - Nueva Cotización Solicitada</h4>
+                    <div className="space-y-3">
+                        <div className="bg-white p-3 rounded border-l-4 border-red-400">
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="font-semibold text-gray-700">🎯 Precio Objetivo para Aprobación:</span>
+                                <span className="text-2xl font-bold text-green-600">${targetPrice} USD</span>
+                            </div>
+                            <p className="text-sm text-gray-600">
+                                Este es el precio máximo que el comprador está dispuesto a pagar para que la cotización sea aprobada.
+                            </p>
+                        </div>
+                        
+                        {rejectionComments && (
+                            <div className="bg-yellow-50 border border-yellow-200 p-3 rounded">
+                                <p className="font-semibold text-yellow-800 text-sm mb-1">💬 Comentarios del rechazo:</p>
+                                <p className="text-yellow-700 text-sm italic">"{rejectionComments}"</p>
+                            </div>
+                        )}
+                        
+                        <div className="bg-blue-50 border border-blue-200 p-3 rounded">
+                            <p className="text-blue-800 text-sm">
+                                <strong>📋 Instrucciones:</strong> Por favor, ajuste su cotización considerando el precio objetivo mostrado arriba. 
+                                Si puede ofrecer un precio igual o menor al objetivo, la cotización será aprobada automáticamente.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <div className="flex gap-2 items-end">
+                <div className="flex-grow"><FormField label="Precio Unitario" name="unitPrice" type="number" step="0.01" value={data.unitPrice} onChange={setData} required /></div>
+                <div className="w-1/3"><FormField label="Moneda" name="currency" as="select" value={data.currency} onChange={setData}><option value="RMB">RMB</option><option value="USD">USD</option></FormField></div>
+            </div>
+            <FormField label="Unidades por Bulto" name="unitsPerBox" type="number" value={data.unitsPerBox} onChange={setData} required />
+            <FormField label="CBM por Bulto" name="cbmPerBox" type="number" step="0.001" value={data.cbmPerBox} onChange={setData} required />
+            <FormField label="Días de Producción" name="productionDays" type="number" value={data.productionDays} onChange={setData} required />
+            <FormField label="Comentarios" name="comments" as="textarea" value={data.comments} onChange={setData} rows={2} />
+        </>
+    );
+};
 
 const AnalyzeForm = ({ data, setData }) => (
     <>
@@ -805,7 +843,12 @@ export default function ActionModal({ isOpen, onClose, product, status, onSubmit
                     <Form product={product} analysisDetails={product.analysis_details} onApprove={handleApproval} onReject={handleRejection} onClose={onClose} />
                 ) : (
                     <form onSubmit={handleSubmit} className="space-y-4">
-                        <Form data={formData} setData={handleChange} product={product} />
+                        <Form 
+                            data={formData} 
+                            setData={handleChange} 
+                            product={product} 
+                            isRejected={status === 'QUOTE_REJECTED'}
+                        />
                         <div className="flex justify-end gap-3 pt-4">
                             <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Cancelar</button>
                             <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Confirmar y Avanzar</button>

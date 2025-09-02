@@ -34,32 +34,27 @@ export default function UsersPage() {
         canManageProducts: false,
         canProcessOrders: false
     });
-    const [adminCode, setAdminCode] = useState('');
     const [systemCode, setSystemCode] = useState('');
-    const [isUpdatingAdminCode, setIsUpdatingAdminCode] = useState(false);
     const [isUpdatingSystemCode, setIsUpdatingSystemCode] = useState(false);
     
-    // Cargar códigos actuales si es usuario admin (temporal: cualquier admin)
+    // Cargar código del sistema si es usuario admin
     useEffect(() => {
         if (user && user.role === 'admin') {
             const loadCodes = async () => {
                 try {
-                    // Cargar códigos desde configuración
+                    // Cargar código del sistema desde configuración
                     const res = await fetch('/api/config');
                     if (res.ok) {
                         const configData = await res.json();
-                        setAdminCode(configData.config?.codigoAdmin || '');
                         setSystemCode(configData.config?.codigoSistema || '987654');
                     } else {
                         console.error('Error cargando configuración:', res.status);
-                        // Usar valores por defecto
-                        setAdminCode('');
+                        // Usar valor por defecto
                         setSystemCode('987654');
                     }
                 } catch (err) {
-                    console.error('Error cargando códigos:', err);
-                    // Usar valores por defecto
-                    setAdminCode('');
+                    console.error('Error cargando código del sistema:', err);
+                    // Usar valor por defecto
                     setSystemCode('987654');
                 }
             };
@@ -178,39 +173,6 @@ export default function UsersPage() {
         }
     };
 
-    const handleUpdateAdminCode = async (event) => {
-        event.preventDefault();
-        setIsUpdatingAdminCode(true);
-        
-        try {
-            // Primero obtener la configuración actual
-            const configRes = await fetch('/api/config');
-            const configData = configRes.ok ? await configRes.json() : { config: {} };
-            
-            // Actualizar solo el código admin
-            const updatedConfig = {
-                ...configData.config,
-                codigoAdmin: adminCode
-            };
-            
-            const res = await fetch('/api/config', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ config: updatedConfig }),
-            });
-
-            if (res.ok) {
-                alert('✅ Código de acceso admin actualizado correctamente');
-            } else {
-                const data = await res.json();
-                alert(`Error: ${data.error}`);
-            }
-        } catch (err) {
-            alert('Error de conexión al actualizar código admin.');
-        } finally {
-            setIsUpdatingAdminCode(false);
-        }
-    };
 
     const handleUpdateSystemCode = async (event) => {
         event.preventDefault();
@@ -373,45 +335,17 @@ export default function UsersPage() {
                         </div>
                     )}
 
-                    {/* Sección de Código Admin - Solo para usuario admin (temporal: cualquier admin) */}
+                    {/* Sección de Código del Sistema - Solo para usuario admin */}
                     {user && user.role === 'admin' && (
-                        <div className="bg-red-50 border border-red-200 rounded-lg shadow-md p-6 mb-8">
-                            <h2 className="text-xl font-semibold mb-4 text-red-800">🔐 Configuración de Códigos de Seguridad</h2>
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg shadow-md p-6 mb-8">
+                            <h2 className="text-xl font-semibold mb-4 text-blue-800">🔐 Configuración de Código del Sistema</h2>
                             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
                                 <p className="text-yellow-800 text-sm">
-                                    ⚠️ <strong>Importante:</strong> Estos códigos controlan el acceso al sistema. 
-                                    Como administrador, puedes modificar estos códigos de seguridad.
+                                    ⚠️ <strong>Importante:</strong> Este código permite acceder al sistema y seleccionar usuario. 
+                                    Como administrador, puedes modificar este código de seguridad.
                                 </p>
                             </div>
                             
-                            {/* Código Admin */}
-                            <div className="mb-6">
-                                <h3 className="text-lg font-medium text-red-700 mb-3">👑 Código de Acceso Admin</h3>
-                                <form onSubmit={handleUpdateAdminCode} className="flex gap-4 items-end">
-                                    <div className="flex-1">
-                                        <input 
-                                            type="password" 
-                                            value={adminCode} 
-                                            onChange={(e) => setAdminCode(e.target.value)}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-red-500 focus:border-red-500" 
-                                            placeholder="Código para acceso directo admin"
-                                            disabled={false}
-                                            required
-                                        />
-                                        <p className="text-xs text-gray-500 mt-1">
-                                            Permite acceso directo como administrador
-                                        </p>
-                                    </div>
-                                    <button 
-                                        type="submit" 
-                                        disabled={isUpdatingAdminCode}
-                                        className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:opacity-50"
-                                    >
-                                        {isUpdatingAdminCode ? '⚙️ Actualizando...' : '💾 Actualizar'}
-                                    </button>
-                                </form>
-                            </div>
-
                             {/* Código Sistema */}
                             <div>
                                 <h3 className="text-lg font-medium text-blue-700 mb-3">🔑 Código del Sistema</h3>

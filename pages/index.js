@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [loginType, setLoginType] = useState('select'); // 'select', 'admin', 'sistema', 'usuario', 'userSelect'
   const [codigo, setCodigo] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
@@ -33,7 +34,7 @@ export default function LoginPage() {
     setIsAuthenticating(true);
 
     try {
-      const result = await authenticateWithCode(loginType, codigo, email);
+      const result = await authenticateWithCode(loginType, codigo, email, password);
       
       if (result.success) {
         if (result.user) {
@@ -67,19 +68,12 @@ export default function LoginPage() {
           <h1 className='text-3xl font-bold mb-4 text-gray-800'>Acceso al Sistema</h1>
           <p className='mb-8 text-gray-600'>Selecciona tu método de acceso</p>
           
-          <div className="space-y-4">
-            <button 
-              onClick={() => setLoginType('admin')}
-              className="w-full bg-gradient-to-r from-red-600 to-pink-600 text-white py-4 px-6 rounded-lg hover:from-red-700 hover:to-pink-700 transition-all font-semibold"
-            >
-              👑 Acceso Admin Directo
-            </button>
-            
+          <div className="space-y-4">            
             <button 
               onClick={() => setLoginType('usuario')}
               className="w-full bg-gradient-to-r from-green-600 to-blue-600 text-white py-4 px-6 rounded-lg hover:from-green-700 hover:to-blue-700 transition-all font-semibold"
             >
-              👤 Login Usuario Directo  
+              👤 Login con Email y Contraseña
             </button>
             
             <button 
@@ -101,14 +95,8 @@ export default function LoginPage() {
   }
 
   // Pantallas de autenticación específicas
-  if (loginType === 'admin' || loginType === 'sistema' || loginType === 'usuario') {
+  if (loginType === 'sistema' || loginType === 'usuario') {
     const configs = {
-      admin: {
-        title: '👑 Acceso Admin',
-        description: 'Ingresa el código de administrador para acceso directo',
-        placeholder: 'Código de administrador',
-        showEmail: false
-      },
       sistema: {
         title: '🔑 Código del Sistema',
         description: 'Ingresa el código del sistema para acceder',
@@ -117,9 +105,10 @@ export default function LoginPage() {
       },
       usuario: {
         title: '👤 Login Usuario',
-        description: 'Ingresa tu email para acceso directo',
+        description: 'Ingresa tu email y contraseña',
         placeholder: 'tu@email.com',
-        showEmail: true
+        showEmail: true,
+        showPassword: true
       }
     };
 
@@ -128,23 +117,37 @@ export default function LoginPage() {
     return (
       <div className='flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-700 via-gray-900 to-black'>
         <div className='p-8 bg-white rounded-xl shadow-2xl text-center max-w-lg w-full'>
-          <div className='text-6xl mb-4'>{loginType === 'admin' ? '👑' : loginType === 'sistema' ? '🔑' : '👤'}</div>
+          <div className='text-6xl mb-4'>{loginType === 'sistema' ? '🔑' : '👤'}</div>
           <h1 className='text-3xl font-bold mb-4 text-gray-800'>{config.title}</h1>
           <p className='mb-6 text-gray-600'>{config.description}</p>
           
           <form onSubmit={handleAuthSubmit} className="space-y-4">
             {config.showEmail ? (
-              <div>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={config.placeholder}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-lg"
-                  required
-                  autoFocus
-                />
-              </div>
+              <>
+                <div>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={config.placeholder}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-lg"
+                    required
+                    autoFocus
+                  />
+                </div>
+                {config.showPassword && (
+                  <div>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Contraseña"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-lg"
+                      required
+                    />
+                  </div>
+                )}
+              </>
             ) : (
               <div>
                 <input

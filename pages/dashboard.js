@@ -194,6 +194,77 @@ export default function Dashboard() {
     setExpandedSku(expandedSku === sku ? null : sku);
   };
 
+  const exportPurchasesToExcel = async () => {
+    try {
+      const response = await fetch('/api/export-purchases');
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        alert('Error al obtener datos de compras: ' + (result.error || 'Error desconocido'));
+        return;
+      }
+
+      if (!result.data || result.data.length === 0) {
+        alert('No hay datos de compras para exportar');
+        return;
+      }
+
+      // Crear el libro de trabajo
+      const wb = XLSX.utils.book_new();
+      
+      // Hoja de datos de compras
+      const ws = XLSX.utils.json_to_sheet(result.data);
+      
+      // Configurar anchos de columnas
+      const colWidths = [
+        { wch: 12 }, // ID Compra
+        { wch: 15 }, // SKU
+        { wch: 40 }, // Descripción Producto
+        { wch: 15 }, // Cantidad Comprada
+        { wch: 15 }, // Fecha Compra
+        { wch: 18 }, // Fecha Llegada Estimada
+        { wch: 18 }, // Fecha Llegada Real
+        { wch: 15 }, // Status Compra
+        { wch: 15 }, // Costo FOB (RMB)
+        { wch: 12 }, // CBM Unitario
+        { wch: 12 }, // CBM Total
+        { wch: 20 }, // Proveedor
+        { wch: 15 }, // Número Orden
+        { wch: 30 }, // Notas
+        { wch: 20 }, // Creado
+        { wch: 20 }  // Actualizado
+      ];
+      
+      ws['!cols'] = colWidths;
+      XLSX.utils.book_append_sheet(wb, ws, 'Compras');
+
+      // Hoja de estadísticas
+      if (result.stats) {
+        const statsData = Object.entries(result.stats).map(([key, value]) => ({
+          'Concepto': key,
+          'Valor': value
+        }));
+        
+        const statsWs = XLSX.utils.json_to_sheet(statsData);
+        statsWs['!cols'] = [{ wch: 30 }, { wch: 20 }];
+        XLSX.utils.book_append_sheet(wb, statsWs, 'Estadísticas');
+      }
+
+      // Generar nombre del archivo
+      const now = new Date();
+      const timestamp = now.toISOString().split('T')[0] + '_' + 
+                       now.toTimeString().split(':').slice(0,2).join('-');
+      const filename = `Compras_BD_${timestamp}.xlsx`;
+
+      // Descargar el archivo
+      XLSX.writeFile(wb, filename);
+
+    } catch (error) {
+      console.error('Error exportando compras:', error);
+      alert('Error al exportar datos de compras. Inténtalo de nuevo.');
+    }
+  };
+
   const exportToExcel = () => {
     if (!filteredProducts || filteredProducts.length === 0) {
       alert('No hay productos para exportar');
@@ -507,6 +578,11 @@ export default function Dashboard() {
                     {(user.role === 'admin' || user.role === 'chile') && (
                         <Link href="/skus-desconsiderados"><button className="bg-orange-600 text-white px-3 py-2 rounded-md hover:bg-orange-700 text-sm flex items-center gap-2">🚫 SKUs Desconsiderados</button></Link>
                     )}
+                    <Link href="/account-settings">
+                        <button className="bg-purple-600 text-white px-3 py-2 rounded-md hover:bg-purple-700 text-sm flex items-center gap-2">
+                            ⚙️ Cuenta
+                        </button>
+                    </Link>
                     <button 
                         onClick={() => {
                             logout();
@@ -531,7 +607,12 @@ export default function Dashboard() {
                 )}
                 {/* Espaciador para mantener el layout si el botón no se muestra */}
                 {user.role === 'china' && <div />}
-                <button onClick={exportToExcel} className="bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-700 text-sm w-full">📊 Exportar a Excel</button>
+                <div className="flex gap-2">
+                  <button onClick={exportToExcel} className="bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-700 text-sm flex-1">📊 Exportar Inventario</button>
+                  {(user.role === 'admin' || user.role === 'chile') && (
+                    <button onClick={exportPurchasesToExcel} className="bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 text-sm flex-1">📦 Exportar Compras</button>
+                  )}
+                </div>
             </div>
         </div>
 

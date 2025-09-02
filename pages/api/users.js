@@ -40,7 +40,8 @@ export default async function handler(req, res) {
        const newUser = {
            email,
            role,
-           name: name || `Usuario ${role} (${email.split('@')[0]})`
+           name: name || `Usuario ${role} (${email.split('@')[0]})`,
+           password: '123456' // Contraseña por defecto
        };
 
        const { data, error } = await supabase

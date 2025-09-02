@@ -20,12 +20,12 @@ export const UserProvider = ({ children }) => {
     setIsLoading(false);
   }, []);
 
-  const authenticateWithCode = async (type, codigo, email = null) => {
+  const authenticateWithCode = async (type, codigo, email = null, password = null) => {
     try {
       const response = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, codigo, email })
+        body: JSON.stringify({ type, codigo, email, password })
       });
 
       const result = await response.json();
