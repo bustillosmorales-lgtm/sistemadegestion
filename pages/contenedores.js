@@ -209,8 +209,8 @@ export default function Contenedores() {
   if (isLoading) return <div className="p-8 text-center">Cargando...</div>;
   if (!isAuthenticated || !user) return <div className="p-8 text-center">No autorizado</div>;
 
-  // Solo admin y china pueden gestionar contenedores
-  if (user.role !== 'admin' && user.role !== 'china') {
+  // Solo admin, china y chile pueden gestionar contenedores
+  if (user.role !== 'admin' && user.role !== 'china' && user.role !== 'chile') {
     return (
       <div className="p-8 text-center">
         <h1 className="text-2xl font-bold text-red-600 mb-4">Acceso Denegado</h1>

@@ -37,6 +37,7 @@ const statusConfig = {
     NEEDS_REPLENISHMENT: { text: 'Necesita Reposición', color: 'bg-yellow-500', nextAction: 'QUOTE_REQUESTED', buttonText: 'Pedir Cotización', role: 'chile', hasForm: true },
     QUOTE_REQUESTED: { text: 'Cotización Solicitada', color: 'bg-blue-500', nextAction: 'QUOTED', buttonText: 'Cotizar', role: 'china', hasForm: true },
     QUOTED: { text: 'Cotizado', color: 'bg-cyan-500', nextAction: 'ANALYZING', buttonText: 'Analizar', role: 'chile', hasForm: true },
+    QUOTED_PRICE_MODIFIED: { text: 'Cotizado con Precio Modificado', color: 'bg-orange-500', nextAction: 'ANALYZING', buttonText: 'Re-Analizar', role: 'chile', hasForm: true },
     ANALYZING: { text: 'En Análisis', color: 'bg-purple-500', nextAction: 'PURCHASE_APPROVED', buttonText: 'Aprobar Compra', role: 'chile', hasForm: true },
     PURCHASE_APPROVED: { text: 'Compra Aprobada', color: 'bg-green-500', nextAction: 'PURCHASE_CONFIRMED', buttonText: 'Confirmar Compra', role: 'china', hasForm: true },
     PURCHASE_CONFIRMED: { text: 'Compra Confirmada', color: 'bg-green-600', nextAction: 'MANUFACTURED', buttonText: 'Confirmar Fabricación', role: 'china', hasForm: true },
@@ -54,12 +55,15 @@ const detailFieldNames = {
     targetPurchasePrice: 'Precio Objetivo', estimatedDeliveryDate: 'Fecha Entrega Est.', completionDate: 'Fecha Finalización',
     qualityNotes: 'Notas de Calidad', containerNumber: 'Nº Contenedor', shippingDate: 'Fecha de Embarque',
     eta: 'Llegada Estimada (ETA)',
+    originalPrice: 'Precio Original', newPrice: 'Precio Nuevo', modificationNotes: 'Motivo Modificación',
+    modifiedBy: 'Modificado Por', modifiedAt: 'Fecha Modificación', originalSku: 'SKU Original'
 };
 
 export default function Dashboard() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading, logout } = useUser();
   const { data, error } = useSWR('/api/analysis', fetcher);
+  const { data: reminders } = useSWR('/api/reminders', fetcher);
   const [expandedSku, setExpandedSku] = useState(null);
   const [isUpdating, setIsUpdating] = useState(null);
   const [modalState, setModalState] = useState({ isOpen: false, product: null, status: null });
@@ -67,6 +71,23 @@ export default function Dashboard() {
   const [skuFilter, setSkuFilter] = useState('');
   const [nameFilter, setNameFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [showNoActionItems, setShowNoActionItems] = useState(false);
+  
+  // Estados para recordatorios
+  const [reminderModal, setReminderModal] = useState({ isOpen: false, product: null });
+  const [reminderDate, setReminderDate] = useState('');
+  const [reminderNotes, setReminderNotes] = useState('');
+  const [isCreatingReminder, setIsCreatingReminder] = useState(false);
+  
+  // Estados para modificación de precio
+  const [priceModificationModal, setPriceModificationModal] = useState({ isOpen: false, product: null });
+  const [newPrice, setNewPrice] = useState('');
+  const [priceCurrency, setPriceCurrency] = useState('RMB');
+  const [priceModificationNotes, setPriceModificationNotes] = useState('');
+  const [isModifyingPrice, setIsModifyingPrice] = useState(false);
+  
+  // Estados para modal de recordatorios
+  const [remindersModal, setRemindersModal] = useState(false);
 
   useEffect(() => {
     if (!isLoading && (!isAuthenticated || !user)) {
@@ -75,15 +96,69 @@ export default function Dashboard() {
   }, [isAuthenticated, user, isLoading, router]);
 
   const products = data?.results || [];
+  const activeReminders = (Array.isArray(reminders) ? reminders.filter(r => r.is_active) : []);
+  
+  // Filtrar recordatorios por fecha
+  const today = new Date().toISOString().split('T')[0];
+  const overdueReminders = activeReminders.filter(r => r.reminder_date < today);
+  const todayReminders = activeReminders.filter(r => r.reminder_date === today);
+  const upcomingReminders = activeReminders.filter(r => r.reminder_date > today);
 
   const filteredProducts = useMemo(() => {
-    return products.filter(p => {
+    let filtered = products.filter(p => {
         const skuMatch = (p.sku || '').toLowerCase().includes(skuFilter.toLowerCase());
         const nameMatch = (p.descripcion || p.description || '').toLowerCase().includes(nameFilter.toLowerCase());
         const statusMatch = statusFilter ? p.status === statusFilter : true;
-        return skuMatch && nameMatch && statusMatch;
+        
+        // Filtrar productos sin acción si no está habilitada la opción
+        const statusesWithoutAction = ['NO_REPLENISHMENT_NEEDED', 'SHIPPED'];
+        const hasNoAction = statusesWithoutAction.includes(p.status);
+        const noActionFilter = showNoActionItems || !hasNoAction;
+        
+        return skuMatch && nameMatch && statusMatch && noActionFilter;
     });
-  }, [products, skuFilter, nameFilter, statusFilter]);
+    
+    // Definir orden de prioridad de status (de más urgente a menos)
+    const statusPriority = {
+        'NEEDS_REPLENISHMENT': 1,
+        'QUOTE_REQUESTED': 2, 
+        'QUOTED': 3,
+        'QUOTED_PRICE_MODIFIED': 4,
+        'ANALYZING': 5,
+        'PURCHASE_APPROVED': 6,
+        'PURCHASE_CONFIRMED': 7,
+        'MANUFACTURED': 8,
+        'SHIPPED': 9,
+        'NO_REPLENISHMENT_NEEDED': 10,
+        'QUOTE_REJECTED': 11
+    };
+    
+    // Ordenar por prioridad de status y luego por impacto de ventas
+    filtered.sort((a, b) => {
+        // Primer criterio: prioridad de status
+        const statusPriorityA = statusPriority[a.status] || 999;
+        const statusPriorityB = statusPriority[b.status] || 999;
+        
+        if (statusPriorityA !== statusPriorityB) {
+            return statusPriorityA - statusPriorityB;
+        }
+        
+        // Segundo criterio: impacto de ventas (cantidad sugerida * precio de venta)
+        const getImpactValue = (product) => {
+            const cantidadSugerida = product.cantidadSugerida || 0;
+            const precioVenta = product.analysis_details?.sellingPrice || 0;
+            return cantidadSugerida * precioVenta;
+        };
+        
+        const impactA = getImpactValue(a);
+        const impactB = getImpactValue(b);
+        
+        // Ordenar de mayor a menor impacto
+        return impactB - impactA;
+    });
+    
+    return filtered;
+  }, [products, skuFilter, nameFilter, statusFilter, showNoActionItems]);
 
   // Calcular totales de CBM y USD por status
   const totals = useMemo(() => {
@@ -189,6 +264,131 @@ export default function Dashboard() {
     }
   };
 
+  // Funciones para recordatorios
+  const handleReminderClick = (product) => {
+    setReminderModal({ isOpen: true, product });
+    setReminderDate('');
+    setReminderNotes('');
+  };
+
+  const handleCreateReminder = async () => {
+    if (!reminderDate) {
+      alert('Por favor selecciona una fecha para el recordatorio');
+      return;
+    }
+
+    setIsCreatingReminder(true);
+    try {
+      const response = await fetch('/api/reminders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sku: reminderModal.product.sku,
+          reminder_date: reminderDate,
+          notes: reminderNotes
+        }),
+      });
+
+      if (response.ok) {
+        alert('✅ Recordatorio creado exitosamente');
+        setReminderModal({ isOpen: false, product: null });
+        setReminderDate('');
+        setReminderNotes('');
+        // Actualizar datos del dashboard
+        await mutate('/api/analysis', undefined, { revalidate: true });
+        await mutate('/api/reminders', undefined, { revalidate: true });
+      } else {
+        const errorData = await response.json();
+        alert(`Error: ${errorData.error}`);
+      }
+    } catch (err) {
+      console.error('❌ Error al crear recordatorio:', err);
+      alert('Error de conexión al crear el recordatorio.');
+    } finally {
+      setIsCreatingReminder(false);
+    }
+  };
+
+  const handleDeleteReminder = async (reminderId) => {
+    if (!confirm('¿Estás seguro de que deseas eliminar este recordatorio?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/reminders?id=${reminderId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        alert('✅ Recordatorio eliminado exitosamente');
+        // Actualizar datos
+        await mutate('/api/reminders', undefined, { revalidate: true });
+        // Si no quedan recordatorios, cerrar el modal
+        if (activeReminders.length === 1) {
+          setRemindersModal(false);
+        }
+      } else {
+        const errorData = await response.json();
+        alert(`Error: ${errorData.error}`);
+      }
+    } catch (err) {
+      console.error('❌ Error al eliminar recordatorio:', err);
+      alert('Error de conexión al eliminar el recordatorio.');
+    }
+  };
+
+  // Funciones para modificación de precio
+  const handlePriceModificationClick = (product) => {
+    setPriceModificationModal({ isOpen: true, product });
+    setNewPrice('');
+    setPriceCurrency('RMB');
+    setPriceModificationNotes('');
+  };
+
+  const handlePriceModification = async () => {
+    if (!newPrice || isNaN(parseFloat(newPrice))) {
+      alert('Por favor ingresa un precio válido');
+      return;
+    }
+
+    if (!confirm('¿Estás seguro de modificar el precio? El producto pasará a status "Cotizado con Precio Modificado" para re-análisis.')) {
+      return;
+    }
+
+    setIsModifyingPrice(true);
+    try {
+      const response = await fetch('/api/modify-price', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sku: priceModificationModal.product.sku,
+          originalPrice: priceModificationModal.product.costo_fob_rmb,
+          originalCurrency: 'RMB', // Asumiendo que el precio original está en RMB
+          newPrice: parseFloat(newPrice),
+          newCurrency: priceCurrency,
+          notes: priceModificationNotes,
+          modifiedBy: user.email || 'china-user'
+        }),
+      });
+
+      if (response.ok) {
+        alert('✅ Precio modificado exitosamente. El producto está listo para re-análisis.');
+        setPriceModificationModal({ isOpen: false, product: null });
+        setNewPrice('');
+        setPriceModificationNotes('');
+        // Actualizar datos del dashboard
+        await mutate('/api/analysis', undefined, { revalidate: true });
+      } else {
+        const errorData = await response.json();
+        alert(`Error: ${errorData.error}`);
+      }
+    } catch (err) {
+      console.error('❌ Error al modificar precio:', err);
+      alert('Error de conexión al modificar el precio.');
+    } finally {
+      setIsModifyingPrice(false);
+    }
+  };
 
   const toggleExpand = (sku) => {
     setExpandedSku(expandedSku === sku ? null : sku);
@@ -397,6 +597,52 @@ export default function Dashboard() {
     }
     if (!details) return null;
 
+    if (title.includes("Modificación de Precio")) {
+        const history = product.price_modification_history || [];
+        return (
+            <div className="bg-orange-50 p-4 rounded-lg shadow-sm border-l-4 border-orange-500 col-span-full lg:col-span-1">
+                <h4 className="font-bold text-gray-800 mb-2">{title}</h4>
+                <div className="space-y-2 text-sm">
+                    <div className="bg-red-100 p-2 rounded">
+                        <div className="flex justify-between"><span className="text-gray-600">Precio Anterior:</span><span className="font-mono font-bold">{details.previousPrice} {details.previousCurrency}</span></div>
+                    </div>
+                    <div className="bg-green-100 p-2 rounded">
+                        <div className="flex justify-between"><span className="text-gray-600">Precio Actual:</span><span className="font-mono font-bold">{details.newPrice} {details.newCurrency}</span></div>
+                        {details.newCurrency === 'USD' && details.conversionRate && (
+                            <div className="flex justify-between"><span className="text-gray-600">Precio en RMB:</span><span className="font-mono">{details.newPriceInRMB?.toFixed(2)} RMB</span></div>
+                        )}
+                    </div>
+                    <div className="flex justify-between"><span className="text-gray-600">Motivo:</span><span className="text-xs">{details.modificationNotes}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600">Modificado por:</span><span className="font-mono">{details.modifiedBy}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600">Fecha:</span><span className="font-mono">{formatDateTime(details.modifiedAt)}</span></div>
+                    
+                    {history.length > 1 && (
+                        <div className="mt-3 pt-2 border-t border-orange-300">
+                            <h5 className="font-semibold text-gray-700 mb-1">Historial de Modificaciones ({history.length})</h5>
+                            <div className="max-h-32 overflow-y-auto space-y-1">
+                                {history.slice().reverse().map((mod, index) => (
+                                    <div key={mod.modificationId} className="bg-white p-2 rounded text-xs">
+                                        <div className="flex justify-between">
+                                            <span className="font-semibold">#{history.length - index}</span>
+                                            <span>{formatDateTime(mod.modifiedAt)}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>{mod.previousPrice} → {mod.newPrice} {mod.newCurrency}</span>
+                                            <span className="text-gray-500">{mod.modifiedBy}</span>
+                                        </div>
+                                        {mod.modificationNotes && (
+                                            <div className="text-gray-600 mt-1">{mod.modificationNotes}</div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
     if (title.includes("Solicitud de Cotización")) {
         const ventaDiariaDetails = product.breakdown?.ventaDiariaDetails;
         const reposicionDetails = product.breakdown;
@@ -555,12 +801,278 @@ export default function Dashboard() {
             handleStatusChange(sku, nextStatus, formData);
         }}
       />
+      
+      {/* Modal de Recordatorio */}
+      {reminderModal.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-4">⏰ Programar Recordatorio</h2>
+            <p className="text-gray-600 mb-4">
+              <strong>SKU:</strong> {reminderModal.product?.sku}<br/>
+              <strong>Producto:</strong> {reminderModal.product?.descripcion}
+            </p>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                📅 Fecha del Recordatorio
+              </label>
+              <input
+                type="date"
+                value={reminderDate}
+                onChange={(e) => setReminderDate(e.target.value)}
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                min={new Date().toISOString().split('T')[0]}
+                required
+              />
+            </div>
+            
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                📝 Notas (Opcional)
+              </label>
+              <textarea
+                value={reminderNotes}
+                onChange={(e) => setReminderNotes(e.target.value)}
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                rows="3"
+                placeholder="Agregar notas sobre por qué programar este recordatorio..."
+              />
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setReminderModal({ isOpen: false, product: null })}
+                className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300 transition-colors"
+              >
+                ❌ Cancelar
+              </button>
+              <button
+                onClick={handleCreateReminder}
+                disabled={isCreatingReminder || !reminderDate}
+                className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isCreatingReminder ? '⏳ Creando...' : '✅ Crear Recordatorio'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Modal de Modificación de Precio */}
+      {priceModificationModal.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-4">💰 Modificar Precio de Costo</h2>
+            <p className="text-gray-600 mb-4">
+              <strong>SKU:</strong> {priceModificationModal.product?.sku}<br/>
+              <strong>Producto:</strong> {priceModificationModal.product?.descripcion}<br/>
+              <strong>Precio Actual:</strong> {priceModificationModal.product?.costo_fob_rmb} RMB
+            </p>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                💵 Nuevo Precio
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  step="0.01"
+                  value={newPrice}
+                  onChange={(e) => setNewPrice(e.target.value)}
+                  className="flex-1 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="0.00"
+                  required
+                />
+                <select
+                  value={priceCurrency}
+                  onChange={(e) => setPriceCurrency(e.target.value)}
+                  className="p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                >
+                  <option value="RMB">RMB</option>
+                  <option value="USD">USD</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                📝 Motivo de la Modificación
+              </label>
+              <textarea
+                value={priceModificationNotes}
+                onChange={(e) => setPriceModificationNotes(e.target.value)}
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                rows="3"
+                placeholder="Explica el motivo del cambio de precio..."
+                required
+              />
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setPriceModificationModal({ isOpen: false, product: null })}
+                className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300 transition-colors"
+              >
+                ❌ Cancelar
+              </button>
+              <button
+                onClick={handlePriceModification}
+                disabled={isModifyingPrice || !newPrice || !priceModificationNotes}
+                className="flex-1 bg-orange-600 text-white py-2 px-4 rounded-md hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isModifyingPrice ? '⏳ Modificando...' : '✅ Modificar Precio'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Modal de Recordatorios */}
+      {remindersModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full mx-4 max-h-[80vh] flex flex-col">
+            <div className="p-6 border-b flex justify-between items-center">
+              <h2 className="text-xl font-bold">⏰ Recordatorios de Reposición ({activeReminders.length})</h2>
+              <button 
+                onClick={() => setRemindersModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ❌
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              {activeReminders.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4">📅</div>
+                  <h3 className="text-lg font-semibold text-gray-600 mb-2">No hay recordatorios activos</h3>
+                  <p className="text-gray-500">Los recordatorios aparecerán aquí cuando se programen.</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Recordatorios vencidos */}
+                  {overdueReminders.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-red-600 mb-3 flex items-center gap-2">
+                        🚨 Vencidos ({overdueReminders.length})
+                      </h3>
+                      <div className="grid gap-3">
+                        {overdueReminders.map(reminder => (
+                          <div key={reminder.id} className="bg-red-50 border border-red-200 rounded-lg p-4 flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="font-semibold text-gray-800">{reminder.sku}</div>
+                              <div className="text-sm text-gray-600 mt-1">{reminder.product_description}</div>
+                              <div className="text-sm text-red-600 mt-1">📅 Fecha: {formatDate(reminder.reminder_date)}</div>
+                              {reminder.notes && (
+                                <div className="text-xs text-gray-500 mt-2 bg-gray-100 p-2 rounded">{reminder.notes}</div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleDeleteReminder(reminder.id)}
+                              className="bg-red-500 text-white px-3 py-1.5 rounded text-sm hover:bg-red-600 ml-3"
+                              title="Eliminar recordatorio"
+                            >
+                              🗑️ Eliminar
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Recordatorios de hoy */}
+                  {todayReminders.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-orange-600 mb-3 flex items-center gap-2">
+                        📅 Hoy ({todayReminders.length})
+                      </h3>
+                      <div className="grid gap-3">
+                        {todayReminders.map(reminder => (
+                          <div key={reminder.id} className="bg-orange-50 border border-orange-200 rounded-lg p-4 flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="font-semibold text-gray-800">{reminder.sku}</div>
+                              <div className="text-sm text-gray-600 mt-1">{reminder.product_description}</div>
+                              {reminder.notes && (
+                                <div className="text-xs text-gray-500 mt-2 bg-gray-100 p-2 rounded">{reminder.notes}</div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleDeleteReminder(reminder.id)}
+                              className="bg-orange-500 text-white px-3 py-1.5 rounded text-sm hover:bg-orange-600 ml-3"
+                              title="Eliminar recordatorio"
+                            >
+                              🗑️ Eliminar
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Recordatorios próximos */}
+                  {upcomingReminders.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-blue-600 mb-3 flex items-center gap-2">
+                        📋 Próximos ({upcomingReminders.length})
+                      </h3>
+                      <div className="grid gap-3">
+                        {upcomingReminders.map(reminder => (
+                          <div key={reminder.id} className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="font-semibold text-gray-800">{reminder.sku}</div>
+                              <div className="text-sm text-gray-600 mt-1">{reminder.product_description}</div>
+                              <div className="text-sm text-blue-600 mt-1">📅 Fecha: {formatDate(reminder.reminder_date)}</div>
+                              {reminder.notes && (
+                                <div className="text-xs text-gray-500 mt-2 bg-gray-100 p-2 rounded">{reminder.notes}</div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleDeleteReminder(reminder.id)}
+                              className="bg-blue-500 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-600 ml-3"
+                              title="Eliminar recordatorio"
+                            >
+                              🗑️ Eliminar
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <div className="p-6 border-t bg-gray-50 rounded-b-lg">
+              <button
+                onClick={() => setRemindersModal(false)}
+                className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="bg-gray-100 min-h-screen">
         <div className="sticky top-0 z-20 bg-gray-100/80 backdrop-blur-md shadow-sm p-4">
             <div className="flex justify-between items-center mb-4">
                 <div>
                     <h1 className="text-2xl font-bold">Dashboard de Gestión</h1>
-                    <p className="text-sm text-gray-600">Sesión: <span className="font-semibold">{user.name}</span> ({user.role})</p>
+                    <div className="flex items-center gap-4">
+                        <p className="text-sm text-gray-600">Sesión: <span className="font-semibold">{user.name}</span> ({user.role}) - {filteredProducts.length} productos</p>
+                        <button
+                            onClick={() => setShowNoActionItems(!showNoActionItems)}
+                            className={`text-xs px-3 py-1 rounded-full transition-colors ${
+                                showNoActionItems 
+                                    ? 'bg-gray-600 text-white hover:bg-gray-700' 
+                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                            title={showNoActionItems ? 'Ocultar productos sin acción' : 'Mostrar productos sin acción'}
+                        >
+                            {showNoActionItems ? '👁️ Ocultar Sin Acción' : '👁️‍🗨️ Mostrar Sin Acción'}
+                        </button>
+                    </div>
                 </div>
                 <div className="flex gap-2">
                     {user.role === 'admin' && (
@@ -578,6 +1090,17 @@ export default function Dashboard() {
                     {(user.role === 'admin' || user.role === 'chile') && (
                         <Link href="/skus-desconsiderados"><button className="bg-orange-600 text-white px-3 py-2 rounded-md hover:bg-orange-700 text-sm flex items-center gap-2">🚫 SKUs Desconsiderados</button></Link>
                     )}
+                    {(user.role === 'admin' || user.role === 'chile') && (
+                        <button 
+                          onClick={() => setRemindersModal(true)}
+                          className="bg-purple-600 text-white px-3 py-2 rounded-md hover:bg-purple-700 text-sm flex items-center gap-2"
+                          title="Ver recordatorios de reposición"
+                        >
+                          ⏰ Recordatorios {activeReminders.length > 0 && (
+                            <span className="bg-purple-800 text-white rounded-full px-2 py-0.5 text-xs">{activeReminders.length}</span>
+                          )}
+                        </button>
+                    )}
                     <Link href="/account-settings">
                         <button className="bg-purple-600 text-white px-3 py-2 rounded-md hover:bg-purple-700 text-sm flex items-center gap-2">
                             ⚙️ Cuenta
@@ -594,6 +1117,7 @@ export default function Dashboard() {
                     </button>
                 </div>
             </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
                 <input type="text" placeholder="Buscar por SKU..." value={skuFilter} onChange={e => setSkuFilter(e.target.value)} className="w-full border rounded-md p-2 text-sm" />
                 <input type="text" placeholder="Buscar por Nombre..." value={nameFilter} onChange={e => setNameFilter(e.target.value)} className="w-full border rounded-md p-2 text-sm" />
@@ -697,11 +1221,31 @@ export default function Dashboard() {
             const currentStatusIndex = workflowOrder.indexOf(product.status);
             const isExpanded = expandedSku === product.sku;
             const diasDeStock = (product.venta_diaria || product.ventaDiaria || 0) > 0 ? ((product.stock_actual || product.stockActual || 0) + (product.enTransito || 0)) / (product.venta_diaria || product.ventaDiaria || 1) : Infinity;
+            
+            // Calcular impacto de ventas para mostrar indicador
+            const cantidadSugerida = product.cantidadSugerida || 0;
+            const precioVenta = product.analysis_details?.sellingPrice || 0;
+            const impactoVentas = cantidadSugerida * precioVenta;
+            
+            // Determinar prioridad visual
+            const getPriorityIndicator = (status) => {
+                const highPriority = ['NEEDS_REPLENISHMENT', 'QUOTE_REQUESTED'];
+                const mediumPriority = ['QUOTED', 'QUOTED_PRICE_MODIFIED', 'ANALYZING'];
+                const lowPriority = ['PURCHASE_APPROVED', 'PURCHASE_CONFIRMED', 'MANUFACTURED'];
+                
+                if (highPriority.includes(status)) return { icon: '🔥', color: 'text-red-600', label: 'Alta' };
+                if (mediumPriority.includes(status)) return { icon: '⚡', color: 'text-orange-600', label: 'Media' };
+                if (lowPriority.includes(status)) return { icon: '📋', color: 'text-blue-600', label: 'Baja' };
+                return { icon: '✅', color: 'text-gray-600', label: 'Completado' };
+            };
+            
+            const priority = getPriorityIndicator(product.status);
 
             const detailStages = [
                 { title: "🗣️ Solicitud de Cotización", data: product.request_details, statusKey: 'NEEDS_REPLENISHMENT' },
                 { title: "📝 Cotización", data: product.quote_details, statusKey: 'QUOTE_REQUESTED' },
                 { title: "📈 Análisis", data: product.analysis_details, statusKey: 'QUOTED' },
+                { title: "💰 Modificación de Precio", data: product.price_modification_details, statusKey: 'QUOTED_PRICE_MODIFIED' },
                 { title: "⚖️ Decisión de Compra", data: product.approval_details, statusKey: 'ANALYZING' },
                 { title: "✅ Compra Confirmada", data: product.purchase_details, statusKey: 'PURCHASE_APPROVED' },
                 { title: "🏭 Fabricación", data: product.manufacturing_details, statusKey: 'PURCHASE_CONFIRMED' },
@@ -726,14 +1270,20 @@ export default function Dashboard() {
                           </span>
                         )}
                       </h2>
-                      <p className="text-gray-600">
-                        SKU: {product.sku || 'Sin SKU'}
+                      <div className="flex items-center gap-3 text-gray-600">
+                        <span className="text-lg" title={`Prioridad ${priority.label}`}>{priority.icon}</span>
+                        <span>SKU: {product.sku || 'Sin SKU'}</span>
                         {product.original_sku && (
-                          <span className="ml-2 text-sm text-gray-500">
+                          <span className="text-sm text-gray-500">
                             (Original: {product.original_sku})
                           </span>
                         )}
-                      </p>
+                        {impactoVentas > 0 && (
+                          <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full" title="Impacto estimado de ventas">
+                            💰 ${impactoVentas.toLocaleString('es-CL')}
+                          </span>
+                        )}
+                      </div>
                       <span className={`text-xs font-bold text-white px-2 py-1 rounded-full ${currentStatusInfo.color}`}>{currentStatusInfo.text}</span>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -749,6 +1299,24 @@ export default function Dashboard() {
                           title={product.desconsiderado ? 'Reactivar SKU en análisis' : 'Desactivar SKU del análisis'}
                         >
                           {product.desconsiderado ? '🔄 Reactivar' : '❌ Desconsiderar'}
+                        </button>
+                      )}
+                      {(user.role === 'admin' || user.role === 'chile') && (
+                        <button 
+                          onClick={() => handleReminderClick(product)}
+                          className="bg-purple-600 text-white px-3 py-1.5 rounded text-sm hover:bg-purple-700"
+                          title="Programar recordatorio de reposición"
+                        >
+                          ⏰ Recuérdame
+                        </button>
+                      )}
+                      {user.role === 'china' && ['PURCHASE_APPROVED', 'PURCHASE_CONFIRMED', 'MANUFACTURED', 'SHIPPED'].includes(product.status) && (
+                        <button 
+                          onClick={() => handlePriceModificationClick(product)}
+                          className="bg-orange-600 text-white px-3 py-1.5 rounded text-sm hover:bg-orange-700"
+                          title="Modificar precio de costo"
+                        >
+                          💰 Modificar Precio
                         </button>
                       )}
                       <button onClick={() => toggleExpand(product.sku)} className="bg-gray-700 text-white px-3 py-1.5 rounded text-sm hover:bg-gray-800">{isExpanded ? 'Ocultar' : 'Detalles'}</button>

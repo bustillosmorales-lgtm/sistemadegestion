@@ -2,7 +2,7 @@
 import { supabase } from '../../lib/supabaseClient';
 
 const workflowOrder = [
-    'NO_REPLENISHMENT_NEEDED', 'NEEDS_REPLENISHMENT', 'QUOTE_REQUESTED', 'QUOTED', 'ANALYZING',
+    'NO_REPLENISHMENT_NEEDED', 'NEEDS_REPLENISHMENT', 'QUOTE_REQUESTED', 'QUOTED', 'QUOTED_PRICE_MODIFIED', 'ANALYZING',
     'PURCHASE_APPROVED', 'PURCHASE_CONFIRMED', 'MANUFACTURED', 'SHIPPED',
     'QUOTE_REJECTED'
 ];
@@ -52,6 +52,7 @@ export default async function handler(req, res) {
         (nextStatus === 'QUOTE_REQUESTED' && product.status === 'NEEDS_REPLENISHMENT') ||
         (nextStatus === 'QUOTED' && product.status === 'QUOTE_REQUESTED') ||
         (nextStatus === 'ANALYZING' && product.status === 'QUOTED') ||
+        (nextStatus === 'ANALYZING' && product.status === 'QUOTED_PRICE_MODIFIED') ||
         (nextStatus === 'PURCHASE_APPROVED' && product.status === 'ANALYZING') ||
         (nextStatus === 'PURCHASE_CONFIRMED' && product.status === 'PURCHASE_APPROVED') ||
         (nextStatus === 'MANUFACTURED' && product.status === 'PURCHASE_CONFIRMED') ||

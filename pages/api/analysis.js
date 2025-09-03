@@ -201,7 +201,45 @@ export default async function handler(req, res) {
     if (configError) throw new Error('No se pudo cargar la configuración.');
     const config = configData.data;
 
-    // 2. Obtener datos de tránsito - productos PURCHASE_CONFIRMED, MANUFACTURED y SHIPPED
+    // 2. Verificar recordatorios pendientes y activarlos
+    const today = new Date().toISOString().split('T')[0];
+    const { data: pendingReminders } = await supabase
+      .from('replenishment_reminders')
+      .select('*')
+      .eq('is_active', true)
+      .lte('reminder_date', today);
+
+    if (pendingReminders && pendingReminders.length > 0) {
+      for (const reminder of pendingReminders) {
+        try {
+          // Activar el recordatorio cambiando el producto a NEEDS_REPLENISHMENT
+          await supabase
+            .from('products')
+            .update({ 
+              status: 'NEEDS_REPLENISHMENT',
+              updated_at: new Date().toISOString(),
+              reminder_activated: true,
+              reminder_notes: reminder.notes
+            })
+            .eq('sku', reminder.sku);
+
+          // Marcar el recordatorio como activado
+          await supabase
+            .from('replenishment_reminders')
+            .update({ 
+              is_active: false, 
+              activated_at: new Date().toISOString() 
+            })
+            .eq('id', reminder.id);
+
+          console.log(`✅ Recordatorio activado para SKU: ${reminder.sku}`);
+        } catch (reminderError) {
+          console.error(`❌ Error activando recordatorio para SKU ${reminder.sku}:`, reminderError);
+        }
+      }
+    }
+
+    // 3. Obtener datos de tránsito - productos PURCHASE_CONFIRMED, MANUFACTURED y SHIPPED
     const { data: transitProducts } = await supabase
       .from('products')
       .select('sku, status, purchase_details, manufacturing_details, shipping_details, estimated_arrival')
@@ -259,7 +297,8 @@ export default async function handler(req, res) {
 
       // Filtrar productos desconsiderados y con workflow completado
       const filteredProducts = products.filter(product => 
-        !product.desconsiderado && !product.workflow_completed
+        !product.desconsiderado && 
+        !product.workflow_completed
       );
 
       const results = [];
@@ -268,7 +307,11 @@ export default async function handler(req, res) {
         const analysis = getFullAnalysis(product, config, transit, product.analysis_details?.sellingPrice, resultadoVenta.ventaDiaria, resultadoVenta.fechasAnalisis);
         
         // Automatically set NO_REPLENISHMENT_NEEDED status for products with cantidadSugerida = 0
-        if (analysis.cantidadSugerida === 0 && product.status !== 'NO_REPLENISHMENT_NEEDED' && product.status !== 'SHIPPED') {
+        // Excluir productos recién creados desde formulario de las fórmulas automáticas
+        if (analysis.cantidadSugerida === 0 && 
+            product.status !== 'NO_REPLENISHMENT_NEEDED' && 
+            product.status !== 'SHIPPED' &&
+            !(product.status === 'QUOTE_REQUESTED' && product.request_details?.createdFromForm)) {
           try {
             await supabase
               .from('products')
@@ -285,7 +328,10 @@ export default async function handler(req, res) {
           }
         }
         // If cantidadSugerida > 0 and currently in NO_REPLENISHMENT_NEEDED, move to NEEDS_REPLENISHMENT
-        else if (analysis.cantidadSugerida > 0 && product.status === 'NO_REPLENISHMENT_NEEDED') {
+        // Excluir productos recién creados desde formulario de las fórmulas automáticas
+        else if (analysis.cantidadSugerida > 0 && 
+                 product.status === 'NO_REPLENISHMENT_NEEDED' &&
+                 !(product.status === 'QUOTE_REQUESTED' && product.request_details?.createdFromForm)) {
           try {
             await supabase
               .from('products')
@@ -303,10 +349,12 @@ export default async function handler(req, res) {
         }
         // Lógica adicional: crear nueva línea de reposición si hay menos días disponibles del umbral configurado
         // y el producto está en un estado intermedio (no puede cambiar a NEEDS_REPLENISHMENT)
+        // Excluir productos recién creados desde formulario de las fórmulas automáticas
         else if (analysis.cantidadSugerida > 0 && 
                  analysis.breakdown && 
                  parseFloat(analysis.breakdown.diasCoberturaLlegada) < (config.diasUmbralNuevaReposicion || 30) &&
-                 !['NO_REPLENISHMENT_NEEDED', 'NEEDS_REPLENISHMENT', 'SHIPPED'].includes(product.status)) {
+                 !['NO_REPLENISHMENT_NEEDED', 'NEEDS_REPLENISHMENT', 'SHIPPED'].includes(product.status) &&
+                 !(product.status === 'QUOTE_REQUESTED' && product.request_details?.createdFromForm)) {
           
           try {
             // Crear una nueva entrada del mismo SKU con status NEEDS_REPLENISHMENT

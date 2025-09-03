@@ -16,7 +16,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { descripcion, link, costoFOB_RMB, cbm, ventaDiaria } = req.body;
+    const { descripcion, cantidad, link, costoFOB_RMB, cbm, ventaDiaria } = req.body;
     
     // Aquí puedes añadir más validaciones si lo deseas
 
@@ -28,8 +28,18 @@ export default async function handler(req, res) {
         costo_fob_rmb: parseFloat(costoFOB_RMB) || 0,
         cbm: parseFloat(cbm) || 0,
         stock_actual: 0,
-        status: 'NEEDS_REPLENISHMENT',
-        desconsiderado: false
+        status: 'QUOTE_REQUESTED',  // Cambiar de NEEDS_REPLENISHMENT a QUOTE_REQUESTED
+        desconsiderado: false,
+        // Agregar la cantidad especificada en el formulario en request_details
+        request_details: {
+            quantityToQuote: parseInt(cantidad) || 0,
+            timestamp: new Date().toISOString(),
+            previousStatus: null,
+            nextStatus: 'QUOTE_REQUESTED',
+            sku: newSku,
+            descripcion: descripcion,
+            createdFromForm: true
+        }
     };
 
     const { data, error } = await supabase.from('products').insert(newProduct).select();
