@@ -1074,46 +1074,52 @@ export default function Dashboard() {
                         </button>
                     </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 text-sm">
                     {user.role === 'admin' && (
-                        <Link href="/users"><button className="bg-purple-600 text-white px-3 py-2 rounded-md hover:bg-purple-700 text-sm flex items-center gap-2">👥 Usuarios</button></Link>
+                        <Link href="/users">
+                            <button className="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700" title="Usuarios">👥</button>
+                        </Link>
                     )}
                     {(user.role === 'admin' || user.role === 'chile') && (
-                        <Link href="/config"><button className="bg-gray-600 text-white px-3 py-2 rounded-md hover:bg-gray-700 text-sm flex items-center gap-2">⚙️ Configurar</button></Link>
-                    )}
-                    {(user.role === 'admin' || user.role === 'chile') && (
-                        <Link href="/bulk-upload"><button className="bg-orange-600 text-white px-3 py-2 rounded-md hover:bg-orange-700 text-sm flex items-center gap-2">📤 Cargar Datos</button></Link>
+                        <>
+                            <Link href="/config">
+                                <button className="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700" title="Configurar">⚙️</button>
+                            </Link>
+                            <Link href="/bulk-upload">
+                                <button className="bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700" title="Cargar Datos">📤</button>
+                            </Link>
+                            <Link href="/skus-desconsiderados">
+                                <button className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700" title="SKUs Desconsiderados">🚫</button>
+                            </Link>
+                            <button 
+                                onClick={() => setRemindersModal(true)}
+                                className="bg-purple-600 text-white px-2 py-1 rounded hover:bg-purple-700 relative"
+                                title="Recordatorios"
+                            >
+                                ⏰
+                                {activeReminders.length > 0 && (
+                                    <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full text-xs w-4 h-4 flex items-center justify-center">{activeReminders.length}</span>
+                                )}
+                            </button>
+                        </>
                     )}
                     {(user.role === 'admin' || user.role === 'china' || user.role === 'chile') && (
-                        <Link href="/contenedores"><button className="bg-indigo-600 text-white px-3 py-2 rounded-md hover:bg-indigo-700 text-sm flex items-center gap-2">🚢 Contenedores</button></Link>
-                    )}
-                    {(user.role === 'admin' || user.role === 'chile') && (
-                        <Link href="/skus-desconsiderados"><button className="bg-orange-600 text-white px-3 py-2 rounded-md hover:bg-orange-700 text-sm flex items-center gap-2">🚫 SKUs Desconsiderados</button></Link>
-                    )}
-                    {(user.role === 'admin' || user.role === 'chile') && (
-                        <button 
-                          onClick={() => setRemindersModal(true)}
-                          className="bg-purple-600 text-white px-3 py-2 rounded-md hover:bg-purple-700 text-sm flex items-center gap-2"
-                          title="Ver recordatorios de reposición"
-                        >
-                          ⏰ Recordatorios {activeReminders.length > 0 && (
-                            <span className="bg-purple-800 text-white rounded-full px-2 py-0.5 text-xs">{activeReminders.length}</span>
-                          )}
-                        </button>
+                        <Link href="/contenedores">
+                            <button className="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700" title="Contenedores">🚢</button>
+                        </Link>
                     )}
                     <Link href="/account-settings">
-                        <button className="bg-purple-600 text-white px-3 py-2 rounded-md hover:bg-purple-700 text-sm flex items-center gap-2">
-                            ⚙️ Cuenta
-                        </button>
+                        <button className="bg-gray-500 text-white px-2 py-1 rounded hover:bg-gray-600" title="Configuración de Cuenta">⚙️</button>
                     </Link>
                     <button 
                         onClick={() => {
                             logout();
                             router.push('/');
                         }}
-                        className="bg-red-600 text-white px-3 py-2 rounded-md hover:bg-red-700 text-sm flex items-center gap-2"
+                        className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
+                        title="Cerrar Sesión"
                     >
-                        🚪 Cerrar Sesión
+                        🚪
                     </button>
                 </div>
             </div>
@@ -1140,73 +1146,63 @@ export default function Dashboard() {
             </div>
         </div>
 
-        {/* Panel de totalizadores fijos */}
+        {/* Panel de totalizadores compacto */}
         <div className="sticky top-0 z-30 bg-gray-100/95 backdrop-blur-md shadow-sm">
-          <div className="p-4">
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-lg font-bold mb-4 text-gray-800">📊 Totalizadores por Estado</h2>
+          <div className="p-3">
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <h2 className="text-md font-semibold mb-3 text-gray-800">📊 Totalizadores por Estado</h2>
               
-              {/* Totalizador CBM */}
-              <div className="mb-4">
-                <h3 className="text-md font-semibold mb-2 text-gray-700">📦 CBM</h3>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <div className="text-center">
-                    <p className="text-xs text-gray-500 font-bold mb-1">APROBADO</p>
-                    <p className="text-2xl font-bold text-green-600">{totals.cbm.PURCHASE_APPROVED?.toFixed(2) || '0.00'}</p>
-                    <p className="text-xs text-gray-400">CBM</p>
+              {/* Totalizador CBM compacto */}
+              <div className="mb-3">
+                <h3 className="text-sm font-medium mb-2 text-gray-700">📦 CBM</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
+                  <div>
+                    <p className="text-xs text-gray-500 font-bold">APROBADO</p>
+                    <p className="text-lg font-bold text-green-600">{totals.cbm.PURCHASE_APPROVED?.toFixed(1) || '0.0'}</p>
                   </div>
-                  <div className="text-center">
-                    <p className="text-xs text-gray-500 font-bold mb-1">CONFIRMADO</p>
-                    <p className="text-2xl font-bold text-green-700">{totals.cbm.PURCHASE_CONFIRMED?.toFixed(2) || '0.00'}</p>
-                    <p className="text-xs text-gray-400">CBM</p>
+                  <div>
+                    <p className="text-xs text-gray-500 font-bold">CONFIRMADO</p>
+                    <p className="text-lg font-bold text-green-700">{totals.cbm.PURCHASE_CONFIRMED?.toFixed(1) || '0.0'}</p>
                   </div>
-                  <div className="text-center">
-                    <p className="text-xs text-gray-500 font-bold mb-1">FABRICADO</p>
-                    <p className="text-2xl font-bold text-indigo-600">{totals.cbm.MANUFACTURED?.toFixed(2) || '0.00'}</p>
-                    <p className="text-xs text-gray-400">CBM</p>
+                  <div>
+                    <p className="text-xs text-gray-500 font-bold">FABRICADO</p>
+                    <p className="text-lg font-bold text-indigo-600">{totals.cbm.MANUFACTURED?.toFixed(1) || '0.0'}</p>
                   </div>
-                  <div className="text-center">
-                    <p className="text-xs text-gray-500 font-bold mb-1">ENVIADO</p>
-                    <p className="text-2xl font-bold text-gray-700">{totals.cbm.SHIPPED?.toFixed(2) || '0.00'}</p>
-                    <p className="text-xs text-gray-400">CBM</p>
+                  <div>
+                    <p className="text-xs text-gray-500 font-bold">ENVIADO</p>
+                    <p className="text-lg font-bold text-gray-700">{totals.cbm.SHIPPED?.toFixed(1) || '0.0'}</p>
                   </div>
-                  <div className="text-center border-l-2 border-gray-200 pl-4">
-                    <p className="text-xs text-gray-500 font-bold mb-1">TOTAL</p>
-                    <p className="text-3xl font-bold text-blue-600">{totals.cbm.TOTAL?.toFixed(2) || '0.00'}</p>
-                    <p className="text-xs text-gray-400">CBM</p>
+                  <div className="border-l-2 border-gray-200 pl-2">
+                    <p className="text-xs text-gray-500 font-bold">TOTAL</p>
+                    <p className="text-xl font-bold text-blue-600">{totals.cbm.TOTAL?.toFixed(1) || '0.0'}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Totalizador USD - Solo visible para admin y chile */}
+              {/* Totalizador USD compacto - Solo visible para admin y chile */}
               {(user.role === 'admin' || user.role === 'chile') && (
-                <div className="border-t pt-4">
-                  <h3 className="text-md font-semibold mb-2 text-gray-700">💰 Valor USD</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    <div className="text-center">
-                      <p className="text-xs text-gray-500 font-bold mb-1">APROBADO</p>
-                      <p className="text-2xl font-bold text-green-600">${totals.usd.PURCHASE_APPROVED?.toFixed(0).toLocaleString() || '0'}</p>
-                      <p className="text-xs text-gray-400">USD</p>
+                <div className="border-t pt-3">
+                  <h3 className="text-sm font-medium mb-2 text-gray-700">💰 Valor USD</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
+                    <div>
+                      <p className="text-xs text-gray-500 font-bold">APROBADO</p>
+                      <p className="text-lg font-bold text-green-600">${totals.usd.PURCHASE_APPROVED?.toFixed(0).toLocaleString() || '0'}</p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-xs text-gray-500 font-bold mb-1">CONFIRMADO</p>
-                      <p className="text-2xl font-bold text-green-700">${totals.usd.PURCHASE_CONFIRMED?.toFixed(0).toLocaleString() || '0'}</p>
-                      <p className="text-xs text-gray-400">USD</p>
+                    <div>
+                      <p className="text-xs text-gray-500 font-bold">CONFIRMADO</p>
+                      <p className="text-lg font-bold text-green-700">${totals.usd.PURCHASE_CONFIRMED?.toFixed(0).toLocaleString() || '0'}</p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-xs text-gray-500 font-bold mb-1">FABRICADO</p>
-                      <p className="text-2xl font-bold text-indigo-600">${totals.usd.MANUFACTURED?.toFixed(0).toLocaleString() || '0'}</p>
-                      <p className="text-xs text-gray-400">USD</p>
+                    <div>
+                      <p className="text-xs text-gray-500 font-bold">FABRICADO</p>
+                      <p className="text-lg font-bold text-indigo-600">${totals.usd.MANUFACTURED?.toFixed(0).toLocaleString() || '0'}</p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-xs text-gray-500 font-bold mb-1">ENVIADO</p>
-                      <p className="text-2xl font-bold text-gray-700">${totals.usd.SHIPPED?.toFixed(0).toLocaleString() || '0'}</p>
-                      <p className="text-xs text-gray-400">USD</p>
+                    <div>
+                      <p className="text-xs text-gray-500 font-bold">ENVIADO</p>
+                      <p className="text-lg font-bold text-gray-700">${totals.usd.SHIPPED?.toFixed(0).toLocaleString() || '0'}</p>
                     </div>
-                    <div className="text-center border-l-2 border-gray-200 pl-4">
-                      <p className="text-xs text-gray-500 font-bold mb-1">TOTAL</p>
-                      <p className="text-3xl font-bold text-orange-600">${totals.usd.TOTAL?.toFixed(0).toLocaleString() || '0'}</p>
-                      <p className="text-xs text-gray-400">USD</p>
+                    <div className="border-l-2 border-gray-200 pl-2">
+                      <p className="text-xs text-gray-500 font-bold">TOTAL</p>
+                      <p className="text-xl font-bold text-orange-600">${totals.usd.TOTAL?.toFixed(0).toLocaleString() || '0'}</p>
                     </div>
                   </div>
                 </div>
