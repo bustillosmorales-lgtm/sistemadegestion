@@ -30,6 +30,8 @@ export default async function handler(req, res) {
         stock_actual: 0,
         status: 'QUOTE_REQUESTED',  // Cambiar de NEEDS_REPLENISHMENT a QUOTE_REQUESTED
         desconsiderado: false,
+        isNewProduct: true,  // Marcar como producto nuevo
+        hasInternalSku: false,  // No tiene SKU interno todavía
         // Agregar la cantidad especificada en el formulario en request_details
         request_details: {
             quantityToQuote: parseInt(cantidad) || 0,

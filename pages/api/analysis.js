@@ -307,11 +307,12 @@ export default async function handler(req, res) {
         const analysis = getFullAnalysis(product, config, transit, product.analysis_details?.sellingPrice, resultadoVenta.ventaDiaria, resultadoVenta.fechasAnalisis);
         
         // Automatically set NO_REPLENISHMENT_NEEDED status for products with cantidadSugerida = 0
-        // Excluir productos recién creados desde formulario de las fórmulas automáticas
+        // Excluir productos recién creados desde formulario y productos nuevos cotizados que necesitan continuar el flujo
         if (analysis.cantidadSugerida === 0 && 
             product.status !== 'NO_REPLENISHMENT_NEEDED' && 
             product.status !== 'SHIPPED' &&
-            !(product.status === 'QUOTE_REQUESTED' && product.request_details?.createdFromForm)) {
+            !(product.status === 'QUOTE_REQUESTED' && product.request_details?.createdFromForm) &&
+            !(product.isNewProduct && ['QUOTED', 'ANALYZING', 'PURCHASE_APPROVED'].includes(product.status))) {
           try {
             await supabase
               .from('products')

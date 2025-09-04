@@ -2,6 +2,7 @@
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import { useUser } from '../components/UserContext';
+import IntelligentFileParser from '../lib/intelligentFileParser';
 
 export default function BulkUploadPage() {
     const router = useRouter();
@@ -12,6 +13,11 @@ export default function BulkUploadPage() {
     const [isUploading, setIsUploading] = useState(false);
     const [uploadResult, setUploadResult] = useState(null);
     const [error, setError] = useState('');
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [parsedFileData, setParsedFileData] = useState(null);
+    const [columnMapping, setColumnMapping] = useState({});
+    const [validationResult, setValidationResult] = useState(null);
+    const [fileInfo, setFileInfo] = useState(null);
 
     // Control de acceso
     useEffect(() => {
@@ -20,64 +26,62 @@ export default function BulkUploadPage() {
         }
     }, [isAuthenticated, user, isLoading, router]);
 
-    const handleFileUpload = (event) => {
+    const handleFileUpload = async (event) => {
         const file = event.target.files[0];
         if (!file) return;
 
-        // Verificar que sea CSV o Excel
-        const allowedTypes = [
-            'text/csv',
-            'application/vnd.ms-excel',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        ];
+        setIsProcessing(true);
+        setError('');
+        setParsedFileData(null);
+        setUploadData(null);
+        setValidationResult(null);
 
-        if (!allowedTypes.includes(file.type)) {
-            setError('Solo se permiten archivos CSV o Excel (.xls, .xlsx)');
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                // Por simplicidad, asumimos CSV por ahora
-                if (file.type === 'text/csv') {
-                    const csvData = e.target.result;
-                    const parsed = parseCSV(csvData);
-                    setUploadData(parsed);
-                    setError('');
-                } else {
-                    setError('Excel aún no soportado. Use CSV por favor.');
-                }
-            } catch (err) {
-                setError('Error procesando archivo: ' + err.message);
-            }
-        };
-        
-        if (file.type === 'text/csv') {
-            reader.readAsText(file);
-        } else {
-            reader.readAsArrayBuffer(file);
-        }
-    };
-
-    const parseCSV = (csvData) => {
-        const lines = csvData.split('\n').filter(line => line.trim());
-        if (lines.length < 2) throw new Error('Archivo debe tener al menos encabezados y una fila de datos');
-        
-        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-        const data = [];
-        
-        for (let i = 1; i < lines.length; i++) {
-            const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
-            const row = {};
-            headers.forEach((header, index) => {
-                row[header] = values[index] || '';
+        try {
+            // Información básica del archivo
+            setFileInfo({
+                name: file.name,
+                size: (file.size / 1024).toFixed(1) + ' KB',
+                type: file.type || 'Desconocido',
+                lastModified: new Date(file.lastModified).toLocaleDateString()
             });
-            data.push(row);
+
+            // Usar el parser inteligente
+            const parser = new IntelligentFileParser();
+            const parsedData = await parser.parseFile(file);
+            
+            // Validar datos
+            const validation = parser.validateData(parsedData, selectedTable);
+            
+            // Auto-detectar tipo de datos si no coincide con selección
+            if (parsedData.detectedFormat.probableType !== 'unknown' && 
+                parsedData.detectedFormat.probableType !== selectedTable) {
+                
+                const shouldChange = confirm(
+                    `El archivo parece contener datos de "${parsedData.detectedFormat.probableType}" ` +
+                    `pero seleccionaste "${selectedTable}". ¿Cambiar automáticamente?`
+                );
+                
+                if (shouldChange) {
+                    setSelectedTable(parsedData.detectedFormat.probableType);
+                }
+            }
+            
+            setParsedFileData(parsedData);
+            setColumnMapping(parsedData.columnMapping);
+            setValidationResult(validation);
+            
+            // Preparar datos para el formato anterior (compatibilidad)
+            setUploadData(parsedData.data);
+            
+        } catch (err) {
+            console.error('Error procesando archivo:', err);
+            setError(`Error procesando archivo: ${err.message}`);
+        } finally {
+            setIsProcessing(false);
         }
-        
-        return data;
     };
+
+    // Función parseCSV removida - ahora usa IntelligentFileParser
 
     const handleUpload = async () => {
         if (!uploadData || uploadData.length === 0) {
@@ -216,45 +220,150 @@ export default function BulkUploadPage() {
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                📂 Seleccionar Archivo (CSV)
+                                📂 Seleccionar Archivo
                             </label>
-                            <input 
-                                type="file"
-                                accept=".csv,.xls,.xlsx"
-                                onChange={handleFileUpload}
-                                className="w-full p-3 border border-gray-300 rounded-lg"
-                            />
+                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+                                <input 
+                                    type="file"
+                                    accept=".csv,.xls,.xlsx,.tsv,.json,.txt"
+                                    onChange={handleFileUpload}
+                                    className="hidden"
+                                    id="file-upload"
+                                    disabled={isProcessing}
+                                />
+                                <label htmlFor="file-upload" className="cursor-pointer">
+                                    <div className="text-4xl mb-2">📁</div>
+                                    <p className="text-lg font-medium text-gray-700 mb-1">
+                                        {isProcessing ? '⚙️ Procesando archivo...' : 'Arrastra archivo aquí o haz clic para seleccionar'}
+                                    </p>
+                                    <p className="text-sm text-gray-500">
+                                        Soporta: Excel (.xlsx, .xls), CSV, TSV, JSON, TXT
+                                    </p>
+                                </label>
+                            </div>
+                            
+                            {fileInfo && (
+                                <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                                    <h4 className="font-medium text-blue-800 mb-2">📄 Información del Archivo</h4>
+                                    <div className="grid grid-cols-2 gap-2 text-sm text-blue-700">
+                                        <div><strong>Nombre:</strong> {fileInfo.name}</div>
+                                        <div><strong>Tamaño:</strong> {fileInfo.size}</div>
+                                        <div><strong>Tipo:</strong> {fileInfo.type}</div>
+                                        <div><strong>Modificado:</strong> {fileInfo.lastModified}</div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
-                        {uploadData && (
-                            <div>
-                                <h3 className="font-medium text-gray-700 mb-2">
-                                    📊 Vista Previa ({uploadData.length} registros)
-                                </h3>
-                                <div className="max-h-60 overflow-auto border rounded-lg">
-                                    <table className="w-full text-xs">
-                                        <thead className="bg-gray-50">
-                                            <tr>
-                                                {Object.keys(uploadData[0] || {}).map(header => (
-                                                    <th key={header} className="p-2 text-left border-b">{header}</th>
-                                                ))}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {uploadData.slice(0, 5).map((row, index) => (
-                                                <tr key={index} className="border-b">
-                                                    {Object.values(row).map((value, i) => (
-                                                        <td key={i} className="p-2">{value}</td>
+                        {parsedFileData && (
+                            <div className="space-y-6">
+                                {/* Análisis Automático */}
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                    <h3 className="font-bold text-green-800 mb-2">✅ Archivo Procesado Exitosamente</h3>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-green-700">
+                                        <div><strong>Tipo Detectado:</strong> {parsedFileData.detectedFormat.probableType || 'Genérico'}</div>
+                                        <div><strong>Filas:</strong> {parsedFileData.totalRows}</div>
+                                        <div><strong>Columnas:</strong> {parsedFileData.headers.length}</div>
+                                        <div><strong>Calidad:</strong> {parsedFileData.detectedFormat.quality?.completenessScore || 0}%</div>
+                                    </div>
+                                </div>
+                                
+                                {/* Mapeo de Columnas */}
+                                <div>
+                                    <h3 className="font-medium text-gray-700 mb-3">🔗 Mapeo Automático de Columnas</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {parsedFileData.headers.map(header => {
+                                            const mappedField = columnMapping[header];
+                                            return (
+                                                <div key={header} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                                    <span className="text-sm font-medium">{header}</span>
+                                                    <span className="text-xs px-2 py-1 rounded {
+                                                        mappedField ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                                                    }">
+                                                        {mappedField ? `→ ${mappedField}` : 'Sin mapear'}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                                
+                                {/* Validación */}
+                                {validationResult && (
+                                    <div className={`border rounded-lg p-4 ${
+                                        validationResult.isValid ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+                                    }`}>
+                                        <h3 className={`font-bold mb-2 ${
+                                            validationResult.isValid ? 'text-green-800' : 'text-red-800'
+                                        }`}>
+                                            {validationResult.isValid ? '✅ Validación Exitosa' : '⚠️ Errores Encontrados'}
+                                        </h3>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-3">
+                                            <div><strong>Filas Válidas:</strong> {validationResult.summary.validRows}</div>
+                                            <div><strong>Errores:</strong> {validationResult.summary.errorCount}</div>
+                                            <div><strong>Advertencias:</strong> {validationResult.summary.warningCount}</div>
+                                            <div><strong>Total:</strong> {validationResult.summary.totalRows}</div>
+                                        </div>
+                                        
+                                        {validationResult.errors.length > 0 && (
+                                            <details className="mt-3">
+                                                <summary className="cursor-pointer text-red-600 font-medium">Ver Errores ({validationResult.errors.length})</summary>
+                                                <div className="mt-2 max-h-32 overflow-y-auto space-y-1">
+                                                    {validationResult.errors.map((error, index) => (
+                                                        <div key={index} className="text-xs bg-red-100 p-2 rounded">{error}</div>
+                                                    ))}
+                                                </div>
+                                            </details>
+                                        )}
+                                        
+                                        {validationResult.warnings.length > 0 && (
+                                            <details className="mt-3">
+                                                <summary className="cursor-pointer text-yellow-600 font-medium">Ver Advertencias ({validationResult.warnings.length})</summary>
+                                                <div className="mt-2 max-h-32 overflow-y-auto space-y-1">
+                                                    {validationResult.warnings.map((warning, index) => (
+                                                        <div key={index} className="text-xs bg-yellow-100 p-2 rounded">{warning}</div>
+                                                    ))}
+                                                </div>
+                                            </details>
+                                        )}
+                                    </div>
+                                )}
+                                
+                                {/* Vista Previa */}
+                                <div>
+                                    <h3 className="font-medium text-gray-700 mb-2">
+                                        📊 Vista Previa de Datos ({uploadData?.length || 0} registros)
+                                    </h3>
+                                    <div className="max-h-60 overflow-auto border rounded-lg">
+                                        <table className="w-full text-xs">
+                                            <thead className="bg-gray-50">
+                                                <tr>
+                                                    {parsedFileData.headers.map(header => (
+                                                        <th key={header} className="p-2 text-left border-b">
+                                                            <div>{header}</div>
+                                                            {columnMapping[header] && (
+                                                                <div className="text-xs text-green-600 font-normal">({columnMapping[header]})</div>
+                                                            )}
+                                                        </th>
                                                     ))}
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                    {uploadData.length > 5 && (
-                                        <div className="p-2 text-center text-gray-500 bg-gray-50">
-                                            ... y {uploadData.length - 5} registros más
-                                        </div>
-                                    )}
+                                            </thead>
+                                            <tbody>
+                                                {uploadData?.slice(0, 5).map((row, index) => (
+                                                    <tr key={index} className="border-b">
+                                                        {parsedFileData.headers.map(header => (
+                                                            <td key={header} className="p-2">{row._original?.[header] || ''}</td>
+                                                        ))}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                        {uploadData && uploadData.length > 5 && (
+                                            <div className="p-2 text-center text-gray-500 bg-gray-50">
+                                                ... y {uploadData.length - 5} registros más
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         )}

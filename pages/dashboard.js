@@ -9,6 +9,35 @@ import * as XLSX from 'xlsx';
 
 const fetcher = (url) => fetch(url).then((res) => res.json());
 
+// Hook para predicciones IA
+const useAIPredictions = (skus = []) => {
+  const { data, error, mutate } = useSWR(
+    skus.length > 0 ? '/api/ai-predictions' : null,
+    fetcher,
+    { refreshInterval: 60000 }
+  );
+  return {
+    predicciones: data?.predicciones || [],
+    alertasTemporales: data?.alertas_temporales || [],
+    isLoading: !error && !data,
+    isError: error,
+    refresh: mutate
+  };
+};
+
+// Hook para diagnósticos IA
+const useAIDiagnostics = (sku = null) => {
+  const { data, error } = useSWR(
+    sku ? `/api/ai-diagnostics?sku=${sku}` : null,
+    fetcher
+  );
+  return {
+    diagnostico: data?.diagnostico || null,
+    isLoading: !error && !data && sku,
+    isError: error
+  };
+};
+
 const formatDate = (isoDate) => {
     if (!isoDate || typeof isoDate !== 'string' || !isoDate.includes('-')) return isoDate;
     const date = new Date(isoDate);
@@ -88,6 +117,17 @@ export default function Dashboard() {
   
   // Estados para modal de recordatorios
   const [remindersModal, setRemindersModal] = useState(false);
+  
+  // Estados para funcionalidades IA
+  const [aiChatModal, setAiChatModal] = useState({ isOpen: false, product: null });
+  const [chatHistory, setChatHistory] = useState([]);
+  const [chatMessage, setChatMessage] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [showAIPredictions, setShowAIPredictions] = useState(true);
+  const [showAIDiagnostics, setShowAIDiagnostics] = useState(true);
+  const [isGeneratingPredictions, setIsGeneratingPredictions] = useState(false);
+  const [alertasTemporales, setAlertasTemporales] = useState([]);
+  const [feedbackRatings, setFeedbackRatings] = useState({});
 
   useEffect(() => {
     if (!isLoading && (!isAuthenticated || !user)) {
@@ -159,6 +199,10 @@ export default function Dashboard() {
     
     return filtered;
   }, [products, skuFilter, nameFilter, statusFilter, showNoActionItems]);
+
+  // Obtener predicciones IA para productos filtrados
+  const skusFiltrados = filteredProducts.map(p => p.sku);
+  const { predicciones: prediccionesIA, alertasTemporales: alertasIA, refresh: refreshPredictions } = useAIPredictions(skusFiltrados);
 
   // Calcular totales de CBM y USD por status
   const totals = useMemo(() => {
@@ -334,6 +378,241 @@ export default function Dashboard() {
     } catch (err) {
       console.error('❌ Error al eliminar recordatorio:', err);
       alert('Error de conexión al eliminar el recordatorio.');
+    }
+  };
+
+  // Funciones para IA
+  const handleGenerateAIPredictions = async (skus = null) => {
+    setIsGeneratingPredictions(true);
+    try {
+      const skusToProcess = skus || filteredProducts.map(p => p.sku).slice(0, 20); // Limitar a 20 para evitar timeouts
+      
+      const response = await fetch('/api/ai-predictions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          skus: skusToProcess,
+          force_refresh: true 
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        alert(`✅ Predicciones IA generadas: ${result.resultados.exitosas} exitosas, ${result.resultados.errores} errores`);
+        refreshPredictions();
+        await mutate('/api/analysis', undefined, { revalidate: true });
+      } else {
+        const errorData = await response.json();
+        alert(`Error generando predicciones: ${errorData.error}`);
+      }
+    } catch (err) {
+      console.error('❌ Error generando predicciones IA:', err);
+      alert('Error de conexión al generar predicciones IA.');
+    } finally {
+      setIsGeneratingPredictions(false);
+    }
+  };
+
+  const handleAIChat = async (product) => {
+    setAiChatModal({ isOpen: true, product });
+    setChatHistory([]);
+    setChatMessage('');
+  };
+
+  const sendChatMessage = async () => {
+    if (!chatMessage.trim() || isChatLoading) return;
+
+    const userMessage = chatMessage.trim();
+    setChatMessage('');
+    setIsChatLoading(true);
+
+    // Agregar mensaje del usuario al historial
+    const newHistory = [...chatHistory, { 
+      tipo: 'usuario', 
+      mensaje: userMessage, 
+      timestamp: new Date().toISOString() 
+    }];
+    setChatHistory(newHistory);
+
+    try {
+      const response = await fetch('/api/ai-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mensaje: userMessage,
+          sku: aiChatModal.product?.sku,
+          historial: newHistory.slice(-5) // Últimos 5 mensajes para contexto
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setChatHistory(prev => [...prev, {
+          tipo: 'ai',
+          mensaje: result.respuesta,
+          confianza: result.confianza,
+          sugerencias: result.sugerencias_acciones,
+          timestamp: new Date().toISOString()
+        }]);
+      } else {
+        const errorData = await response.json();
+        setChatHistory(prev => [...prev, {
+          tipo: 'error',
+          mensaje: `Error: ${errorData.error}`,
+          timestamp: new Date().toISOString()
+        }]);
+      }
+    } catch (err) {
+      console.error('❌ Error en chat IA:', err);
+      setChatHistory(prev => [...prev, {
+        tipo: 'error',
+        mensaje: 'Error de conexión con el sistema IA',
+        timestamp: new Date().toISOString()
+      }]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  // Obtener predicción IA para un producto específico
+  const getAIPredictionForProduct = (sku) => {
+    return prediccionesIA.find(pred => pred.sku === sku);
+  };
+
+  // Obtener diagnóstico IA para un producto específico
+  const getAIDiagnosticForProduct = (sku) => {
+    const product = filteredProducts.find(p => p.sku === sku);
+    if (!product) return null;
+    
+    // Análisis básico local si no hay diagnóstico de API
+    const stockActual = product.stock_actual || 0;
+    const ventaDiaria = parseFloat(product.venta_diaria || product.ventaDiaria || 0);
+    const diasCobertura = ventaDiaria > 0 ? stockActual / ventaDiaria : Infinity;
+    
+    if (stockActual === 0) {
+      return {
+        tipo: 'stockout',
+        mensaje: '🚨 Stock Cero - Posible quiebre de ventas',
+        recomendacion: 'Reposición urgente requerida',
+        confianza: 0.95
+      };
+    }
+    
+    if (diasCobertura < 30 && ventaDiaria > 0) {
+      return {
+        tipo: 'low_stock',
+        mensaje: `⚠️ Stock Bajo - ${diasCobertura.toFixed(0)} días de cobertura`,
+        recomendacion: 'Planificar reposición pronto',
+        confianza: 0.8
+      };
+    }
+    
+    if (stockActual > (ventaDiaria * 180)) {
+      return {
+        tipo: 'excess_stock',
+        mensaje: '📦 Stock Excesivo - Más de 6 meses de cobertura',
+        recomendacion: 'Evaluar reducción de inventario',
+        confianza: 0.7
+      };
+    }
+    
+    return null;
+  };
+
+  // Función para enviar feedback de IA
+  const handleAIFeedback = async (sku, tipoFeedback, calificacion, comentarios = '') => {
+    try {
+      const response = await fetch('/api/ai-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sku,
+          tipo_feedback: tipoFeedback,
+          usuario: user.email || user.name,
+          calificacion,
+          comentarios,
+          fecha_feedback: new Date().toISOString()
+        })
+      });
+
+      if (response.ok) {
+        // Actualizar estado local del feedback
+        setFeedbackRatings(prev => ({
+          ...prev,
+          [`${sku}-${tipoFeedback}`]: calificacion
+        }));
+        
+        // Mostrar confirmación sutil
+        console.log(`✅ Feedback enviado: ${tipoFeedback} - ${calificacion} estrellas`);
+      } else {
+        const errorData = await response.json();
+        console.error('Error enviando feedback:', errorData.error);
+      }
+    } catch (err) {
+      console.error('❌ Error enviando feedback IA:', err);
+    }
+  };
+
+  // Componente de rating por estrellas
+  const StarRating = ({ sku, tipo, currentRating, onRate, size = 'sm' }) => {
+    const key = `${sku}-${tipo}`;
+    const rating = feedbackRatings[key] || currentRating || 0;
+    
+    const sizeClass = size === 'sm' ? 'text-xs' : 'text-sm';
+    
+    return (
+      <div className="flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            onClick={() => onRate(star)}
+            className={`${sizeClass} transition-colors hover:scale-110 ${
+              star <= rating ? 'text-yellow-500' : 'text-gray-300 hover:text-yellow-400'
+            }`}
+            title={`${star} estrella${star !== 1 ? 's' : ''}`}
+          >
+            ⭐
+          </button>
+        ))}
+        {rating > 0 && (
+          <span className={`${sizeClass} text-gray-600 ml-1`}>
+            ({rating})
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  // Función para mapeo automático de categorías
+  const handleAutoMapCategories = async () => {
+    if (!confirm('¿Deseas ejecutar el mapeo automático de categorías? Esto asignará categorías basadas en palabras clave a productos sin categoría.')) {
+      return;
+    }
+
+    try {
+      setIsGeneratingPredictions(true); // Reutilizar estado de loading
+      
+      const response = await fetch('/api/category-mapping', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force_all: false })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        alert(`✅ Mapeo automático completado:\n${result.exitosos}/${result.procesados} productos categorizados${result.errores > 0 ? `\n${result.errores} errores` : ''}`);
+        
+        // Refrescar datos
+        await mutate('/api/analysis', undefined, { revalidate: true });
+      } else {
+        const errorData = await response.json();
+        alert(`Error en mapeo automático: ${errorData.error}`);
+      }
+    } catch (err) {
+      console.error('❌ Error en mapeo automático:', err);
+      alert('Error de conexión durante el mapeo automático.');
+    } finally {
+      setIsGeneratingPredictions(false);
     }
   };
 
@@ -1054,6 +1333,108 @@ export default function Dashboard() {
         </div>
       )}
       
+      {/* Modal de Chat IA */}
+      {aiChatModal.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+            <div className="p-4 border-b flex justify-between items-center bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-t-lg">
+              <h2 className="text-lg font-bold">🤖 Chat IA - Análisis de {aiChatModal.product?.sku}</h2>
+              <button 
+                onClick={() => setAiChatModal({ isOpen: false, product: null })}
+                className="text-white hover:text-gray-200"
+              >
+                ❌
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-96">
+              {chatHistory.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-4xl mb-2">🤖</div>
+                  <p className="text-gray-600 mb-4">¡Hola! Soy tu asistente IA. Pregúntame sobre:</p>
+                  <div className="grid grid-cols-2 gap-2 text-sm text-left">
+                    <div className="bg-blue-50 p-3 rounded">
+                      <div className="font-semibold text-blue-800">📊 Análisis de Stock</div>
+                      <div className="text-blue-600 text-xs">¿Por qué mi stock está bajo?</div>
+                    </div>
+                    <div className="bg-green-50 p-3 rounded">
+                      <div className="font-semibold text-green-800">🔮 Predicciones</div>
+                      <div className="text-green-600 text-xs">¿Cuánto debería reponer?</div>
+                    </div>
+                    <div className="bg-purple-50 p-3 rounded">
+                      <div className="font-semibold text-purple-800">⚡ Eventos</div>
+                      <div className="text-purple-600 text-xs">¿Cuándo es el próximo evento?</div>
+                    </div>
+                    <div className="bg-orange-50 p-3 rounded">
+                      <div className="font-semibold text-orange-800">💡 Recomendaciones</div>
+                      <div className="text-orange-600 text-xs">¿Qué debo hacer ahora?</div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                chatHistory.map((msg, index) => (
+                  <div key={index} className={`flex ${msg.tipo === 'usuario' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                      msg.tipo === 'usuario' 
+                        ? 'bg-blue-600 text-white' 
+                        : msg.tipo === 'error'
+                        ? 'bg-red-100 text-red-800 border border-red-300'
+                        : 'bg-gradient-to-r from-purple-100 to-pink-100 text-gray-800 border border-purple-200'
+                    }`}>
+                      <div className="whitespace-pre-wrap text-sm">{msg.mensaje}</div>
+                      {msg.confianza && (
+                        <div className="text-xs mt-2 opacity-70">
+                          Confianza: {(msg.confianza * 100).toFixed(0)}%
+                        </div>
+                      )}
+                      {msg.sugerencias && msg.sugerencias.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          <div className="text-xs font-semibold">Acciones sugeridas:</div>
+                          {msg.sugerencias.map((sug, i) => (
+                            <div key={i} className="text-xs bg-white bg-opacity-50 px-2 py-1 rounded">
+                              {sug}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+              {isChatLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-gradient-to-r from-purple-100 to-pink-100 px-4 py-2 rounded-lg border border-purple-200 flex items-center gap-2">
+                    <div className="animate-spin">🤖</div>
+                    <div className="text-sm text-gray-600">IA está pensando...</div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="p-4 border-t">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={chatMessage}
+                  onChange={(e) => setChatMessage(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
+                  placeholder="Pregúntale a la IA sobre este producto..."
+                  className="flex-1 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  disabled={isChatLoading}
+                />
+                <button
+                  onClick={sendChatMessage}
+                  disabled={isChatLoading || !chatMessage.trim()}
+                  className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 rounded-md hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isChatLoading ? '⏳' : '📤'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="bg-gray-100 min-h-screen">
         <div className="sticky top-0 z-20 bg-gray-100/80 backdrop-blur-md shadow-sm p-4">
             <div className="flex justify-between items-center mb-4">
@@ -1101,6 +1482,35 @@ export default function Dashboard() {
                                     <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full text-xs w-4 h-4 flex items-center justify-center">{activeReminders.length}</span>
                                 )}
                             </button>
+                            <button 
+                                onClick={() => handleGenerateAIPredictions()}
+                                disabled={isGeneratingPredictions}
+                                className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-2 py-1 rounded hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 relative"
+                                title="Generar Predicciones IA"
+                            >
+                                {isGeneratingPredictions ? '⏳' : '🤖'}
+                                {prediccionesIA.length > 0 && (
+                                    <span className="absolute -top-1 -right-1 bg-green-500 text-white rounded-full text-xs w-4 h-4 flex items-center justify-center">{prediccionesIA.length}</span>
+                                )}
+                            </button>
+                            <button 
+                                onClick={() => setShowAIPredictions(!showAIPredictions)}
+                                className={`px-2 py-1 rounded text-sm transition-colors ${
+                                    showAIPredictions 
+                                        ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white hover:from-blue-700 hover:to-cyan-700' 
+                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                }`}
+                                title={showAIPredictions ? 'Ocultar sugerencias IA' : 'Mostrar sugerencias IA'}
+                            >
+                                {showAIPredictions ? '🧠 IA ON' : '🧠 IA OFF'}
+                            </button>
+                            <button 
+                                onClick={handleAutoMapCategories}
+                                className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-2 py-1 rounded hover:from-emerald-700 hover:to-teal-700"
+                                title="Mapeo automático de categorías"
+                            >
+                                🏷️ Auto-Cat
+                            </button>
                         </>
                     )}
                     {(user.role === 'admin' || user.role === 'china' || user.role === 'chile') && (
@@ -1146,11 +1556,44 @@ export default function Dashboard() {
             </div>
         </div>
 
+        {/* Panel de alertas temporales IA */}
+        {alertasIA.length > 0 && showAIPredictions && (
+          <div className="sticky top-0 z-40 bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg">
+            <div className="p-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="animate-pulse text-lg">🚨</span>
+                  <span className="font-bold text-sm">ALERTAS TEMPORALES IA</span>
+                </div>
+                <div className="flex gap-2 overflow-x-auto">
+                  {alertasIA.slice(0, 3).map((alerta, index) => (
+                    <div key={index} className="bg-white bg-opacity-20 px-3 py-1 rounded-full text-xs whitespace-nowrap">
+                      <span className="font-semibold">{alerta.evento}:</span> {alerta.dias_restantes} días
+                    </div>
+                  ))}
+                  {alertasIA.length > 3 && (
+                    <div className="bg-white bg-opacity-20 px-2 py-1 rounded-full text-xs">
+                      +{alertasIA.length - 3} más
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Panel de totalizadores compacto */}
         <div className="sticky top-0 z-30 bg-gray-100/95 backdrop-blur-md shadow-sm">
           <div className="p-3">
             <div className="bg-white rounded-lg shadow-md p-4">
-              <h2 className="text-md font-semibold mb-3 text-gray-800">📊 Totalizadores por Estado</h2>
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="text-md font-semibold text-gray-800">📊 Totalizadores por Estado</h2>
+                {showAIPredictions && prediccionesIA.length > 0 && (
+                  <div className="text-xs bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800 px-2 py-1 rounded-full border border-purple-200">
+                    🤖 {prediccionesIA.length} predicciones IA activas
+                  </div>
+                )}
+              </div>
               
               {/* Totalizador CBM compacto */}
               <div className="mb-3">
@@ -1315,6 +1758,13 @@ export default function Dashboard() {
                           💰 Modificar Precio
                         </button>
                       )}
+                      <button 
+                        onClick={() => handleAIChat(product)}
+                        className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-3 py-1.5 rounded text-sm hover:from-purple-700 hover:to-pink-700"
+                        title="Chat con IA sobre este producto"
+                      >
+                        🤖 IA
+                      </button>
                       <button onClick={() => toggleExpand(product.sku)} className="bg-gray-700 text-white px-3 py-1.5 rounded text-sm hover:bg-gray-800">{isExpanded ? 'Ocultar' : 'Detalles'}</button>
                     </div>
                   </div>
@@ -1355,11 +1805,157 @@ export default function Dashboard() {
                   <div className="grid md:grid-cols-6 gap-4 text-center md:text-left">
                     <div><p className="text-xs text-gray-500 font-bold">STOCK ACTUAL</p><p className="text-2xl font-bold">{product.stock_actual || product.stockActual || 0}</p></div>
                     <div><p className="text-xs text-gray-500 font-bold">EN TRÁNSITO</p><p className="text-2xl font-bold text-blue-600">{product.enTransito || 0}</p></div>
-                    <div><p className="text-xs text-gray-500 font-bold">CANT. SUGERIDA</p><p className="text-2xl font-bold text-green-600">{product.cantidadSugerida || 0}</p></div>
+                    <div>
+                      <p className="text-xs text-gray-500 font-bold">CANT. SUGERIDA</p>
+                      <p className="text-2xl font-bold text-green-600">{product.cantidadSugerida || 0}</p>
+                      {showAIPredictions && product.sugerencia_reposicion_ia && (
+                        <p className="text-xs text-purple-600 font-semibold">🤖 IA: {product.sugerencia_reposicion_ia}</p>
+                      )}
+                    </div>
                     <div><p className="text-xs text-gray-500 font-bold">CANT. COMPRADA</p><p className="text-2xl font-bold text-purple-600">{product.approval_details?.purchaseQuantity || 0}</p></div>
                     <div><p className="text-xs text-gray-500 font-bold">VENTA DIARIA</p><p className="text-lg font-bold">{(product.venta_diaria || product.ventaDiaria || 0).toFixed(1)}</p></div>
                     <div><p className="text-xs text-gray-500 font-bold">DÍAS DE STOCK</p><p className={`text-lg font-bold ${diasDeStock < 30 ? 'text-red-600' : 'text-green-600'}`}>{diasDeStock === Infinity ? '∞' : diasDeStock.toFixed(0)}</p></div>
                   </div>
+                  
+                  {/* Panel de IA Insights */}
+                  {showAIPredictions && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="grid md:grid-cols-2 gap-4">
+                        {/* Predicción IA */}
+                        {(() => {
+                          const prediccionIA = getAIPredictionForProduct(product.sku);
+                          if (prediccionIA) {
+                            return (
+                              <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-3 rounded-lg border border-purple-200">
+                                <div className="flex justify-between items-start mb-2">
+                                  <h4 className="font-semibold text-purple-800 text-sm">🔮 Predicción IA</h4>
+                                  <div className="flex flex-col items-end gap-1">
+                                    <span className="text-xs bg-purple-200 text-purple-800 px-2 py-1 rounded-full">
+                                      {Math.round(prediccionIA.confianza * 100)}% confianza
+                                    </span>
+                                    <StarRating 
+                                      sku={product.sku} 
+                                      tipo="prediccion" 
+                                      onRate={(rating) => handleAIFeedback(product.sku, 'prediccion', rating)}
+                                      size="sm"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="text-sm space-y-1">
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">Evento:</span>
+                                    <span className="font-medium text-purple-700">{prediccionIA.evento_objetivo}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">Fecha Target:</span>
+                                    <span className="font-mono text-purple-700">{formatDate(prediccionIA.temporalidad_target)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">Cantidad Pred.:</span>
+                                    <span className="font-bold text-purple-700">{prediccionIA.cantidad_predicha} un.</span>
+                                  </div>
+                                  {product.temporalidad_prediccion && (
+                                    <div className="text-xs text-purple-600 mt-2 bg-white bg-opacity-50 p-2 rounded">
+                                      💡 {product.logica_explicacion_ia || 'Predicción basada en patrones estacionales chilenos'}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          } else if (product.sugerencia_reposicion_ia) {
+                            return (
+                              <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-3 rounded-lg border border-blue-200">
+                                <div className="flex justify-between items-start mb-2">
+                                  <h4 className="font-semibold text-blue-800 text-sm">🤖 Sugerencia IA</h4>
+                                  <StarRating 
+                                    sku={product.sku} 
+                                    tipo="sugerencia" 
+                                    onRate={(rating) => handleAIFeedback(product.sku, 'sugerencia', rating)}
+                                    size="sm"
+                                  />
+                                </div>
+                                <div className="text-sm space-y-1">
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">Cantidad:</span>
+                                    <span className="font-bold text-blue-700">{product.sugerencia_reposicion_ia} un.</span>
+                                  </div>
+                                  {product.confianza_prediccion_ia && (
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">Confianza:</span>
+                                      <span className="font-medium text-blue-700">{Math.round(product.confianza_prediccion_ia * 100)}%</span>
+                                    </div>
+                                  )}
+                                  {product.temporalidad_prediccion && (
+                                    <div className="text-xs text-blue-600 mt-2 bg-white bg-opacity-50 p-2 rounded">
+                                      📅 Para: {product.temporalidad_prediccion}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          }
+                        })()}
+                        
+                        {/* Diagnóstico IA */}
+                        {(() => {
+                          const diagnostico = getAIDiagnosticForProduct(product.sku);
+                          if (diagnostico) {
+                            const colorClass = {
+                              'stockout': 'from-red-50 to-orange-50 border-red-200',
+                              'low_stock': 'from-yellow-50 to-orange-50 border-yellow-200',
+                              'excess_stock': 'from-gray-50 to-blue-50 border-gray-200'
+                            }[diagnostico.tipo] || 'from-green-50 to-emerald-50 border-green-200';
+                            
+                            const textColorClass = {
+                              'stockout': 'text-red-800',
+                              'low_stock': 'text-yellow-800',
+                              'excess_stock': 'text-gray-800'
+                            }[diagnostico.tipo] || 'text-green-800';
+                            
+                            return (
+                              <div className={`bg-gradient-to-r ${colorClass} p-3 rounded-lg border`}>
+                                <div className="flex justify-between items-start mb-2">
+                                  <h4 className={`font-semibold ${textColorClass} text-sm`}>🔍 Diagnóstico IA</h4>
+                                  <div className="flex flex-col items-end gap-1">
+                                    <span className="text-xs bg-white bg-opacity-70 px-2 py-1 rounded-full">
+                                      {Math.round(diagnostico.confianza * 100)}%
+                                    </span>
+                                    <StarRating 
+                                      sku={product.sku} 
+                                      tipo="diagnostico" 
+                                      onRate={(rating) => handleAIFeedback(product.sku, 'diagnostico', rating)}
+                                      size="sm"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="text-sm">
+                                  <div className={`font-medium ${textColorClass} mb-1`}>
+                                    {diagnostico.mensaje}
+                                  </div>
+                                  <div className="text-xs text-gray-600">
+                                    💡 {diagnostico.recomendacion}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
+                        })()}
+                      </div>
+                      
+                      {/* Alertas Temporales del Producto */}
+                      {product.alertas_temporales && (
+                        <div className="mt-3 bg-gradient-to-r from-orange-50 to-red-50 p-3 rounded-lg border border-orange-200">
+                          <h4 className="font-semibold text-orange-800 text-sm mb-2">⚠️ Alertas Temporales</h4>
+                          <div className="text-xs text-orange-700">
+                            {typeof product.alertas_temporales === 'string' 
+                              ? product.alertas_temporales
+                              : JSON.stringify(product.alertas_temporales)
+                            }
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {isExpanded && (
