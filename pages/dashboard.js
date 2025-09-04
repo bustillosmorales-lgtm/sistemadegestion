@@ -2,6 +2,7 @@
 import useSWR, { mutate } from 'swr';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import Head from 'next/head';
 import { useState, useMemo, useEffect } from 'react';
 import ActionModal from '../components/ActionModal';
 import { useUser } from '../components/UserContext';
@@ -1435,11 +1436,17 @@ export default function Dashboard() {
         </div>
       )}
       
+      <Head>
+        <title>Sistema de Gestión de Inventario</title>
+        <meta name="description" content="Dashboard de gestión de inventario y análisis de productos" />
+        <link rel="icon" href="/logo.png" />
+      </Head>
+      
       <div className="bg-gray-100 min-h-screen">
         <div className="sticky top-0 z-20 bg-gray-100/80 backdrop-blur-md shadow-sm p-4">
             <div className="flex justify-between items-center mb-4">
                 <div>
-                    <h1 className="text-2xl font-bold">Dashboard de Gestión</h1>
+                    <img src="/logo.png" alt="Logo Dashboard" className="h-8 md:h-10" />
                     <div className="flex items-center gap-4">
                         <p className="text-sm text-gray-600">Sesión: <span className="font-semibold">{user.name}</span> ({user.role}) - {filteredProducts.length} productos</p>
                         <button
@@ -1458,26 +1465,29 @@ export default function Dashboard() {
                 <div className="flex flex-wrap gap-2 text-sm">
                     {user.role === 'admin' && (
                         <Link href="/users">
-                            <button className="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700" title="Usuarios">👥</button>
+                            <button className="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 text-sm" title="Gestión de Usuarios">👥 Usuarios</button>
                         </Link>
                     )}
                     {(user.role === 'admin' || user.role === 'chile') && (
                         <>
                             <Link href="/config">
-                                <button className="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700" title="Configurar">⚙️</button>
+                                <button className="bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 text-sm" title="Configuración del Sistema">⚙️ Config</button>
                             </Link>
                             <Link href="/bulk-upload">
-                                <button className="bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700" title="Cargar Datos">📤</button>
+                                <button className="bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 text-sm" title="Cargar Datos Masivos">📤 Cargar</button>
                             </Link>
                             <Link href="/skus-desconsiderados">
-                                <button className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700" title="SKUs Desconsiderados">🚫</button>
+                                <button className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700 text-sm" title="SKUs Desconsiderados">🚫 SKUs-Off</button>
+                            </Link>
+                            <Link href="/timeline">
+                                <button className="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-sm" title="Timeline de Inventario">📈 Timeline</button>
                             </Link>
                             <button 
                                 onClick={() => setRemindersModal(true)}
-                                className="bg-purple-600 text-white px-2 py-1 rounded hover:bg-purple-700 relative"
-                                title="Recordatorios"
+                                className="bg-purple-600 text-white px-2 py-1 rounded hover:bg-purple-700 relative text-sm"
+                                title="Gestión de Recordatorios"
                             >
-                                ⏰
+                                ⏰ Recordar
                                 {activeReminders.length > 0 && (
                                     <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full text-xs w-4 h-4 flex items-center justify-center">{activeReminders.length}</span>
                                 )}
@@ -1485,10 +1495,10 @@ export default function Dashboard() {
                             <button 
                                 onClick={() => handleGenerateAIPredictions()}
                                 disabled={isGeneratingPredictions}
-                                className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-2 py-1 rounded hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 relative"
+                                className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-2 py-1 rounded hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 relative text-sm"
                                 title="Generar Predicciones IA"
                             >
-                                {isGeneratingPredictions ? '⏳' : '🤖'}
+                                {isGeneratingPredictions ? '⏳ Generando' : '🤖 Predecir'}
                                 {prediccionesIA.length > 0 && (
                                     <span className="absolute -top-1 -right-1 bg-green-500 text-white rounded-full text-xs w-4 h-4 flex items-center justify-center">{prediccionesIA.length}</span>
                                 )}
@@ -1515,21 +1525,21 @@ export default function Dashboard() {
                     )}
                     {(user.role === 'admin' || user.role === 'china' || user.role === 'chile') && (
                         <Link href="/contenedores">
-                            <button className="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700" title="Contenedores">🚢</button>
+                            <button className="bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 text-sm" title="Gestión de Contenedores">🚢 Contened.</button>
                         </Link>
                     )}
                     <Link href="/account-settings">
-                        <button className="bg-gray-500 text-white px-2 py-1 rounded hover:bg-gray-600" title="Configuración de Cuenta">⚙️</button>
+                        <button className="bg-gray-500 text-white px-2 py-1 rounded hover:bg-gray-600 text-sm" title="Configuración de Cuenta">👤 Cuenta</button>
                     </Link>
                     <button 
                         onClick={() => {
                             logout();
                             router.push('/');
                         }}
-                        className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
+                        className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-sm"
                         title="Cerrar Sesión"
                     >
-                        🚪
+                        🚪 Salir
                     </button>
                 </div>
             </div>

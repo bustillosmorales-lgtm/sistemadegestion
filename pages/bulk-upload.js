@@ -118,7 +118,33 @@ export default function BulkUploadPage() {
         }
     };
 
-    const downloadTemplate = () => {
+    const downloadTemplate = async () => {
+        if (selectedTable === 'productos') {
+            // Para productos, descargar template con datos existentes
+            try {
+                const response = await fetch('/api/bulk-upload', {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `productos_existentes_${new Date().toISOString().split('T')[0]}.xlsx`;
+                    link.click();
+                    window.URL.revokeObjectURL(url);
+                } else {
+                    throw new Error('Error descargando template de productos');
+                }
+            } catch (error) {
+                setError('Error descargando template de productos: ' + error.message);
+            }
+            return;
+        }
+
+        // Templates estáticos para otros tipos
         const templates = {
             ventas: 'numero_venta,sku,cantidad,fecha_venta,precio_venta_clp,descripcion_producto\nV001,SKU001,10,2024-01-15,15000,Producto Ejemplo',
             compras: 'numero_compra,sku,cantidad,fecha_compra,fecha_llegada_estimada,status_compra,container_number,proveedor,precio_compra,descripcion_producto\nC001,SKU001,100,2024-01-10,2024-02-15,en_transito,CONT001,Proveedor A,5.50,Producto Ejemplo',
@@ -166,9 +192,14 @@ export default function BulkUploadPage() {
                         <h3 className="font-bold mb-2">✅ {uploadResult.mensaje}</h3>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                             <div>📊 Nuevos: <strong>{uploadResult.resumen.nuevos}</strong></div>
-                            <div>🔄 Duplicados: <strong>{uploadResult.resumen.duplicados}</strong></div>
+                            <div>🔄 {selectedTable === 'productos' ? 'Actualizados' : 'Duplicados'}: <strong>{uploadResult.resumen.duplicados}</strong></div>
                             <div>❌ Errores: <strong>{uploadResult.resumen.errores}</strong></div>
-                            <div>📦 Productos Nuevos: <strong>{uploadResult.resumen.productosNuevos}</strong></div>
+                            {selectedTable !== 'productos' && (
+                                <div>📦 Productos Nuevos: <strong>{uploadResult.resumen.productosNuevos}</strong></div>
+                            )}
+                            {uploadResult.resumen.contenedoresNuevos > 0 && (
+                                <div>🚢 Contenedores Nuevos: <strong>{uploadResult.resumen.contenedoresNuevos}</strong></div>
+                            )}
                         </div>
                         
                         {uploadResult.detalles.errores.length > 0 && (
@@ -202,6 +233,7 @@ export default function BulkUploadPage() {
                                 <option value="ventas">📈 Ventas</option>
                                 <option value="compras">🛒 Compras</option>
                                 <option value="containers">🚢 Contenedores</option>
+                                <option value="productos">📦 Productos</option>
                             </select>
                         </div>
 
@@ -214,7 +246,10 @@ export default function BulkUploadPage() {
                             </button>
                             
                             <div className="text-sm text-gray-600 self-center">
-                                Descarga el template para ver el formato requerido
+                                {selectedTable === 'productos' 
+                                    ? 'Descarga Excel con productos existentes para editar/agregar' 
+                                    : 'Descarga el template para ver el formato requerido'
+                                }
                             </div>
                         </div>
 
@@ -382,13 +417,24 @@ export default function BulkUploadPage() {
 
                 <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <h3 className="font-semibold text-blue-800 mb-2">ℹ️ Información Importante</h3>
-                    <ul className="text-blue-700 text-sm space-y-1">
-                        <li>• Los datos se agregan de forma incremental (no reemplazan datos existentes)</li>
-                        <li>• Los registros duplicados (por número de venta/compra/contenedor) se ignoran automáticamente</li>
-                        <li>• Si aparece un SKU en ventas que no existe en productos, se crea automáticamente</li>
-                        <li>• Se recomienda usar el template para asegurar el formato correcto</li>
-                        <li>• Solo usuarios Admin y Chile pueden realizar carga masiva</li>
-                    </ul>
+                    {selectedTable === 'productos' ? (
+                        <ul className="text-blue-700 text-sm space-y-1">
+                            <li>• <strong>Para productos existentes:</strong> Solo se actualizan los campos que no estén vacíos en el archivo</li>
+                            <li>• <strong>Para productos nuevos:</strong> Se crean con valores por defecto si faltan campos obligatorios</li>
+                            <li>• <strong>Template inteligente:</strong> Descarga todos los productos existentes para facilitar la edición</li>
+                            <li>• <strong>Campos disponibles:</strong> SKU, descripción, categoría, stock, costo_fob_rmb, CBM, link, status, desconsiderado</li>
+                            <li>• <strong>Solo SKU es obligatorio:</strong> Los demás campos son opcionales</li>
+                            <li>• <strong>Conversión automática:</strong> Números, booleanos y fechas se convierten automáticamente</li>
+                        </ul>
+                    ) : (
+                        <ul className="text-blue-700 text-sm space-y-1">
+                            <li>• Los datos se agregan de forma incremental (no reemplazan datos existentes)</li>
+                            <li>• Los registros duplicados (por número de venta/compra/contenedor o SKU+fecha) se ignoran automáticamente</li>
+                            <li>• Si aparece un SKU en ventas que no existe en productos, se crea automáticamente</li>
+                            <li>• Se recomienda usar el template para asegurar el formato correcto</li>
+                            <li>• Solo usuarios Admin y Chile pueden realizar carga masiva</li>
+                        </ul>
+                    )}
                 </div>
             </main>
         </div>

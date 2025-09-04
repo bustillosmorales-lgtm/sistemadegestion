@@ -1,7 +1,17 @@
 // pages/api/bulk-upload.js
 import { supabase } from '../../lib/supabaseClient';
+import * as XLSX from 'xlsx';
 
 export default async function handler(req, res) {
+    // Manejar descarga de template de productos existentes
+    if (req.method === 'GET') {
+        try {
+            return await descargarTemplateProductos(res);
+        } catch (error) {
+            return res.status(500).json({ error: 'Error generando template de productos: ' + error.message });
+        }
+    }
+
     if (req.method !== 'POST') {
         return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
     }
@@ -17,7 +27,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Faltan parámetros: tableType y data (array) requeridos.' });
     }
 
-    const allowedTables = ['ventas', 'compras', 'containers'];
+    const allowedTables = ['ventas', 'compras', 'containers', 'productos'];
     if (!allowedTables.includes(tableType)) {
         return res.status(400).json({ error: `Tipo de tabla no permitido. Usar: ${allowedTables.join(', ')}` });
     }
@@ -41,6 +51,9 @@ export default async function handler(req, res) {
             case 'containers':
                 processedData = await procesarContainers(uploadData);
                 break;
+            case 'productos':
+                processedData = await procesarProductos(uploadData);
+                break;
         }
 
         return res.status(200).json({
@@ -49,7 +62,8 @@ export default async function handler(req, res) {
                 nuevos: processedData.nuevos.length,
                 duplicados: processedData.duplicados.length,
                 errores: processedData.errores.length,
-                productosNuevos: processedData.productosNuevos.length
+                productosNuevos: processedData.productosNuevos?.length || 0,
+                contenedoresNuevos: processedData.contenedoresNuevos?.length || 0
             },
             detalles: processedData
         });
@@ -70,38 +84,46 @@ async function procesarVentas(ventasData) {
 
     for (const venta of ventasData) {
         try {
-            // Validar campos requeridos
-            if (!venta.numero_venta || !venta.sku || !venta.cantidad) {
+            // Validar campos requeridos (más flexible)
+            if (!venta.sku || !venta.cantidad) {
                 resultado.errores.push({
                     registro: venta,
-                    error: 'Campos requeridos: numero_venta, sku, cantidad'
+                    error: 'Campos requeridos: sku, cantidad'
                 });
                 continue;
             }
+            
+            // Generar numero_venta automático si no existe
+            if (!venta.numero_venta) {
+                const timestamp = Date.now().toString().slice(-8);
+                const random = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+                venta.numero_venta = `V${timestamp}${random}`;
+            }
 
-            // Verificar duplicado
+            // La tabla ventas no tiene numero_venta, usar combinación sku+fecha para detectar duplicados
             const { data: existing } = await supabase
                 .from('ventas')
-                .select('numero_venta')
-                .eq('numero_venta', venta.numero_venta)
+                .select('*')
+                .eq('sku', venta.sku)
+                .eq('fecha_venta', venta.fecha_venta)
                 .single();
 
             if (existing) {
-                resultado.duplicados.push(venta.numero_venta);
+                resultado.duplicados.push(`${venta.sku}-${venta.fecha_venta}`);
                 continue;
             }
 
-            // Verificar y crear producto si no existe
-            await verificarYCrearProducto(venta.sku, venta.descripcion_producto, resultado);
+            // Verificar y crear producto si no existe ANTES de insertar venta
+            await verificarYCrearProducto(venta.sku, venta.descripcion_producto || venta.descripcion, resultado);
 
-            // Insertar nueva venta
+            // Insertar nueva venta (solo campos que existen en la tabla)
             const nuevaVenta = {
-                numero_venta: venta.numero_venta,
-                sku: venta.sku,
+                sku: venta.sku.toString(),
                 cantidad: parseInt(venta.cantidad),
-                fecha_venta: venta.fecha_venta || new Date().toISOString(),
-                precio_venta_clp: venta.precio_venta_clp ? parseFloat(venta.precio_venta_clp) : null
+                fecha_venta: venta.fecha_venta || new Date().toISOString().split('T')[0] + ' 00:00:00'
             };
+
+            console.log(`💾 Insertando venta para SKU: ${venta.sku}`);
 
             const { data, error } = await supabase
                 .from('ventas')
@@ -133,42 +155,51 @@ async function procesarCompras(comprasData) {
 
     for (const compra of comprasData) {
         try {
-            // Validar campos requeridos
-            if (!compra.numero_compra || !compra.sku || !compra.cantidad) {
+            // Validar campos requeridos (más flexible)
+            if (!compra.sku || !compra.cantidad) {
                 resultado.errores.push({
                     registro: compra,
-                    error: 'Campos requeridos: numero_compra, sku, cantidad'
+                    error: 'Campos requeridos: sku, cantidad'
                 });
                 continue;
             }
+            
+            // Generar numero_compra automático si no existe
+            if (!compra.numero_compra) {
+                const timestamp = Date.now().toString().slice(-8);
+                const random = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+                compra.numero_compra = `C${timestamp}${random}`;
+            }
 
-            // Verificar duplicado
+            // La tabla compras no tiene numero_compra, usar combinación sku+fecha para detectar duplicados
             const { data: existing } = await supabase
                 .from('compras')
-                .select('numero_compra')
-                .eq('numero_compra', compra.numero_compra)
-                .single();
+                .select('*')
+                .eq('sku', compra.sku)
+                .eq('fecha_compra', compra.fecha_compra)
+                .maybeSingle();
 
             if (existing) {
-                resultado.duplicados.push(compra.numero_compra);
+                resultado.duplicados.push(`${compra.sku}-${compra.fecha_compra}`);
                 continue;
             }
 
             // Verificar y crear producto si no existe
             await verificarYCrearProducto(compra.sku, compra.descripcion_producto, resultado);
 
-            // Insertar nueva compra
+            // Si se especifica container_number, verificar que existe o crearlo
+            if (compra.container_number) {
+                await verificarYCrearContenedor(compra.container_number, compra, resultado);
+            }
+
+            // Insertar nueva compra (solo campos que existen en la tabla)
             const nuevaCompra = {
-                numero_compra: compra.numero_compra,
                 sku: compra.sku,
                 cantidad: parseInt(compra.cantidad),
-                fecha_compra: compra.fecha_compra || new Date().toISOString(),
-                fecha_llegada_estimada: compra.fecha_llegada_estimada,
-                fecha_llegada_real: compra.fecha_llegada_real,
-                status_compra: compra.status_compra || 'en_transito',
-                container_number: compra.container_number,
-                proveedor: compra.proveedor,
-                precio_compra: compra.precio_compra ? parseFloat(compra.precio_compra) : null
+                fecha_compra: compra.fecha_compra || new Date().toISOString().split('T')[0] + ' 00:00:00',
+                fecha_llegada_estimada: compra.fecha_llegada_estimada || null,
+                fecha_llegada_real: compra.fecha_llegada_real || null,
+                status_compra: compra.status_compra || 'en_transito'
             };
 
             const { data, error } = await supabase
@@ -215,24 +246,24 @@ async function procesarContainers(containersData) {
                 .from('containers')
                 .select('container_number')
                 .eq('container_number', container.container_number)
-                .single();
+                .maybeSingle();
 
             if (existing) {
                 resultado.duplicados.push(container.container_number);
                 continue;
             }
 
-            // Insertar nuevo container
+            // Insertar nuevo container (más flexible)
             const nuevoContainer = {
-                container_number: container.container_number,
+                container_number: container.container_number.toString(),
                 container_type: container.container_type || 'STD',
                 max_cbm: parseFloat(container.max_cbm) || 68,
                 departure_port: container.departure_port || '',
                 arrival_port: container.arrival_port || '',
-                estimated_departure: container.estimated_departure,
-                estimated_arrival: container.estimated_arrival,
-                actual_departure: container.actual_departure,
-                actual_arrival_date: container.actual_arrival_date,
+                estimated_departure: container.estimated_departure || null,
+                estimated_arrival: container.estimated_arrival || null,
+                actual_departure: container.actual_departure || null,
+                actual_arrival_date: container.actual_arrival_date || null,
                 shipping_company: container.shipping_company || '',
                 notes: container.notes || '',
                 status: container.status || 'CREATED',
@@ -240,13 +271,19 @@ async function procesarContainers(containersData) {
                 updated_at: new Date().toISOString()
             };
 
+            console.log(`🚢 Insertando contenedor: ${container.container_number}`, nuevoContainer);
+
             const { data, error } = await supabase
                 .from('containers')
                 .insert(nuevoContainer)
                 .select();
 
-            if (error) throw error;
+            if (error) {
+                console.error(`❌ Error insertando contenedor ${container.container_number}:`, error);
+                throw error;
+            }
             
+            console.log(`✅ Contenedor ${container.container_number} insertado exitosamente:`, data[0]);
             resultado.nuevos.push(data[0]);
 
         } catch (error) {
@@ -262,36 +299,312 @@ async function procesarContainers(containersData) {
 
 // Función para verificar y crear producto automáticamente
 async function verificarYCrearProducto(sku, descripcion, resultado) {
-    // Verificar si el producto existe
-    const { data: existingProduct } = await supabase
-        .from('products')
-        .select('sku')
-        .eq('sku', sku)
-        .single();
-
-    if (!existingProduct) {
-        // Crear producto automáticamente
-        const nuevoProducto = {
-            sku: sku,
-            descripcion: descripcion || `Producto ${sku} (Auto-creado)`,
-            costo_fob_rmb: 1,
-            cbm: 0.01,
-            stock_actual: 0,
-            status: 'NEEDS_REPLENISHMENT',
-            desconsiderado: false,
-            created_at: new Date().toISOString()
-        };
-
-        const { data, error } = await supabase
+    try {
+        // Verificar si el producto existe (manejar caso donde no hay coincidencias)
+        const { data: existingProduct, error: selectError } = await supabase
             .from('products')
-            .insert(nuevoProducto)
-            .select();
+            .select('sku')
+            .eq('sku', sku)
+            .maybeSingle(); // Usar maybeSingle en lugar de single para evitar errores cuando no existe
+
+        if (selectError) {
+            throw new Error(`Error verificando producto ${sku}: ${selectError.message}`);
+        }
+
+        if (!existingProduct) {
+            console.log(`📦 Creando producto automáticamente: ${sku}`);
+            
+            // Crear producto automáticamente (solo campos que existen en la tabla)
+            const nuevoProducto = {
+                sku: sku.toString(),
+                descripcion: descripcion || `Producto ${sku} (Auto-creado)`,
+                costo_fob_rmb: 1.0,
+                cbm: 0.01,
+                stock_actual: 0,
+                status: 'NEEDS_REPLENISHMENT',
+                link: '',
+                desconsiderado: false
+            };
+
+            const { data, error } = await supabase
+                .from('products')
+                .insert(nuevoProducto)
+                .select();
+
+            if (error) {
+                throw new Error(`No se pudo crear producto ${sku}: ${error.message}`);
+            } else {
+                resultado.productosNuevos.push(data[0]);
+                console.log(`✅ Producto ${sku} creado automáticamente`);
+                
+                // Pequeña pausa para asegurar que se commitee la transacción
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        } else {
+            console.log(`✓ Producto ${sku} ya existe`);
+        }
+    } catch (error) {
+        console.error(`❌ Error en verificarYCrearProducto para ${sku}:`, error.message);
+        throw error; // Re-throw para que el proceso padre lo maneje
+    }
+}
+
+// Función para descargar template de productos existentes como Excel
+async function descargarTemplateProductos(res) {
+    try {
+        // Obtener todos los productos existentes
+        const { data: productos, error } = await supabase
+            .from('products')
+            .select('*')
+            .order('sku');
 
         if (error) {
-            console.warn(`No se pudo crear producto ${sku}:`, error.message);
-        } else {
-            resultado.productosNuevos.push(data[0]);
-            console.log(`✅ Producto ${sku} creado automáticamente`);
+            throw new Error(`Error obteniendo productos: ${error.message}`);
         }
+
+        // Crear workbook
+        const workbook = XLSX.utils.book_new();
+
+        // Preparar datos para Excel con todas las columnas posibles
+        const excelData = (productos || []).map(producto => ({
+            sku: producto.sku || '',
+            descripcion: producto.descripcion || '',
+            categoria: producto.categoria || '',
+            stock_actual: producto.stock_actual || 0,
+            costo_fob_rmb: producto.costo_fob_rmb || '',
+            cbm: producto.cbm || '',
+            link: producto.link || '',
+            status: producto.status || '',
+            desconsiderado: producto.desconsiderado || false,
+            // Campos adicionales que se pueden agregar
+            precio_venta_sugerido: producto.precio_venta_sugerido || '',
+            proveedor: producto.proveedor || '',
+            notas: producto.notas || '',
+            codigo_interno: producto.codigo_interno || ''
+        }));
+
+        // Si no hay productos, crear template con filas de ejemplo
+        if (excelData.length === 0) {
+            excelData.push({
+                sku: 'EJEMPLO-001',
+                descripcion: 'Producto de Ejemplo 1',
+                categoria: 'Electrónicos',
+                stock_actual: 0,
+                costo_fob_rmb: 25.50,
+                cbm: 0.02,
+                link: 'https://ejemplo.com/producto1',
+                status: 'NEEDS_REPLENISHMENT',
+                desconsiderado: false,
+                precio_venta_sugerido: 45000,
+                proveedor: 'Proveedor Ejemplo',
+                notas: 'Producto para mostrar formato',
+                codigo_interno: 'INT-001'
+            });
+        }
+
+        // Crear worksheet
+        const worksheet = XLSX.utils.json_to_sheet(excelData);
+        
+        // Configurar ancho de columnas
+        const columnWidths = [
+            { wch: 15 }, // sku
+            { wch: 40 }, // descripcion
+            { wch: 15 }, // categoria
+            { wch: 12 }, // stock_actual
+            { wch: 15 }, // costo_fob_rmb
+            { wch: 10 }, // cbm
+            { wch: 30 }, // link
+            { wch: 20 }, // status
+            { wch: 15 }, // desconsiderado
+            { wch: 15 }, // precio_venta_sugerido
+            { wch: 20 }, // proveedor
+            { wch: 30 }, // notas
+            { wch: 15 }  // codigo_interno
+        ];
+        worksheet['!cols'] = columnWidths;
+
+        // Agregar worksheet al workbook
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Productos');
+
+        // Generar buffer del archivo Excel
+        const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+        // Configurar headers para descarga
+        res.setHeader('Content-Disposition', `attachment; filename="productos_existentes_${new Date().toISOString().split('T')[0]}.xlsx"`);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        
+        // Enviar archivo
+        return res.send(excelBuffer);
+
+    } catch (error) {
+        throw new Error(`Error generando template de productos: ${error.message}`);
+    }
+}
+
+// Función para procesar productos con lógica upsert (update o insert)
+async function procesarProductos(productosData) {
+    const resultado = {
+        nuevos: [],
+        duplicados: [], // En este contexto, será "actualizados"
+        errores: [],
+        productosNuevos: [] // Este será igual a "nuevos" para productos
+    };
+
+    for (const producto of productosData) {
+        try {
+            // Validar campo requerido
+            if (!producto.sku || producto.sku.toString().trim() === '') {
+                resultado.errores.push({
+                    registro: producto,
+                    error: 'SKU es requerido'
+                });
+                continue;
+            }
+
+            // Verificar si el producto existe
+            const { data: existing, error: selectError } = await supabase
+                .from('products')
+                .select('*')
+                .eq('sku', producto.sku.toString())
+                .maybeSingle();
+
+            if (selectError) {
+                throw new Error(`Error verificando producto ${producto.sku}: ${selectError.message}`);
+            }
+
+            // Preparar datos del producto (solo campos que no estén vacíos)
+            const datosProducto = {};
+            
+            // Campos obligatorios
+            datosProducto.sku = producto.sku.toString();
+            
+            // Campos opcionales - solo agregar si tienen valor
+            if (producto.descripcion) datosProducto.descripcion = producto.descripcion;
+            if (producto.categoria) datosProducto.categoria = producto.categoria;
+            if (producto.stock_actual !== undefined && producto.stock_actual !== '') {
+                datosProducto.stock_actual = parseInt(producto.stock_actual) || 0;
+            }
+            if (producto.costo_fob_rmb !== undefined && producto.costo_fob_rmb !== '') {
+                datosProducto.costo_fob_rmb = parseFloat(producto.costo_fob_rmb) || 0;
+            }
+            if (producto.cbm !== undefined && producto.cbm !== '') {
+                datosProducto.cbm = parseFloat(producto.cbm) || 0;
+            }
+            if (producto.link) datosProducto.link = producto.link;
+            if (producto.status) datosProducto.status = producto.status;
+            if (producto.desconsiderado !== undefined) {
+                datosProducto.desconsiderado = Boolean(producto.desconsiderado);
+            }
+
+            if (existing) {
+                // ACTUALIZAR producto existente (solo campos que no estén vacíos)
+                console.log(`🔄 Actualizando producto existente: ${producto.sku}`);
+                
+                const { data, error } = await supabase
+                    .from('products')
+                    .update(datosProducto)
+                    .eq('sku', producto.sku.toString())
+                    .select();
+
+                if (error) throw error;
+                
+                resultado.duplicados.push(data[0]); // En este contexto significa "actualizado"
+
+            } else {
+                // CREAR nuevo producto
+                console.log(`📦 Creando nuevo producto: ${producto.sku}`);
+                
+                // Valores por defecto para productos nuevos
+                const nuevoProducto = {
+                    ...datosProducto,
+                    descripcion: datosProducto.descripcion || `Producto ${producto.sku}`,
+                    stock_actual: datosProducto.stock_actual ?? 0,
+                    costo_fob_rmb: datosProducto.costo_fob_rmb ?? 1.0,
+                    cbm: datosProducto.cbm ?? 0.01,
+                    status: datosProducto.status || 'NEEDS_REPLENISHMENT',
+                    link: datosProducto.link || '',
+                    desconsiderado: datosProducto.desconsiderado ?? false
+                };
+
+                const { data, error } = await supabase
+                    .from('products')
+                    .insert(nuevoProducto)
+                    .select();
+
+                if (error) throw error;
+                
+                resultado.nuevos.push(data[0]);
+                resultado.productosNuevos.push(data[0]);
+            }
+
+        } catch (error) {
+            resultado.errores.push({
+                registro: producto,
+                error: error.message
+            });
+        }
+    }
+
+    return resultado;
+}
+// Función para verificar y crear contenedor automáticamente
+async function verificarYCrearContenedor(container_number, datosCompra, resultado) {
+    try {
+        // Verificar si el contenedor existe
+        const { data: existingContainer, error: selectError } = await supabase
+            .from('containers')
+            .select('container_number')
+            .eq('container_number', container_number)
+            .maybeSingle();
+
+        if (selectError) {
+            throw new Error(`Error verificando contenedor ${container_number}: ${selectError.message}`);
+        }
+
+        if (!existingContainer) {
+            console.log(`🚢 Creando contenedor automáticamente: ${container_number}`);
+            
+            // Crear contenedor automáticamente con datos de la compra
+            const nuevoContenedor = {
+                container_number: container_number.toString(),
+                container_type: datosCompra.container_type || 'STD',
+                max_cbm: parseFloat(datosCompra.max_cbm) || 68,
+                departure_port: datosCompra.departure_port || '',
+                arrival_port: datosCompra.arrival_port || '',
+                estimated_departure: datosCompra.estimated_departure || null,
+                estimated_arrival: datosCompra.fecha_llegada_estimada || datosCompra.estimated_arrival || null,
+                // Solo establecer actual_arrival_date si el status es 'llegado'
+                actual_arrival_date: (datosCompra.status_compra === 'llegado' && datosCompra.fecha_llegada_real) ? datosCompra.fecha_llegada_real : null,
+                shipping_company: datosCompra.shipping_company || '',
+                notes: datosCompra.notes || `Auto-creado desde compra de ${datosCompra.sku}`,
+                status: (datosCompra.status_compra === 'llegado') ? 'DELIVERED' : 'CREATED',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+
+            const { data, error } = await supabase
+                .from('containers')
+                .insert(nuevoContenedor)
+                .select();
+
+            if (error) {
+                throw new Error(`No se pudo crear contenedor ${container_number}: ${error.message}`);
+            } else {
+                // Agregar a una lista especial de contenedores creados
+                if (!resultado.contenedoresNuevos) {
+                    resultado.contenedoresNuevos = [];
+                }
+                resultado.contenedoresNuevos.push(data[0]);
+                console.log(`✅ Contenedor ${container_number} creado automáticamente`);
+                
+                // Pequeña pausa para asegurar que se commitee la transacción
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        } else {
+            console.log(`✓ Contenedor ${container_number} ya existe`);
+        }
+    } catch (error) {
+        console.error(`❌ Error en verificarYCrearContenedor para ${container_number}:`, error.message);
+        throw error; // Re-throw para que el proceso padre lo maneje
     }
 }

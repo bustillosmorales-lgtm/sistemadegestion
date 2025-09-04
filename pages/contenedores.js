@@ -206,6 +206,36 @@ export default function Contenedores() {
     }
   };
 
+  const handleDownloadContainerExcel = async (container) => {
+    try {
+      const response = await fetch(`/api/containers/excel?container_number=${encodeURIComponent(container.container_number)}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
+      
+      // Crear blob y descargar archivo
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Contenedor_${container.container_number}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+    } catch (error) {
+      console.error('Error descargando Excel del contenedor:', error);
+      alert('Error al descargar el Excel del contenedor: ' + error.message);
+    }
+  };
+
   if (isLoading) return <div className="p-8 text-center">Cargando...</div>;
   if (!isAuthenticated || !user) return <div className="p-8 text-center">No autorizado</div>;
 
@@ -580,11 +610,18 @@ export default function Contenedores() {
                           >
                             ✏️ Editar
                           </button>
+                          <button
+                            onClick={() => handleDownloadContainerExcel(container)}
+                            className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
+                            title="Descargar Excel con productos del contenedor"
+                          >
+                            📊 Excel
+                          </button>
                           {container.status === 'SHIPPED' && (
                             <button
                               onClick={() => handleRegisterArrival(container.container_number)}
                               disabled={isProcessingArrival === container.container_number}
-                              className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 disabled:opacity-50"
+                              className="bg-orange-600 text-white px-3 py-1 rounded text-sm hover:bg-orange-700 disabled:opacity-50"
                             >
                               {isProcessingArrival === container.container_number ? 'Procesando...' : '📅 Registrar Llegada'}
                             </button>

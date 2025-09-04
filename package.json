@@ -10,7 +10,8 @@
     "export": "next build"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.56.0",
+    "@supabase/supabase-js": "^2.57.0",
+    "dotenv": "^17.2.2",
     "next": "^14.2.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

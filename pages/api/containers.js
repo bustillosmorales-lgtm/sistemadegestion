@@ -4,14 +4,21 @@ import { supabase } from '../../lib/supabaseClient';
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
+      console.log('📋 Consultando contenedores...');
       const { data, error } = await supabase
         .from('containers')
         .select('*')
         .order('created_at', { ascending: false });
       
-      if (error) return res.status(500).json({ error: error.message });
+      if (error) {
+        console.error('❌ Error consultando contenedores:', error);
+        return res.status(500).json({ error: error.message });
+      }
+      
+      console.log(`✅ Contenedores encontrados: ${data?.length || 0}`);
       return res.status(200).json(data);
     } catch (err) {
+      console.error('❌ Error interno consultando contenedores:', err);
       return res.status(500).json({ error: 'Error interno del servidor' });
     }
   }
@@ -39,7 +46,7 @@ export default async function handler(req, res) {
         .from('containers')
         .select('container_number')
         .eq('container_number', container_number)
-        .single();
+        .maybeSingle();
 
       if (existingContainer) {
         return res.status(400).json({ error: 'Ya existe un contenedor con ese número' });

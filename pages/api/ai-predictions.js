@@ -99,14 +99,16 @@ async function handleCreatePredictions(req, res) {
             return res.status(404).json({ error: 'No se encontraron productos con esos SKUs' });
         }
 
-        // Ejecutar sistema IA Python
+        // Ejecutar sistema IA Python (con fallback)
         const aiResults = await executeAISystem(productos, config);
 
         if (!aiResults.success) {
-            return res.status(500).json({ 
-                error: 'Error ejecutando sistema IA', 
-                details: aiResults.error 
-            });
+            console.log('Sistema Python falló, usando fallback:', aiResults.error);
+            // Usar sistema fallback en caso de error
+            const fallbackPredictions = generateFallbackPredictions(productos, config);
+            aiResults.success = true;
+            aiResults.predictions = fallbackPredictions;
+            aiResults.temporal_alerts = [];
         }
 
         // Guardar predicciones en base de datos
@@ -229,13 +231,23 @@ async function executeAISystem(productos, config) {
                 }
             };
 
-            // Ejecutar script Python
-            const pythonProcess = spawn('python3', [scriptPath], {
+            // Ejecutar script Python (intentar python3 primero, luego python)
+            const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
+            const pythonProcess = spawn(pythonCommand, [scriptPath], {
                 stdio: ['pipe', 'pipe', 'pipe']
             });
 
             let outputData = '';
             let errorData = '';
+            
+            // Manejo de errores del proceso
+            pythonProcess.on('error', (error) => {
+                console.error('Error en proceso Python:', error);
+                resolve({
+                    success: false,
+                    error: `Error proceso Python: ${error.message}`
+                });
+            });
 
             // Enviar datos al script
             pythonProcess.stdin.write(JSON.stringify(inputData));
@@ -253,9 +265,10 @@ async function executeAISystem(productos, config) {
             pythonProcess.on('close', (code) => {
                 if (code !== 0) {
                     console.error('Error ejecutando script IA:', errorData);
+                    const errorMsg = errorData || 'Sin detalles del error';
                     resolve({
                         success: false,
-                        error: `Script falló con código ${code}: ${errorData}`
+                        error: `Python falló (código ${code}): ${errorMsg}`
                     });
                     return;
                 }
@@ -286,9 +299,10 @@ async function executeAISystem(productos, config) {
             }, 30000);
 
         } catch (error) {
+            console.error('Error iniciando proceso Python:', error);
             resolve({
                 success: false,
-                error: `Error iniciando script: ${error.message}`
+                error: `Error iniciando Python: ${error.message}`
             });
         }
     });
@@ -301,10 +315,14 @@ function generateFallbackPredictions(productos, config) {
     const eventos_proximos = [
         { nombre: 'CyberDay Mayo 2025', mes: 5, factor: 3.5 },
         { nombre: 'Día del Padre 2025', mes: 6, factor: 1.8 },
-        { nombre: 'Fiestas Patrias 2025', mes: 9, factor: 2.8 }
+        { nombre: 'Fiestas Patrias 2025', mes: 9, factor: 2.8 },
+        { nombre: 'Black Friday 2025', mes: 11, factor: 4.2 },
+        { nombre: 'Navidad 2025', mes: 12, factor: 3.8 }
     ];
     
-    const evento_proximo = eventos_proximos[0]; // Mayo CyberDay
+    // Elegir evento más próximo basado en mes actual
+    const mesActual = new Date().getMonth() + 1;
+    const evento_proximo = eventos_proximos.find(e => e.mes >= mesActual) || eventos_proximos[0];
     
     productos.forEach(producto => {
         const venta_diaria = parseFloat(producto.breakdown?.ventaDiaria || 1.0);
