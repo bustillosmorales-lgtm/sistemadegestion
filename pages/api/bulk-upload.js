@@ -510,33 +510,76 @@ async function procesarProductos(productosData) {
                 throw new Error(`Error verificando producto ${skuLimpio}: ${selectError.message}`);
             }
             
-            // Preparar datos del producto (solo campos que no estén vacíos)
+            // Preparar datos del producto
             const datosProducto = {};
             
             // Campos obligatorios
             datosProducto.sku = skuLimpio;
             
-            // Campos opcionales - solo agregar si tienen valor
-            if (producto.descripcion) datosProducto.descripcion = producto.descripcion;
-            if (producto.categoria) datosProducto.categoria = producto.categoria;
-            if (producto.stock_actual !== undefined && producto.stock_actual !== '') {
+            // Para actualización: incluir TODOS los campos presentes (incluso si están vacíos)
+            // Esto permite sobrescribir campos existentes
+            
+            // Descripción - siempre actualizar si está presente
+            if (producto.descripcion !== undefined) {
+                datosProducto.descripcion = producto.descripcion || '';
+            }
+            
+            // Categoría - siempre actualizar si está presente
+            if (producto.categoria !== undefined) {
+                datosProducto.categoria = producto.categoria || '';
+            }
+            
+            // Stock actual - siempre actualizar si está presente
+            if (producto.stock_actual !== undefined) {
                 datosProducto.stock_actual = parseInt(producto.stock_actual) || 0;
             }
-            if (producto.costo_fob_rmb !== undefined && producto.costo_fob_rmb !== '') {
+            
+            // Costo FOB - siempre actualizar si está presente
+            if (producto.costo_fob_rmb !== undefined) {
                 datosProducto.costo_fob_rmb = parseFloat(producto.costo_fob_rmb) || 0;
             }
-            if (producto.cbm !== undefined && producto.cbm !== '') {
+            
+            // CBM - siempre actualizar si está presente
+            if (producto.cbm !== undefined) {
                 datosProducto.cbm = parseFloat(producto.cbm) || 0;
             }
-            if (producto.link) datosProducto.link = producto.link;
-            if (producto.status) datosProducto.status = producto.status;
+            
+            // Link - siempre actualizar si está presente
+            if (producto.link !== undefined) {
+                datosProducto.link = producto.link || '';
+            }
+            
+            // Status - siempre actualizar si está presente
+            if (producto.status !== undefined) {
+                datosProducto.status = producto.status || 'NEEDS_REPLENISHMENT';
+            }
+            
+            // Desconsiderado - siempre actualizar si está presente
             if (producto.desconsiderado !== undefined) {
                 datosProducto.desconsiderado = Boolean(producto.desconsiderado);
             }
+            
+            // Agregar campos adicionales que podrían venir en el archivo
+            if (producto.precio_venta_sugerido !== undefined) {
+                datosProducto.precio_venta_sugerido = parseFloat(producto.precio_venta_sugerido) || null;
+            }
+            
+            if (producto.proveedor !== undefined) {
+                datosProducto.proveedor = producto.proveedor || '';
+            }
+            
+            if (producto.notas !== undefined) {
+                datosProducto.notas = producto.notas || '';
+            }
+            
+            if (producto.codigo_interno !== undefined) {
+                datosProducto.codigo_interno = producto.codigo_interno || '';
+            }
 
             if (existing) {
-                // ACTUALIZAR producto existente (solo campos que no estén vacíos)
+                // ACTUALIZAR producto existente - SOBRESCRIBIR todos los campos presentes
                 console.log(`🔄 Actualizando producto existente: ${skuLimpio}`);
+                console.log(`📝 Campos a actualizar:`, Object.keys(datosProducto).filter(k => k !== 'sku'));
                 
                 const { data, error } = await supabase
                     .from('products')
@@ -546,6 +589,7 @@ async function procesarProductos(productosData) {
 
                 if (error) throw error;
                 
+                console.log(`✅ Producto actualizado exitosamente: ${skuLimpio}`);
                 resultado.duplicados.push(data[0]); // En este contexto significa "actualizado"
 
             } else {
