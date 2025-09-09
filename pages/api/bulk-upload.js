@@ -84,8 +84,45 @@ async function procesarVentas(ventasData) {
 
     for (const venta of ventasData) {
         try {
-            // Validar campos requeridos (más flexible)
-            if (!venta.sku || !venta.cantidad) {
+            // RECUPERAR SKU si está mal mapeado
+            let skuFinal = venta.sku;
+            let cantidadFinal = venta.cantidad;
+            
+            // Verificar si el SKU parece válido
+            if (!skuFinal || skuFinal.toString().trim() === '' || 
+                (skuFinal.toString().length <= 2 && !isNaN(skuFinal))) {
+                
+                console.log(`⚠️ SKU problemático en venta: "${skuFinal}", buscando en datos originales...`);
+                
+                if (venta._original) {
+                    const skuField = Object.entries(venta._original).find(([key, value]) => {
+                        const keyLower = key.toLowerCase();
+                        return keyLower.includes('sku') && value && value.toString().trim() !== '';
+                    });
+                    
+                    if (skuField) {
+                        skuFinal = skuField[1];
+                        console.log(`📋 SKU de venta recuperado: ${skuField[0]} = "${skuFinal}"`);
+                    }
+                }
+            }
+            
+            // Verificar cantidad si no está mapeada
+            if (!cantidadFinal && venta._original) {
+                const cantidadField = Object.entries(venta._original).find(([key, value]) => {
+                    const keyLower = key.toLowerCase();
+                    return (keyLower.includes('cantidad') || keyLower.includes('qty') || 
+                            keyLower.includes('quantity')) && value && value.toString().trim() !== '';
+                });
+                
+                if (cantidadField) {
+                    cantidadFinal = parseInt(cantidadField[1]);
+                    console.log(`📊 Cantidad de venta recuperada: ${cantidadField[0]} = "${cantidadFinal}"`);
+                }
+            }
+            
+            // Validar campos requeridos
+            if (!skuFinal || !cantidadFinal) {
                 resultado.errores.push({
                     registro: venta,
                     error: 'Campos requeridos: sku, cantidad'
@@ -104,26 +141,26 @@ async function procesarVentas(ventasData) {
             const { data: existing } = await supabase
                 .from('ventas')
                 .select('*')
-                .eq('sku', venta.sku)
+                .eq('sku', skuFinal)
                 .eq('fecha_venta', venta.fecha_venta)
                 .single();
 
             if (existing) {
-                resultado.duplicados.push(`${venta.sku}-${venta.fecha_venta}`);
+                resultado.duplicados.push(`${skuFinal}-${venta.fecha_venta}`);
                 continue;
             }
 
             // Verificar y crear producto si no existe ANTES de insertar venta
-            await verificarYCrearProducto(venta.sku, venta.descripcion_producto || venta.descripcion, resultado);
+            await verificarYCrearProducto(skuFinal, venta.descripcion_producto || venta.descripcion, resultado);
 
             // Insertar nueva venta (solo campos que existen en la tabla)
             const nuevaVenta = {
-                sku: venta.sku.toString(),
-                cantidad: parseInt(venta.cantidad),
+                sku: skuFinal.toString(),
+                cantidad: parseInt(cantidadFinal),
                 fecha_venta: venta.fecha_venta || new Date().toISOString().split('T')[0] + ' 00:00:00'
             };
 
-            console.log(`💾 Insertando venta para SKU: ${venta.sku}`);
+            console.log(`💾 Insertando venta para SKU: ${skuFinal}`);
 
             const { data, error } = await supabase
                 .from('ventas')
@@ -465,22 +502,41 @@ async function procesarProductos(productosData) {
 
     for (const producto of productosData) {
         try {
-            // PRIMERO: Intentar obtener SKU desde datos originales si no está mapeado
+            // PRIMERO: Intentar obtener SKU desde datos originales si no está mapeado correctamente
             let skuFinal = producto.sku;
             
-            if (!skuFinal || skuFinal.toString().trim() === '') {
-                // Buscar SKU en los datos originales
+            // Verificar si el SKU parece válido (no debe ser solo números pequeños)
+            if (!skuFinal || skuFinal.toString().trim() === '' || 
+                (skuFinal.toString().length <= 2 && !isNaN(skuFinal))) {
+                
+                console.log(`⚠️ SKU problemático detectado: "${skuFinal}", buscando en datos originales...`);
+                
+                // Buscar SKU en los datos originales con prioridad
                 if (producto._original) {
-                    const possibleSku = Object.entries(producto._original).find(([key, value]) => {
+                    // Primero buscar campos que explícitamente contienen "sku"
+                    const skuField = Object.entries(producto._original).find(([key, value]) => {
                         const keyLower = key.toLowerCase();
-                        return (keyLower.includes('sku') || keyLower.includes('codigo') || 
-                                keyLower.includes('cod') || keyLower === 'id') && 
-                               value && value.toString().trim() !== '';
+                        return keyLower.includes('sku') && value && value.toString().trim() !== '';
                     });
                     
-                    if (possibleSku) {
-                        skuFinal = possibleSku[1];
-                        console.log(`📋 SKU recuperado desde datos originales: ${skuFinal}`);
+                    if (skuField) {
+                        skuFinal = skuField[1];
+                        console.log(`📋 SKU recuperado desde campo SKU: ${skuField[0]} = "${skuFinal}"`);
+                    } else {
+                        // Buscar en otros campos posibles pero solo valores que parezcan SKUs
+                        const possibleSku = Object.entries(producto._original).find(([key, value]) => {
+                            const keyLower = key.toLowerCase();
+                            const valueStr = value.toString().trim();
+                            return (keyLower.includes('codigo') || keyLower.includes('cod') || 
+                                    keyLower === 'id') && 
+                                   valueStr !== '' && 
+                                   valueStr.length >= 3; // SKUs deben tener al menos 3 caracteres
+                        });
+                        
+                        if (possibleSku) {
+                            skuFinal = possibleSku[1];
+                            console.log(`🔍 SKU recuperado desde campo alternativo: ${possibleSku[0]} = "${skuFinal}"`);
+                        }
                     }
                 }
             }
