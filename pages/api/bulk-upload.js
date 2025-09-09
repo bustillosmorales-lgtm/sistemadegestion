@@ -192,8 +192,47 @@ async function procesarCompras(comprasData) {
 
     for (const compra of comprasData) {
         try {
-            // Validar campos requeridos (más flexible)
-            if (!compra.sku || !compra.cantidad) {
+            // RECUPERAR SKU y CANTIDAD si están mal mapeados
+            let skuFinal = compra.sku;
+            let cantidadFinal = compra.cantidad;
+            
+            // Verificar si el SKU parece válido
+            if (!skuFinal || skuFinal.toString().trim() === '' || 
+                (skuFinal.toString().length <= 2 && !isNaN(skuFinal)) ||
+                (skuFinal.toString().length > 3 && /^\d+$/.test(skuFinal) && parseInt(skuFinal) < 10000)) {
+                
+                console.log(`⚠️ SKU problemático en compra: "${skuFinal}", buscando en datos originales...`);
+                
+                if (compra._original) {
+                    // Primero buscar campos que explícitamente contienen "sku"
+                    const skuField = Object.entries(compra._original).find(([key, value]) => {
+                        const keyLower = key.toLowerCase();
+                        return keyLower.includes('sku') && value && value.toString().trim() !== '';
+                    });
+                    
+                    if (skuField) {
+                        skuFinal = skuField[1];
+                        console.log(`📋 SKU de compra recuperado: ${skuField[0]} = "${skuFinal}"`);
+                    }
+                }
+            }
+            
+            // Verificar cantidad si no está mapeada
+            if (!cantidadFinal && compra._original) {
+                const cantidadField = Object.entries(compra._original).find(([key, value]) => {
+                    const keyLower = key.toLowerCase();
+                    return (keyLower.includes('cantidad') || keyLower.includes('qty') || 
+                            keyLower.includes('quantity')) && value && value.toString().trim() !== '';
+                });
+                
+                if (cantidadField) {
+                    cantidadFinal = parseInt(cantidadField[1]);
+                    console.log(`📊 Cantidad de compra recuperada: ${cantidadField[0]} = "${cantidadFinal}"`);
+                }
+            }
+            
+            // Validar campos requeridos
+            if (!skuFinal || !cantidadFinal) {
                 resultado.errores.push({
                     registro: compra,
                     error: 'Campos requeridos: sku, cantidad'
@@ -212,17 +251,17 @@ async function procesarCompras(comprasData) {
             const { data: existing } = await supabase
                 .from('compras')
                 .select('*')
-                .eq('sku', compra.sku)
+                .eq('sku', skuFinal)
                 .eq('fecha_compra', compra.fecha_compra)
                 .maybeSingle();
 
             if (existing) {
-                resultado.duplicados.push(`${compra.sku}-${compra.fecha_compra}`);
+                resultado.duplicados.push(`${skuFinal}-${compra.fecha_compra}`);
                 continue;
             }
 
             // Verificar y crear producto si no existe
-            await verificarYCrearProducto(compra.sku, compra.descripcion_producto, resultado);
+            await verificarYCrearProducto(skuFinal, compra.descripcion_producto, resultado);
 
             // Si se especifica container_number, verificar que existe o crearlo
             if (compra.container_number) {
@@ -231,8 +270,8 @@ async function procesarCompras(comprasData) {
 
             // Insertar nueva compra (solo campos que existen en la tabla)
             const nuevaCompra = {
-                sku: compra.sku,
-                cantidad: parseInt(compra.cantidad),
+                sku: skuFinal,
+                cantidad: parseInt(cantidadFinal),
                 fecha_compra: compra.fecha_compra || new Date().toISOString().split('T')[0] + ' 00:00:00',
                 fecha_llegada_estimada: compra.fecha_llegada_estimada || null,
                 fecha_llegada_real: compra.fecha_llegada_real || null,
