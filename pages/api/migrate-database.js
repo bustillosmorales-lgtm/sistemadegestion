@@ -15,7 +15,9 @@ export default async function handler(req, res) {
     }
 
     try {
-        console.log('🔄 Iniciando migración de tabla products...');
+        console.log('🔄 Iniciando migración de tablas...');
+        
+        // ============ MIGRACIÓN TABLA PRODUCTS ============
 
         // Agregar columna categoria si no existe
         const { error: error1 } = await supabase.rpc('exec_sql', {
@@ -82,8 +84,36 @@ export default async function handler(req, res) {
             `
         });
 
+        // ============ MIGRACIÓN TABLA CONTAINERS ============
+        
+        // Agregar columna actual_departure si no existe
+        const { error: error6 } = await supabase.rpc('exec_sql', {
+            query: `
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name = 'containers' AND column_name = 'actual_departure') THEN
+                        ALTER TABLE containers ADD COLUMN actual_departure TIMESTAMP;
+                    END IF;
+                END $$;
+            `
+        });
+
+        // Agregar columna actual_arrival_date si no existe
+        const { error: error7 } = await supabase.rpc('exec_sql', {
+            query: `
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name = 'containers' AND column_name = 'actual_arrival_date') THEN
+                        ALTER TABLE containers ADD COLUMN actual_arrival_date TIMESTAMP;
+                    END IF;
+                END $$;
+            `
+        });
+
         // Verificar errores
-        const errors = [error1, error2, error3, error4, error5].filter(e => e);
+        const errors = [error1, error2, error3, error4, error5, error6, error7].filter(e => e);
         if (errors.length > 0) {
             console.error('❌ Errores en migración:', errors);
             return res.status(500).json({ 
@@ -92,30 +122,43 @@ export default async function handler(req, res) {
             });
         }
 
-        // Verificar las columnas existentes
-        const { data: columns, error: verifyError } = await supabase.rpc('exec_sql', {
+        // Verificar las columnas existentes en ambas tablas
+        const { data: productsColumns, error: verifyError1 } = await supabase.rpc('exec_sql', {
             query: `
-                SELECT column_name, data_type, is_nullable 
+                SELECT 'products' as table_name, column_name, data_type, is_nullable 
                 FROM information_schema.columns 
                 WHERE table_name = 'products' 
-                ORDER BY ordinal_position;
+                AND column_name IN ('categoria', 'precio_venta_sugerido', 'proveedor', 'notas', 'codigo_interno')
+                ORDER BY column_name;
             `
         });
 
-        if (verifyError) {
-            console.error('❌ Error verificando columnas:', verifyError);
+        const { data: containersColumns, error: verifyError2 } = await supabase.rpc('exec_sql', {
+            query: `
+                SELECT 'containers' as table_name, column_name, data_type, is_nullable 
+                FROM information_schema.columns 
+                WHERE table_name = 'containers' 
+                AND column_name IN ('actual_departure', 'actual_arrival_date')
+                ORDER BY column_name;
+            `
+        });
+
+        if (verifyError1 || verifyError2) {
+            console.error('❌ Error verificando columnas:', { verifyError1, verifyError2 });
             return res.status(500).json({ 
-                error: 'Error verificando estructura de tabla', 
-                details: verifyError 
+                error: 'Error verificando estructura de tablas', 
+                details: { verifyError1, verifyError2 }
             });
         }
 
         console.log('✅ Migración completada exitosamente');
 
         return res.status(200).json({
-            message: 'Migración de tabla products completada exitosamente',
-            columns: columns,
-            newColumns: ['categoria', 'precio_venta_sugerido', 'proveedor', 'notas', 'codigo_interno']
+            message: 'Migración de tablas products y containers completada exitosamente',
+            productsColumns: productsColumns,
+            containersColumns: containersColumns,
+            newProductsColumns: ['categoria', 'precio_venta_sugerido', 'proveedor', 'notas', 'codigo_interno'],
+            newContainersColumns: ['actual_departure', 'actual_arrival_date']
         });
 
     } catch (error) {
