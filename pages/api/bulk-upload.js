@@ -559,19 +559,22 @@ async function procesarProductos(productosData) {
                 datosProducto.desconsiderado = Boolean(producto.desconsiderado);
             }
             
-            // Agregar campos adicionales que podrían venir en el archivo
+            // Precio venta sugerido - siempre actualizar si está presente
             if (producto.precio_venta_sugerido !== undefined) {
                 datosProducto.precio_venta_sugerido = parseFloat(producto.precio_venta_sugerido) || null;
             }
             
+            // Proveedor - siempre actualizar si está presente
             if (producto.proveedor !== undefined) {
                 datosProducto.proveedor = producto.proveedor || '';
             }
             
+            // Notas - siempre actualizar si está presente
             if (producto.notas !== undefined) {
                 datosProducto.notas = producto.notas || '';
             }
             
+            // Código interno - siempre actualizar si está presente
             if (producto.codigo_interno !== undefined) {
                 datosProducto.codigo_interno = producto.codigo_interno || '';
             }
