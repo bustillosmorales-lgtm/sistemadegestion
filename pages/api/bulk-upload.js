@@ -465,14 +465,39 @@ async function procesarProductos(productosData) {
 
     for (const producto of productosData) {
         try {
+            // PRIMERO: Intentar obtener SKU desde datos originales si no está mapeado
+            let skuFinal = producto.sku;
+            
+            if (!skuFinal || skuFinal.toString().trim() === '') {
+                // Buscar SKU en los datos originales
+                if (producto._original) {
+                    const possibleSku = Object.entries(producto._original).find(([key, value]) => {
+                        const keyLower = key.toLowerCase();
+                        return (keyLower.includes('sku') || keyLower.includes('codigo') || 
+                                keyLower.includes('cod') || keyLower === 'id') && 
+                               value && value.toString().trim() !== '';
+                    });
+                    
+                    if (possibleSku) {
+                        skuFinal = possibleSku[1];
+                        console.log(`📋 SKU recuperado desde datos originales: ${skuFinal}`);
+                    }
+                }
+            }
+            
             // Validar campo requerido
-            if (!producto.sku || producto.sku.toString().trim() === '') {
+            if (!skuFinal || skuFinal.toString().trim() === '') {
                 resultado.errores.push({
                     registro: producto,
                     error: 'SKU es requerido'
                 });
                 continue;
             }
+
+            // Normalizar y limpiar SKU - problema común de reconocimiento
+            let skuLimpio = skuFinal.toString().trim();
+            // Remover caracteres especiales comunes que causan problemas de reconocimiento
+            skuLimpio = skuLimpio.replace(/["'`]/g, '').replace(/\s+/g, ' ');
 
             // Verificar si el producto existe usando SKU limpio
             const { data: existing, error: selectError } = await supabase
@@ -484,11 +509,6 @@ async function procesarProductos(productosData) {
             if (selectError) {
                 throw new Error(`Error verificando producto ${skuLimpio}: ${selectError.message}`);
             }
-
-            // Normalizar y limpiar SKU - problema común de reconocimiento
-            let skuLimpio = producto.sku.toString().trim();
-            // Remover caracteres especiales comunes que causan problemas de reconocimiento
-            skuLimpio = skuLimpio.replace(/["'`]/g, '').replace(/\s+/g, ' ');
             
             // Preparar datos del producto (solo campos que no estén vacíos)
             const datosProducto = {};
