@@ -254,6 +254,19 @@ async function procesarContainers(containersData) {
             }
 
             // Insertar nuevo container (más flexible)
+            // Solo establecer actual_arrival_date si realmente tiene la fecha Y el status indica que llegó
+            const actualArrivalDate = container.actual_arrival_date && container.actual_arrival_date !== '' 
+                ? container.actual_arrival_date 
+                : null;
+            
+            // Determinar status basado en si tiene fecha real de llegada
+            let containerStatus = container.status || 'CREATED';
+            if (actualArrivalDate) {
+                containerStatus = 'DELIVERED';
+            } else if (container.estimated_departure || container.shipping_company) {
+                containerStatus = 'IN_TRANSIT';
+            }
+            
             const nuevoContainer = {
                 container_number: container.container_number.toString(),
                 container_type: container.container_type || 'STD',
@@ -263,10 +276,10 @@ async function procesarContainers(containersData) {
                 estimated_departure: container.estimated_departure || null,
                 estimated_arrival: container.estimated_arrival || null,
                 actual_departure: container.actual_departure || null,
-                actual_arrival_date: container.actual_arrival_date || null,
+                actual_arrival_date: actualArrivalDate,
                 shipping_company: container.shipping_company || '',
                 notes: container.notes || '',
-                status: container.status || 'CREATED',
+                status: containerStatus,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             };
@@ -461,22 +474,27 @@ async function procesarProductos(productosData) {
                 continue;
             }
 
-            // Verificar si el producto existe
+            // Verificar si el producto existe usando SKU limpio
             const { data: existing, error: selectError } = await supabase
                 .from('products')
                 .select('*')
-                .eq('sku', producto.sku.toString())
+                .eq('sku', skuLimpio)
                 .maybeSingle();
 
             if (selectError) {
-                throw new Error(`Error verificando producto ${producto.sku}: ${selectError.message}`);
+                throw new Error(`Error verificando producto ${skuLimpio}: ${selectError.message}`);
             }
 
+            // Normalizar y limpiar SKU - problema común de reconocimiento
+            let skuLimpio = producto.sku.toString().trim();
+            // Remover caracteres especiales comunes que causan problemas de reconocimiento
+            skuLimpio = skuLimpio.replace(/["'`]/g, '').replace(/\s+/g, ' ');
+            
             // Preparar datos del producto (solo campos que no estén vacíos)
             const datosProducto = {};
             
             // Campos obligatorios
-            datosProducto.sku = producto.sku.toString();
+            datosProducto.sku = skuLimpio;
             
             // Campos opcionales - solo agregar si tienen valor
             if (producto.descripcion) datosProducto.descripcion = producto.descripcion;
@@ -498,12 +516,12 @@ async function procesarProductos(productosData) {
 
             if (existing) {
                 // ACTUALIZAR producto existente (solo campos que no estén vacíos)
-                console.log(`🔄 Actualizando producto existente: ${producto.sku}`);
+                console.log(`🔄 Actualizando producto existente: ${skuLimpio}`);
                 
                 const { data, error } = await supabase
                     .from('products')
                     .update(datosProducto)
-                    .eq('sku', producto.sku.toString())
+                    .eq('sku', skuLimpio)
                     .select();
 
                 if (error) throw error;
@@ -512,12 +530,12 @@ async function procesarProductos(productosData) {
 
             } else {
                 // CREAR nuevo producto
-                console.log(`📦 Creando nuevo producto: ${producto.sku}`);
+                console.log(`📦 Creando nuevo producto: ${skuLimpio}`);
                 
                 // Valores por defecto para productos nuevos
                 const nuevoProducto = {
                     ...datosProducto,
-                    descripcion: datosProducto.descripcion || `Producto ${producto.sku}`,
+                    descripcion: datosProducto.descripcion || `Producto ${skuLimpio}`,
                     stock_actual: datosProducto.stock_actual ?? 0,
                     costo_fob_rmb: datosProducto.costo_fob_rmb ?? 1.0,
                     cbm: datosProducto.cbm ?? 0.01,
