@@ -216,6 +216,53 @@ export default function APIConfig() {
         }
     };
 
+    const testMercadoLibreConnection = async () => {
+        try {
+            const response = await fetch('/api/test/mercadolibre');
+            const diagnostic = await response.json();
+            
+            console.log('🔍 MercadoLibre Diagnostic:', diagnostic);
+            
+            // Crear modal con diagnóstico
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+            modal.innerHTML = `
+                <div class="bg-white rounded-lg max-w-4xl w-full max-h-screen overflow-auto p-6">
+                    <h2 class="text-xl font-bold mb-4">🔍 Diagnóstico MercadoLibre</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <h3 class="font-semibold">Variables de Entorno:</h3>
+                            <pre class="bg-gray-100 p-2 rounded text-sm">${JSON.stringify(diagnostic.environment_variables, null, 2)}</pre>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold">Configuración BD:</h3>
+                            <pre class="bg-gray-100 p-2 rounded text-sm">${JSON.stringify(diagnostic.database_config, null, 2)}</pre>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold">Pruebas API:</h3>
+                            <pre class="bg-gray-100 p-2 rounded text-sm">${JSON.stringify(diagnostic.api_tests, null, 2)}</pre>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold">Diagnósticos:</h3>
+                            ${diagnostic.diagnostics.map(d => `
+                                <div class="p-2 rounded ${d.type === 'error' ? 'bg-red-100' : d.type === 'warning' ? 'bg-yellow-100' : 'bg-green-100'}">
+                                    <strong>${d.message}</strong><br>
+                                    <small>${d.solution}</small>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <button onclick="this.parentElement.parentElement.remove()" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded">Cerrar</button>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+        } catch (error) {
+            showNotification('Error ejecutando diagnóstico: ' + error.message, 'error');
+        }
+    };
+
     const showNotification = (message, type) => {
         // Crear notificación temporal
         const notification = document.createElement('div');
@@ -345,6 +392,12 @@ export default function APIConfig() {
                                             className="btn btn-green"
                                         >
                                             📥 Importar Ventas (7 días)
+                                        </button>
+                                        <button
+                                            onClick={() => testMercadoLibreConnection()}
+                                            className="btn btn-purple"
+                                        >
+                                            🔍 Diagnosticar Conexión
                                         </button>
                                         <button
                                             onClick={disconnectMercadoLibre}
@@ -561,6 +614,9 @@ export default function APIConfig() {
                 }
                 .btn-red {
                     @apply bg-red-600 text-white hover:bg-red-700;
+                }
+                .btn-purple {
+                    @apply bg-purple-600 text-white hover:bg-purple-700;
                 }
                 .input {
                     @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500;
