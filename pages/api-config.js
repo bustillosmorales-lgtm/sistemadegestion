@@ -335,10 +335,20 @@ export default function APIConfig() {
             <div className="min-h-screen bg-gray-50 py-8">
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="mb-8">
-                        <h1 className="text-3xl font-bold text-gray-900">Configuración de APIs</h1>
-                        <p className="mt-2 text-gray-600">
-                            Conecta tu sistema con MercadoLibre y Defontana para sincronizar inventario y ventas automáticamente.
-                        </p>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h1 className="text-3xl font-bold text-gray-900">Configuración de APIs</h1>
+                                <p className="mt-2 text-gray-600">
+                                    Conecta tu sistema con MercadoLibre y Defontana para sincronizar inventario y ventas automáticamente.
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => router.push('/dashboard')}
+                                className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 flex items-center gap-2"
+                            >
+                                ← Volver al Dashboard
+                            </button>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
