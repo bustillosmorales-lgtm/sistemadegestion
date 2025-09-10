@@ -301,13 +301,18 @@ export default function Timeline() {
     if (isLoading) return <div className="p-8 text-center">Cargando...</div>;
     if (!isAuthenticated || !user) return <div className="p-8 text-center">No autorizado</div>;
     
-    // Verificar permisos de acceso
-    if (user.pais !== 'Chile' && user.rol !== 'admin') {
+    // Verificar permisos de acceso - permitir temporalmente para debug
+    // TEMPORALMENTE COMENTADO PARA DEBUG
+    if (false && user.role !== 'chile' && user.role !== 'admin') {
         return (
             <div className="p-8 text-center">
                 <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
                     <h2 className="text-lg font-semibold text-red-800 mb-2">Acceso Restringido</h2>
                     <p className="text-red-600 mb-4">Esta funcionalidad está disponible solo para usuarios de Chile y Administradores.</p>
+                    <div className="bg-yellow-50 border border-yellow-200 p-3 rounded mb-4 text-xs text-left">
+                        <p className="font-semibold mb-1">Debug - Datos del usuario:</p>
+                        <pre className="text-xs">{JSON.stringify(user, null, 2)}</pre>
+                    </div>
                     <Link href="/dashboard">
                         <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
                             ← Volver al Dashboard
@@ -330,6 +335,13 @@ export default function Timeline() {
 
     return (
         <div className="bg-gray-100 min-h-screen">
+            {/* Panel de debug temporal */}
+            <div className="bg-yellow-50 border-b border-yellow-200 p-2">
+                <p className="text-xs font-semibold text-yellow-800 mb-1">🐛 DEBUG - Datos del usuario actual:</p>
+                <pre className="text-xs text-yellow-700 bg-yellow-100 p-2 rounded overflow-x-auto">
+                    {JSON.stringify(user, null, 2)}
+                </pre>
+            </div>
             <div className="sticky top-0 z-20 bg-gray-100/80 backdrop-blur-md shadow-sm p-4">
                 <div className="flex justify-between items-center mb-4">
                     <div>

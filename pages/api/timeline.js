@@ -2,10 +2,7 @@
 import { supabase } from '../../lib/supabaseClient';
 
 // Función para calcular la venta diaria y precio promedio como en analysis.js
-async function calculateVentaDiaria(sku) {
-    const configReq = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/config`);
-    const configData = await configReq.json();
-    const config = configData?.config || {};
+async function calculateVentaDiaria(sku, config = {}) {
     
     const diasAnalisis = config.diasAnalisisVentas || 60;
     const fechaInicio = new Date();
@@ -204,10 +201,14 @@ export default async function handler(req, res) {
     }
     
     try {
-        // 1. Obtener configuración
-        const configReq = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/config`);
-        const configData = await configReq.json();
-        const config = configData?.config || {};
+        // 1. Obtener configuración directamente de la base de datos
+        const { data: configData } = await supabase
+            .from('configuration')
+            .select('data')
+            .eq('id', 3)
+            .single();
+        
+        const config = configData?.data || {};
         
         // 2. Obtener todos los productos únicos
         const { data: products, error: productsError } = await supabase
@@ -225,7 +226,7 @@ export default async function handler(req, res) {
         for (const product of products || []) {
             try {
                 // Calcular venta diaria y precio promedio
-                const { ventaDiaria, precioPromedio } = await calculateVentaDiaria(product.sku);
+                const { ventaDiaria, precioPromedio } = await calculateVentaDiaria(product.sku, config);
                 
                 // Obtener llegadas futuras
                 const llegadas = await obtenerLlegadasFuturas(product.sku);
