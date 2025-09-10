@@ -1464,9 +1464,14 @@ export default function Dashboard() {
                 </div>
                 <div className="flex flex-wrap gap-2 text-sm">
                     {user.role === 'admin' && (
-                        <Link href="/users">
-                            <button className="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 text-sm" title="Gestión de Usuarios">👥 Usuarios</button>
-                        </Link>
+                        <>
+                            <Link href="/users">
+                                <button className="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 text-sm" title="Gestión de Usuarios">👥 Usuarios</button>
+                            </Link>
+                            <Link href="/api-config">
+                                <button className="bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 text-sm" title="Configuración de APIs (MercadoLibre, Defontana)">🔗 APIs</button>
+                            </Link>
+                        </>
                     )}
                     {(user.role === 'admin' || user.role === 'chile') && (
                         <>
