@@ -1,7 +1,9 @@
 // components/SyncConfigPanel.js - Panel de configuración granular de sincronización
 import { useState, useEffect } from 'react';
+import { useUser } from './UserContext';
 
 export default function SyncConfigPanel({ onConfigChange }) {
+    const { user } = useUser();
     const [config, setConfig] = useState(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -56,7 +58,7 @@ export default function SyncConfigPanel({ onConfigChange }) {
             const response = await fetch('/api/sync/config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ config })
+                body: JSON.stringify({ config, user })
             });
 
             const result = await response.json();

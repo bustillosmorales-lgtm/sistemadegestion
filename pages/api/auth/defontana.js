@@ -1,8 +1,8 @@
 // pages/api/auth/defontana.js - Configuración API de Defontana
 import { DefontanaClient, saveAPIConfig, getAPIConfig } from '../../../lib/apiClients';
-import { requireAdmin } from '../../../lib/adminAuth';
+import { requireAdminForPOST } from '../../../lib/simpleAdminAuth';
 
-export default requireAdmin(async function handler(req, res) {
+export default requireAdminForPOST(async function handler(req, res) {
     if (req.method === 'POST') {
         const { action, apiKey, baseURL } = req.body;
         
@@ -87,7 +87,7 @@ export default requireAdmin(async function handler(req, res) {
     }
     
     if (req.method === 'GET') {
-        // Obtener estado actual de la configuración
+        // GET sin protección admin para verificar estado
         try {
             const config = await getAPIConfig('defontana');
             

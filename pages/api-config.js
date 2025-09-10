@@ -2,11 +2,14 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { AdminProtection } from '../lib/adminAuth';
 import SyncConfigPanel from '../components/SyncConfigPanel';
+import { useUser } from '../components/UserContext';
+import { useSimpleAdminCheck } from '../lib/simpleAdminAuth';
 
 export default function APIConfig() {
     const router = useRouter();
+    const { user, isAuthenticated } = useUser();
+    const isAdmin = useSimpleAdminCheck();
     const [configs, setConfigs] = useState({
         mercadolibre: { configured: false, loading: true },
         defontana: { configured: false, loading: true }
@@ -17,6 +20,24 @@ export default function APIConfig() {
     });
     const [syncStatus, setSyncStatus] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
+
+    // Helper para requests con datos de usuario
+    const fetchWithUser = async (url, options = {}) => {
+        const defaultOptions = {
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        };
+
+        if (options.method === 'POST' || options.method === 'PUT') {
+            const body = options.body ? JSON.parse(options.body) : {};
+            body.user = user; // Incluir datos de usuario
+            defaultOptions.body = JSON.stringify(body);
+        }
+
+        return fetch(url, { ...options, ...defaultOptions });
+    };
 
     useEffect(() => {
         checkConfigurations();
@@ -73,9 +94,8 @@ export default function APIConfig() {
         if (!confirm('¿Estás seguro de desconectar MercadoLibre?')) return;
         
         try {
-            const response = await fetch('/api/auth/mercadolibre', {
+            const response = await fetchWithUser('/api/auth/mercadolibre', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'disconnect' })
             });
             
@@ -93,9 +113,8 @@ export default function APIConfig() {
         setIsLoading(true);
         
         try {
-            const response = await fetch('/api/auth/defontana', {
+            const response = await fetchWithUser('/api/auth/defontana', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: 'configure',
                     apiKey: defontanaForm.apiKey,
@@ -123,9 +142,8 @@ export default function APIConfig() {
         if (!confirm('¿Estás seguro de desconectar Defontana?')) return;
         
         try {
-            const response = await fetch('/api/auth/defontana', {
+            const response = await fetchWithUser('/api/auth/defontana', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'disconnect' })
             });
             
@@ -143,9 +161,8 @@ export default function APIConfig() {
         
         setIsLoading(true);
         try {
-            const response = await fetch('/api/sync/inventory', {
+            const response = await fetchWithUser('/api/sync/inventory', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: 'sync_all',
                     platform: platform
@@ -175,9 +192,8 @@ export default function APIConfig() {
             const fromDate = new Date();
             fromDate.setDate(fromDate.getDate() - 7); // Últimos 7 días
             
-            const response = await fetch('/api/sync/sales', {
+            const response = await fetchWithUser('/api/sync/sales', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: 'sync_orders',
                     platform: platform,
@@ -214,8 +230,57 @@ export default function APIConfig() {
         }, 5000);
     };
 
+    // Verificar autenticación y permisos admin
+    if (!isAuthenticated || !user) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8 text-center">
+                    <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span className="text-2xl">🔐</span>
+                    </div>
+                    <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                        Autenticación Requerida
+                    </h2>
+                    <p className="text-gray-600 mb-6">
+                        Debes iniciar sesión para acceder a la configuración de APIs.
+                    </p>
+                    <button
+                        onClick={() => router.push('/login')}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                    >
+                        Iniciar Sesión
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (!isAdmin) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8 text-center">
+                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span className="text-2xl">🔒</span>
+                    </div>
+                    <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                        Acceso Denegado
+                    </h2>
+                    <p className="text-gray-600 mb-6">
+                        Solo los administradores pueden acceder a la configuración de APIs.
+                    </p>
+                    <button
+                        onClick={() => router.push('/dashboard')}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                    >
+                        Volver al Dashboard
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <AdminProtection>
+        <>
             <Head>
                 <title>Configuración APIs - Sistema de Gestión</title>
             </Head>
@@ -501,6 +566,6 @@ export default function APIConfig() {
                     @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500;
                 }
             `}</style>
-        </AdminProtection>
+        </>
     );
 }

@@ -1,10 +1,10 @@
 // pages/api/sync/inventory.js - Sincronización de inventario con APIs externas
 import { supabase } from '../../../lib/supabaseClient';
 import { createMercadoLibreClient, createDefontanaClient } from '../../../lib/apiClients';
-import { requireAdmin } from '../../../lib/adminAuth';
+import { requireAdminForPOST } from '../../../lib/simpleAdminAuth';
 import { optimizedSync, BatchProcessor, globalCache } from '../../../lib/syncOptimizer';
 
-export default requireAdmin(async function handler(req, res) {
+export default requireAdminForPOST(async function handler(req, res) {
     if (req.method === 'POST') {
         const { action, platform, sku, quantity, items } = req.body;
         

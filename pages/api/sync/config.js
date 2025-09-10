@@ -1,8 +1,8 @@
 // pages/api/sync/config.js - Configuración granular de sincronización
 import { supabase } from '../../../lib/supabaseClient';
-import { requireAdmin } from '../../../lib/adminAuth';
+import { requireAdminForPOST } from '../../../lib/simpleAdminAuth';
 
-export default requireAdmin(async function handler(req, res) {
+export default requireAdminForPOST(async function handler(req, res) {
     if (req.method === 'GET') {
         try {
             return await getSyncConfig(req, res);
