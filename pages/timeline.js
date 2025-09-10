@@ -302,7 +302,7 @@ export default function Timeline() {
     if (!isAuthenticated || !user) return <div className="p-8 text-center">No autorizado</div>;
     
     // Verificar permisos de acceso
-    if (user.role !== 'chile' && user.role !== 'admin') {
+    if (user.pais !== 'Chile' && user.rol !== 'admin') {
         return (
             <div className="p-8 text-center">
                 <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
@@ -335,14 +335,6 @@ export default function Timeline() {
                     <div>
                         <h1 className="text-2xl font-bold">Timeline de Inventario</h1>
                         <p className="text-sm text-gray-600">Proyección de stock próximos 4 meses ({filteredTimeline.length} productos)</p>
-                    </div>
-                    <Link href="/dashboard">
-                        <button className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 flex items-center gap-2">
-                            ← Dashboard
-                        </button>
-                    </Link>
-                </div>
-                <div>
                         
                         {/* Totalizador de ventas perdidas por mes */}
                         <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
