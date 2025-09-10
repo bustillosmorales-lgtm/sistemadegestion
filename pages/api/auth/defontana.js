@@ -1,7 +1,8 @@
 // pages/api/auth/defontana.js - Configuración API de Defontana
 import { DefontanaClient, saveAPIConfig, getAPIConfig } from '../../../lib/apiClients';
+import { requireAdmin } from '../../../lib/adminAuth';
 
-export default async function handler(req, res) {
+export default requireAdmin(async function handler(req, res) {
     if (req.method === 'POST') {
         const { action, apiKey, baseURL } = req.body;
         
@@ -109,4 +110,4 @@ export default async function handler(req, res) {
     
     res.setHeader('Allow', ['GET', 'POST']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
-}
+});

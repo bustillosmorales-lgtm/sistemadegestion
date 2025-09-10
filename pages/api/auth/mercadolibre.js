@@ -1,7 +1,8 @@
 // pages/api/auth/mercadolibre.js - Autenticación OAuth para MercadoLibre
 import { MercadoLibreClient, saveAPIConfig } from '../../../lib/apiClients';
+import { requireAdmin } from '../../../lib/adminAuth';
 
-export default async function handler(req, res) {
+export default requireAdmin(async function handler(req, res) {
     if (req.method === 'GET') {
         // Paso 1: Generar URL de autorización
         const { action } = req.query;
@@ -97,4 +98,4 @@ export default async function handler(req, res) {
     
     res.setHeader('Allow', ['GET', 'POST']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
-}
+});

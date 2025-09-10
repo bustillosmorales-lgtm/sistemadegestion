@@ -1,8 +1,9 @@
 // pages/api/sync/sales.js - Sincronización de ventas con APIs externas
 import { supabase } from '../../../lib/supabaseClient';
 import { createMercadoLibreClient, createDefontanaClient } from '../../../lib/apiClients';
+import { requireAdmin } from '../../../lib/adminAuth';
 
-export default async function handler(req, res) {
+export default requireAdmin(async function handler(req, res) {
     if (req.method === 'POST') {
         const { action, platform, from_date, to_date, order_id } = req.body;
         
@@ -41,7 +42,7 @@ export default async function handler(req, res) {
     
     res.setHeader('Allow', ['GET', 'POST']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
-}
+});
 
 // Sincronizar órdenes/ventas desde plataforma
 async function syncOrders(req, res, platform, fromDate, toDate) {

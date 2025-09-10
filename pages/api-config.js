@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
+import { AdminProtection } from '../lib/adminAuth';
+import SyncConfigPanel from '../components/SyncConfigPanel';
 
 export default function APIConfig() {
     const router = useRouter();
@@ -213,7 +215,7 @@ export default function APIConfig() {
     };
 
     return (
-        <>
+        <AdminProtection>
             <Head>
                 <title>Configuración APIs - Sistema de Gestión</title>
             </Head>
@@ -443,6 +445,11 @@ export default function APIConfig() {
                         </div>
                     </div>
 
+                    {/* Panel de Configuración de Sincronización */}
+                    <div className="mt-8">
+                        <SyncConfigPanel onConfigChange={(config) => console.log('Config updated:', config)} />
+                    </div>
+
                     {/* Panel de Estado General */}
                     <div className="mt-8 bg-white rounded-lg shadow-md p-6">
                         <h3 className="text-lg font-semibold text-gray-900 mb-4">Estado General de Sincronización</h3>
@@ -494,6 +501,6 @@ export default function APIConfig() {
                     @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500;
                 }
             `}</style>
-        </>
+        </AdminProtection>
     );
 }

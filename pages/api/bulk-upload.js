@@ -23,6 +23,24 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: 'Acceso denegado. Solo usuarios admin o chile pueden cargar datos.' });
     }
 
+    // Verificar configuración de coexistencia con APIs
+    try {
+        const { data: syncConfig } = await supabase
+            .from('api_configurations')
+            .select('config')
+            .eq('api_name', 'sync_settings')
+            .single();
+
+        if (syncConfig?.config?.global_settings?.bulk_upload_mode === 'api_only') {
+            return res.status(403).json({ 
+                error: 'Carga masiva deshabilitada. El sistema está configurado para usar solo APIs externas.',
+                code: 'BULK_UPLOAD_DISABLED'
+            });
+        }
+    } catch (configError) {
+        console.log('No hay configuración de sync definida, permitiendo carga masiva');
+    }
+
     if (!tableType || !uploadData || !Array.isArray(uploadData)) {
         return res.status(400).json({ error: 'Faltan parámetros: tableType y data (array) requeridos.' });
     }

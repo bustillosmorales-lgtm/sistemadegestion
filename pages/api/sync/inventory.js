@@ -1,8 +1,10 @@
 // pages/api/sync/inventory.js - Sincronización de inventario con APIs externas
 import { supabase } from '../../../lib/supabaseClient';
 import { createMercadoLibreClient, createDefontanaClient } from '../../../lib/apiClients';
+import { requireAdmin } from '../../../lib/adminAuth';
+import { optimizedSync, BatchProcessor, globalCache } from '../../../lib/syncOptimizer';
 
-export default async function handler(req, res) {
+export default requireAdmin(async function handler(req, res) {
     if (req.method === 'POST') {
         const { action, platform, sku, quantity, items } = req.body;
         
@@ -52,7 +54,7 @@ export default async function handler(req, res) {
     
     res.setHeader('Allow', ['GET', 'POST']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
-}
+});
 
 // Actualizar stock en plataforma específica
 async function updateStock(req, res, platform, sku, quantity) {
@@ -164,46 +166,46 @@ async function syncAllInventory(req, res, platform) {
             details: []
         };
         
-        for (const product of products) {
-            try {
-                // Verificar si el producto tiene mapeo en la plataforma
-                const { data: mapping } = await supabase
-                    .from('platform_mappings')
-                    .select('*')
-                    .eq('platform', platform)
-                    .eq('internal_sku', product.sku)
-                    .single();
-                    
-                if (!mapping) {
-                    syncResults.skipped++;
-                    syncResults.details.push({
-                        sku: product.sku,
-                        status: 'skipped',
-                        reason: 'No mapeado en plataforma'
-                    });
-                    continue;
-                }
-                
-                // Actualizar stock en la plataforma
-                await updateStockDirect(platform, product.sku, product.stock_actual, mapping);
-                
-                syncResults.success++;
-                syncResults.details.push({
-                    sku: product.sku,
-                    status: 'success',
-                    quantity: product.stock_actual
-                });
-                
-            } catch (error) {
-                syncResults.errors++;
-                syncResults.details.push({
-                    sku: product.sku,
-                    status: 'error',
-                    error: error.message
-                });
-                console.error(`Error sincronizando ${product.sku}:`, error);
-            }
-        }
+        // Obtener mapeos para optimizar consultas
+        const { data: mappings } = await supabase
+            .from('platform_mappings')
+            .select('*')
+            .eq('platform', platform)
+            .eq('active', true);
+            
+        const mappingMap = new Map(mappings.map(m => [m.internal_sku, m]));
+        
+        // Filtrar productos que tienen mapeo
+        const mappedProducts = products.filter(product => mappingMap.has(product.sku));
+        const skippedCount = products.length - mappedProducts.length;
+        
+        console.log(`📊 ${mappedProducts.length} productos mapeados, ${skippedCount} omitidos`);
+        
+        // Procesar con optimización
+        const processor = async (product, options) => {
+            const mapping = mappingMap.get(product.sku);
+            return await updateStockDirect(platform, product.sku, product.stock_actual, mapping);
+        };
+        
+        const optimizedResults = await optimizedSync(platform, mappedProducts, processor, {
+            batchSize: 15,
+            maxConcurrency: 2
+        });
+        
+        // Consolidar resultados
+        syncResults = {
+            success: optimizedResults.success,
+            errors: optimizedResults.errors,
+            skipped: skippedCount,
+            details: [
+                ...optimizedResults.details,
+                ...Array(skippedCount).fill(null).map((_, i) => ({
+                    sku: products.find(p => !mappingMap.has(p.sku))?.sku || `skipped_${i}`,
+                    status: 'skipped',
+                    reason: 'No mapeado en plataforma'
+                }))
+            ]
+        };
         
         console.log(`✅ Sincronización completa: ${syncResults.success} exitosos, ${syncResults.errors} errores, ${syncResults.skipped} omitidos`);
         
