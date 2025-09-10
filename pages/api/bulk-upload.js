@@ -210,9 +210,10 @@ async function procesarCompras(comprasData) {
 
     for (const compra of comprasData) {
         try {
-            // RECUPERAR SKU y CANTIDAD si están mal mapeados
+            // RECUPERAR SKU, CANTIDAD y CONTAINER_NUMBER si están mal mapeados
             let skuFinal = compra.sku;
             let cantidadFinal = compra.cantidad;
+            let containerFinal = compra.container_number;
             
             // Verificar si el SKU parece válido
             if (!skuFinal || skuFinal.toString().trim() === '' || 
@@ -249,6 +250,21 @@ async function procesarCompras(comprasData) {
                 }
             }
             
+            // Verificar container_number si no está mapeado
+            if (!containerFinal && compra._original) {
+                const containerField = Object.entries(compra._original).find(([key, value]) => {
+                    const keyLower = key.toLowerCase();
+                    return (keyLower.includes('container') || keyLower.includes('contenedor') || 
+                            keyLower.includes('cont') || keyLower.includes('ctr')) && 
+                            value && value.toString().trim() !== '';
+                });
+                
+                if (containerField) {
+                    containerFinal = containerField[1].toString().trim();
+                    console.log(`🚢 Container number recuperado: ${containerField[0]} = "${containerFinal}"`);
+                }
+            }
+            
             // Validar campos requeridos
             if (!skuFinal || !cantidadFinal) {
                 resultado.errores.push({
@@ -282,8 +298,8 @@ async function procesarCompras(comprasData) {
             await verificarYCrearProducto(skuFinal, compra.descripcion_producto, resultado);
 
             // Si se especifica container_number, verificar que existe o crearlo
-            if (compra.container_number) {
-                await verificarYCrearContenedor(compra.container_number, compra, resultado);
+            if (containerFinal) {
+                await verificarYCrearContenedor(containerFinal, compra, resultado);
             }
 
             // Insertar nueva compra (solo campos que existen en la tabla)
@@ -293,7 +309,8 @@ async function procesarCompras(comprasData) {
                 fecha_compra: compra.fecha_compra || new Date().toISOString().split('T')[0] + ' 00:00:00',
                 fecha_llegada_estimada: compra.fecha_llegada_estimada || null,
                 fecha_llegada_real: compra.fecha_llegada_real || null,
-                status_compra: compra.status_compra || 'en_transito'
+                status_compra: compra.status_compra || 'en_transito',
+                container_number: containerFinal || null  // ← ARREGLADO: Usar container recuperado
             };
 
             const { data, error } = await supabase
