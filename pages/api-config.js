@@ -53,32 +53,56 @@ export default function APIConfig() {
     }, [router.query]);
 
     const checkConfigurations = async () => {
+        console.log('🔍 Verificando configuraciones...');
+        
+        let mlConfig = { configured: false };
+        let dfConfig = { configured: false };
+        
         try {
             // Verificar MercadoLibre
-            const mlResponse = await fetch('/api/mercadolibre/status');
-            const mlConfig = await mlResponse.json();
-            
-            // Verificar Defontana
-            const dfResponse = await fetch('/api/auth/defontana');
-            const dfConfig = await dfResponse.json();
-            
-            setConfigs({
-                mercadolibre: { 
-                    configured: mlConfig.connected || false,
-                    nickname: mlConfig.user?.nickname || 'N/A',
-                    configuredAt: mlConfig.connection?.last_updated || new Date().toISOString(),
-                    loading: false 
-                },
-                defontana: { ...dfConfig, loading: false }
-            });
-            
+            console.log('🔍 Consultando MercadoLibre status...');
+            const mlResponse = await fetch('/api/mercadolibre/status/');
+            if (mlResponse.ok) {
+                const mlData = await mlResponse.json();
+                console.log('✅ MercadoLibre response:', mlData);
+                mlConfig = {
+                    configured: mlData.connected === true,
+                    nickname: mlData.user?.nickname || 'N/A',
+                    configuredAt: mlData.connection?.last_updated || new Date().toISOString(),
+                    loading: false
+                };
+            } else {
+                console.error('❌ MercadoLibre status error:', mlResponse.status, mlResponse.statusText);
+                mlConfig = { configured: false, loading: false };
+            }
         } catch (error) {
-            console.error('Error verificando configuraciones:', error);
-            setConfigs({
-                mercadolibre: { configured: false, loading: false },
-                defontana: { configured: false, loading: false }
-            });
+            console.error('❌ Error verificando MercadoLibre:', error);
+            mlConfig = { configured: false, loading: false };
         }
+        
+        try {
+            // Verificar Defontana
+            console.log('🔍 Consultando Defontana status...');
+            const dfResponse = await fetch('/api/auth/defontana/');
+            if (dfResponse.ok) {
+                const dfData = await dfResponse.json();
+                console.log('✅ Defontana response:', dfData);
+                dfConfig = { ...dfData, loading: false };
+            } else {
+                console.error('❌ Defontana status error:', dfResponse.status, dfResponse.statusText);
+                dfConfig = { configured: false, loading: false };
+            }
+        } catch (error) {
+            console.error('❌ Error verificando Defontana:', error);
+            dfConfig = { configured: false, loading: false };
+        }
+        
+        console.log('🎯 Configuración final:', { mercadolibre: mlConfig, defontana: dfConfig });
+        
+        setConfigs({
+            mercadolibre: mlConfig,
+            defontana: dfConfig
+        });
     };
 
     const getSyncStatus = async () => {
