@@ -55,7 +55,7 @@ export default function APIConfig() {
     const checkConfigurations = async () => {
         try {
             // Verificar MercadoLibre
-            const mlResponse = await fetch('/api/auth/mercadolibre');
+            const mlResponse = await fetch('/api/mercadolibre/status');
             const mlConfig = await mlResponse.json();
             
             // Verificar Defontana
@@ -63,7 +63,12 @@ export default function APIConfig() {
             const dfConfig = await dfResponse.json();
             
             setConfigs({
-                mercadolibre: { ...mlConfig, loading: false },
+                mercadolibre: { 
+                    configured: mlConfig.connected || false,
+                    nickname: mlConfig.user?.nickname || 'N/A',
+                    configuredAt: mlConfig.connection?.last_updated || new Date().toISOString(),
+                    loading: false 
+                },
                 defontana: { ...dfConfig, loading: false }
             });
             
@@ -87,7 +92,7 @@ export default function APIConfig() {
     };
 
     const connectMercadoLibre = () => {
-        window.location.href = '/api/auth/mercadolibre?action=authorize';
+        window.location.href = '/api/mercadolibre/auth?redirect=true';
     };
 
     const disconnectMercadoLibre = async () => {
