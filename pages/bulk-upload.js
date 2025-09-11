@@ -45,9 +45,13 @@ export default function BulkUploadPage() {
                 lastModified: new Date(file.lastModified).toLocaleDateString()
             });
 
+            console.log('🔍 Iniciando procesamiento de archivo:', file.name, 'Tamaño:', (file.size / 1024 / 1024).toFixed(2) + ' MB');
+
             // Usar el parser inteligente
             const parser = new IntelligentFileParser();
+            console.log('📊 Parsing archivo Excel...');
             const parsedData = await parser.parseFile(file);
+            console.log('✅ Archivo parseado exitosamente. Filas:', parsedData?.data?.length || 0);
             
             // Validar datos
             const validation = parser.validateData(parsedData, selectedTable);
@@ -89,29 +93,74 @@ export default function BulkUploadPage() {
             return;
         }
 
+        // Limitar filas para evitar timeouts con archivos muy grandes
+        const maxRows = 1000;
+        let dataToUpload = uploadData;
+        if (uploadData.length > maxRows) {
+            const shouldContinue = confirm(
+                `El archivo tiene ${uploadData.length} filas. Por seguridad, se procesarán solo las primeras ${maxRows} filas. ¿Continuar?`
+            );
+            if (!shouldContinue) return;
+            dataToUpload = uploadData.slice(0, maxRows);
+        }
+
         setIsUploading(true);
         setError('');
 
         try {
+            console.log('🚀 Iniciando upload...', {
+                tabla: selectedTable,
+                filas: dataToUpload.length,
+                tamañoData: JSON.stringify(dataToUpload).length
+            });
+
             const response = await fetch('/api/bulk-upload', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     tableType: selectedTable,
-                    data: uploadData,
+                    data: dataToUpload,
                     user: user
                 })
             });
 
-            const result = await response.json();
-            
-            if (response.ok) {
-                setUploadResult(result);
-                setUploadData(null);
-            } else {
-                setError(result.error || 'Error en la carga');
+            console.log('📡 Respuesta recibida:', {
+                status: response.status,
+                statusText: response.statusText,
+                headers: Object.fromEntries(response.headers.entries())
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('❌ Error del servidor:', errorText);
+                setError(`Error del servidor (${response.status}): ${errorText}`);
+                return;
             }
+
+            const responseText = await response.text();
+            console.log('📄 Texto de respuesta recibido, longitud:', responseText.length);
+            
+            if (!responseText.trim()) {
+                setError('Respuesta vacía del servidor');
+                return;
+            }
+
+            let result;
+            try {
+                result = JSON.parse(responseText);
+                console.log('✅ JSON parseado exitosamente:', result);
+            } catch (parseError) {
+                console.error('❌ Error parseando JSON:', parseError);
+                console.error('📄 Contenido de respuesta:', responseText.substring(0, 500) + '...');
+                setError('Error procesando respuesta del servidor');
+                return;
+            }
+            
+            setUploadResult(result);
+            setUploadData(null);
+            
         } catch (err) {
+            console.error('❌ Error de conexión:', err);
             setError('Error de conexión: ' + err.message);
         } finally {
             setIsUploading(false);
