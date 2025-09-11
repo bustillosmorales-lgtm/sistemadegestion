@@ -40,7 +40,7 @@ export default async function handler(req, res) {
     const supabase = require('../../../lib/supabase');
     const { data, error } = await supabase
       .from('ml_auth')
-      .select('count(*)')
+      .select('id')
       .limit(1);
 
     if (error) {
