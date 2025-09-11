@@ -22,7 +22,7 @@ SUPABASE_ANON_KEY=tu_supabase_anon_key
 SUPABASE_SERVICE_KEY=tu_supabase_service_role_key
 
 # MercadoLibre Chile (REQUERIDO)
-ML_CLIENT_ID=5166684581522596
+ML_CLIENT_ID=tu_client_id_aqui
 ML_CLIENT_SECRET=REGENERA_TU_CLIENT_SECRET_AQUÍ
 ML_REDIRECT_URI=https://sistemadegestion.net/mercadolibre/callback
 ML_API_BASE=https://api.mercadolibre.com
