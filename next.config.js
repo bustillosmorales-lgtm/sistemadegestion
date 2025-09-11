@@ -4,6 +4,14 @@ const nextConfig = {
   images: {
     unoptimized: true
   },
+  experimental: {
+    serverComponentsExternalPackages: ['xlsx']
+  },
+  serverRuntimeConfig: {
+    bodyParser: {
+      sizeLimit: '10mb'
+    }
+  },
   async headers() {
     return [
       {

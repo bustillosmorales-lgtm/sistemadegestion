@@ -823,3 +823,12 @@ async function verificarYCrearContenedor(container_number, datosCompra, resultad
         throw error; // Re-throw para que el proceso padre lo maneje
     }
 }
+
+// Configuración para permitir archivos grandes
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+}
