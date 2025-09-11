@@ -2,8 +2,14 @@
 const { createClient } = require('@supabase/supabase-js')
 const XLSX = require('xlsx')
 
-const supabaseUrl = 'https://ugabltnuwwtbpyqoptdg.supabase.co'
-const serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVnYWJsdG51d3d0YnB5cW9wdGRnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjQxMzg2NiwiZXhwIjoyMDcxOTg5ODY2fQ.UadJZDDy1ovJkNJ6EtyIFUasVECrNm4bHPPYXSJqbuE'
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
+const serviceKey = process.env.SUPABASE_SERVICE_KEY
+
+if (!supabaseUrl || !serviceKey) {
+  console.error('❌ Error: SUPABASE_URL y SUPABASE_SERVICE_KEY son requeridos')
+  console.log('Configura estas variables en tu archivo .env.local')
+  process.exit(1)
+}
 
 const supabaseAdmin = createClient(supabaseUrl, serviceKey)
 
