@@ -192,8 +192,37 @@ function getFullAnalysis(product, config, transit, precioVenta = null, ventaDiar
     };
 }
 
+// Configurar timeout para evitar 504 errors
+export const config = {
+  api: {
+    responseLimit: false,
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+    externalResolver: true,
+  },
+  maxDuration: 30, // 30 segundos máximo
+}
+
 export default async function handler(req, res) {
   const { sku, precioVenta } = req.query;
+  
+  // Timeout de 25 segundos para dar tiempo a responder
+  const timeoutId = setTimeout(() => {
+    if (!res.headersSent) {
+      console.log('⚠️ Timeout en analysis API, devolviendo datos básicos');
+      res.status(200).json({
+        success: false,
+        message: 'Análisis parcial por timeout',
+        productos: [],
+        configuracion: null,
+        metadata: {
+          total: 0,
+          timeout: true
+        }
+      });
+    }
+  }, 25000);
   
   try {
     // 1. Obtener la configuración
@@ -395,10 +424,14 @@ export default async function handler(req, res) {
         
         results.push(analysis);
       }
+      clearTimeout(timeoutId);
       return res.status(200).json({ results, configActual: config });
     }
   } catch (error) {
     console.error('Error en API analysis:', error);
-    res.status(500).json({ error: 'Error interno del servidor: ' + error.message });
+    clearTimeout(timeoutId);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Error interno del servidor: ' + error.message });
+    }
   }
 }
