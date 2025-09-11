@@ -23,6 +23,7 @@ async function handleGetPredictions(req, res) {
     try {
         const { sku, tipo } = req.query;
 
+        // Verificar si la tabla existe y manejar el error graciosamente
         let query = supabase
             .from('ai_predictions')
             .select('*')
@@ -58,7 +59,20 @@ async function handleGetPredictions(req, res) {
 
     } catch (error) {
         console.error('Error en API ai-predictions GET:', error);
-        return res.status(500).json({ error: 'Error interno del servidor' });
+        
+        // Si la tabla no existe, devolver datos vacíos en lugar de error
+        if (error.message?.includes('relation "ai_predictions" does not exist') || 
+            error.code === 'PGRST116' || 
+            error.message?.includes('does not exist')) {
+            console.log('Tabla ai_predictions no existe, devolviendo datos vacíos');
+            return res.status(200).json({
+                predicciones: [],
+                alertas_temporales: [],
+                total: 0
+            });
+        }
+        
+        return res.status(500).json({ error: 'Error obteniendo predicciones IA' });
     }
 }
 
