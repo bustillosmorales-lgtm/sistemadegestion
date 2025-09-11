@@ -55,7 +55,13 @@
       "Read(/C:\\Users\\franc\\Downloads\\sistemadegestion-main\\sistemadegestion-main\\pages\\api/**)",
       "Read(/C:\\Users\\franc\\Downloads\\sistemadegestion-main\\sistemadegestion-main\\pages/**)",
       "Bash(npm run build:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Read(//c/Users/franc/Downloads/sistemadegestion-main/archivos/**)",
+      "Bash(npm run upload-archivos:*)",
+      "Bash(npm --version)",
+      "Bash(npm run:*)"
     ],
     "deny": [],
     "ask": []
