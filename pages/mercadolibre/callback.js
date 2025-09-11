@@ -41,7 +41,10 @@ export default function MercadoLibreCallback() {
           }, 3000);
         } else {
           setStatus('error');
-          setMessage(result.error || 'Error al conectar con MercadoLibre');
+          const errorMsg = result.error || 'Error al conectar con MercadoLibre';
+          const detailsMsg = result.details ? ` - ${JSON.stringify(result.details)}` : '';
+          setMessage(errorMsg + detailsMsg);
+          console.error('Error en callback:', result);
         }
 
       } catch (error) {

@@ -85,12 +85,26 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('❌ Error en callback ML:', error.response?.data || error.message);
+    console.error('❌ Error stack:', error.stack);
+    
+    // Determinar el tipo de error específico
+    let errorDetails = 'Error interno del servidor';
+    if (error.response?.data) {
+      errorDetails = error.response.data;
+      console.error('❌ MercadoLibre API Error:', JSON.stringify(error.response.data, null, 2));
+    } else if (error.message) {
+      errorDetails = error.message;
+      console.error('❌ Error message:', error.message);
+    }
     
     res.status(500).json({
       error: 'Error al establecer conexión con MercadoLibre',
-      details: process.env.NODE_ENV === 'development' ? 
-        (error.response?.data || error.message) : 
-        'Error interno del servidor'
+      details: errorDetails,
+      debug: process.env.NODE_ENV === 'development' ? {
+        stack: error.stack,
+        response: error.response?.data,
+        code: error.code
+      } : undefined
     });
   }
 }
