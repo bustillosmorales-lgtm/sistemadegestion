@@ -6,16 +6,18 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Verificar variables de entorno
-    const requiredEnvVars = [
-      'ML_CLIENT_ID',
-      'ML_CLIENT_SECRET',
-      'ML_REDIRECT_URI',
-      'SUPABASE_URL',
-      'SUPABASE_ANON_KEY'
-    ];
+    // Verificar variables de entorno necesarias
+    const envChecks = {
+      ml_client_id: process.env.ML_CLIENT_ID,
+      ml_client_secret: process.env.ML_CLIENT_SECRET,
+      ml_redirect_uri: process.env.ML_REDIRECT_URI,
+      supabase_url: process.env.SUPABASE_URL,
+      supabase_anon_key: process.env.SUPABASE_ANON_KEY
+    };
 
-    const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+    const missingVars = Object.entries(envChecks)
+      .filter(([key, value]) => !value)
+      .map(([key]) => key);
     
     if (missingVars.length > 0) {
       return res.status(500).json({
