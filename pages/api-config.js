@@ -53,7 +53,7 @@ export default function APIConfig() {
     }, [router.query]);
 
     const checkConfigurations = async () => {
-        console.log('🔍 Verificando configuraciones...');
+        console.log('🔍 Verificando configuraciones... [Build: 2025-09-11-v2]');
         
         let mlConfig = { configured: false };
         let dfConfig = { configured: false };
@@ -359,6 +359,7 @@ export default function APIConfig() {
         <>
             <Head>
                 <title>Configuración APIs - Sistema de Gestión</title>
+                <meta name="cache-control" content="no-cache" />
             </Head>
             
             <div className="min-h-screen bg-gray-50 py-8">
