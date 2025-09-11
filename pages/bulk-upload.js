@@ -93,17 +93,71 @@ export default function BulkUploadPage() {
             return;
         }
 
-        // Procesar todas las filas sin límite
-        const dataToUpload = uploadData;
-
         setIsUploading(true);
         setError('');
 
+        // Para archivos grandes, procesar en lotes para evitar timeouts
+        const batchSize = 200; // Procesar 200 filas por vez
+        const totalRows = uploadData.length;
+        const totalBatches = Math.ceil(totalRows / batchSize);
+        
+        console.log(`📊 Procesando ${totalRows} filas en ${totalBatches} lotes de ${batchSize} filas cada uno`);
+
+        let allResults = {
+            nuevos: [],
+            duplicados: [],
+            errores: [],
+            productosNuevos: []
+        };
+
         try {
-            console.log('🚀 Iniciando upload...', {
+            for (let i = 0; i < totalBatches; i++) {
+                const start = i * batchSize;
+                const end = Math.min(start + batchSize, totalRows);
+                const batch = uploadData.slice(start, end);
+                
+                console.log(`🔄 Procesando lote ${i + 1}/${totalBatches} (filas ${start + 1}-${end})`);
+                setError(`Procesando lote ${i + 1} de ${totalBatches}...`);
+
+                const batchResult = await processBatch(batch, i + 1, totalBatches);
+                
+                // Combinar resultados
+                allResults.nuevos.push(...(batchResult.detalles?.nuevos || []));
+                allResults.duplicados.push(...(batchResult.detalles?.duplicados || []));
+                allResults.errores.push(...(batchResult.detalles?.errores || []));
+                allResults.productosNuevos.push(...(batchResult.detalles?.productosNuevos || []));
+                
+                // Pequeña pausa entre lotes para no sobrecargar el servidor
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+
+            setUploadResult({
+                mensaje: `Carga masiva completada para ${selectedTable}`,
+                resumen: {
+                    nuevos: allResults.nuevos.length,
+                    duplicados: allResults.duplicados.length,
+                    errores: allResults.errores.length,
+                    productosNuevos: allResults.productosNuevos.length
+                },
+                detalles: allResults
+            });
+            setUploadData(null);
+            setError('');
+            
+        } catch (err) {
+            console.error('❌ Error en procesamiento por lotes:', err);
+            setError('Error en procesamiento: ' + err.message);
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const processBatch = async (batchData, batchNumber, totalBatches) => {
+        try {
+            console.log(`🚀 Iniciando upload lote ${batchNumber}/${totalBatches}:`, {
                 tabla: selectedTable,
-                filas: dataToUpload.length,
-                tamañoData: JSON.stringify(dataToUpload).length
+                filas: batchData.length,
+                tamañoData: JSON.stringify(batchData).length
             });
 
             const response = await fetch('/api/bulk-upload', {
@@ -111,51 +165,43 @@ export default function BulkUploadPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     tableType: selectedTable,
-                    data: dataToUpload,
+                    data: batchData,
                     user: user
                 })
             });
 
-            console.log('📡 Respuesta recibida:', {
+            console.log(`📡 Respuesta lote ${batchNumber} recibida:`, {
                 status: response.status,
-                statusText: response.statusText,
-                headers: Object.fromEntries(response.headers.entries())
+                statusText: response.statusText
             });
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error('❌ Error del servidor:', errorText);
-                setError(`Error del servidor (${response.status}): ${errorText}`);
-                return;
+                console.error(`❌ Error del servidor en lote ${batchNumber}:`, errorText);
+                throw new Error(`Error del servidor (${response.status}): ${errorText}`);
             }
 
             const responseText = await response.text();
-            console.log('📄 Texto de respuesta recibido, longitud:', responseText.length);
+            console.log(`📄 Lote ${batchNumber} - Respuesta recibida, longitud:`, responseText.length);
             
             if (!responseText.trim()) {
-                setError('Respuesta vacía del servidor');
-                return;
+                throw new Error(`Respuesta vacía del servidor en lote ${batchNumber}`);
             }
 
             let result;
             try {
                 result = JSON.parse(responseText);
-                console.log('✅ JSON parseado exitosamente:', result);
+                console.log(`✅ Lote ${batchNumber} procesado exitosamente:`, result.resumen);
+                return result;
             } catch (parseError) {
-                console.error('❌ Error parseando JSON:', parseError);
+                console.error(`❌ Error parseando JSON lote ${batchNumber}:`, parseError);
                 console.error('📄 Contenido de respuesta:', responseText.substring(0, 500) + '...');
-                setError('Error procesando respuesta del servidor');
-                return;
+                throw new Error(`Error procesando respuesta del servidor en lote ${batchNumber}`);
             }
             
-            setUploadResult(result);
-            setUploadData(null);
-            
         } catch (err) {
-            console.error('❌ Error de conexión:', err);
-            setError('Error de conexión: ' + err.message);
-        } finally {
-            setIsUploading(false);
+            console.error(`❌ Error en lote ${batchNumber}:`, err);
+            throw err;
         }
     };
 
