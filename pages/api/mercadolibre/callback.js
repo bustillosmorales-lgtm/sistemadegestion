@@ -26,10 +26,34 @@ export default async function handler(req, res) {
       });
     }
 
-    console.log('🔄 Intercambiando código por tokens...');
+    console.log('🔄 Intercambiando código por tokens con PKCE...');
 
-    // Intercambiar código por tokens
-    const tokenData = await mlService.exchangeCodeForTokens(code);
+    // Recuperar code_verifier usando el state (sessionId)
+    const sessionId = state;
+    if (!sessionId) {
+      throw new Error('Session ID (state) no recibido para PKCE');
+    }
+
+    const supabase = require('../../../lib/supabase');
+    const { data: pkceSession, error: pkceError } = await supabase
+      .from('oauth_pkce_sessions')
+      .select('code_verifier')
+      .eq('session_id', sessionId)
+      .single();
+
+    if (pkceError || !pkceSession) {
+      console.error('❌ PKCE session no encontrada:', pkceError);
+      throw new Error('Sesión PKCE expirada o no válida');
+    }
+
+    // Intercambiar código por tokens usando PKCE
+    const tokenData = await mlService.exchangeCodeForTokensWithPKCE(code, pkceSession.code_verifier);
+
+    // Limpiar la sesión PKCE usada
+    await supabase
+      .from('oauth_pkce_sessions')
+      .delete()
+      .eq('session_id', sessionId);
     
     const { access_token, refresh_token, user_id, expires_in, scope } = tokenData;
     
