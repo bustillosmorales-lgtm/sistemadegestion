@@ -93,16 +93,8 @@ export default function BulkUploadPage() {
             return;
         }
 
-        // Limitar filas para evitar timeouts con archivos muy grandes
-        const maxRows = 1000;
-        let dataToUpload = uploadData;
-        if (uploadData.length > maxRows) {
-            const shouldContinue = confirm(
-                `El archivo tiene ${uploadData.length} filas. Por seguridad, se procesarán solo las primeras ${maxRows} filas. ¿Continuar?`
-            );
-            if (!shouldContinue) return;
-            dataToUpload = uploadData.slice(0, maxRows);
-        }
+        // Procesar todas las filas sin límite
+        const dataToUpload = uploadData;
 
         setIsUploading(true);
         setError('');
