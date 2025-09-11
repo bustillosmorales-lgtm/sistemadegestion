@@ -54,7 +54,8 @@
       "Read(/C:\\Users\\franc\\Downloads\\sistemadegestion-main\\sistemadegestion-main\\pages\\api/**)",
       "Read(/C:\\Users\\franc\\Downloads\\sistemadegestion-main\\sistemadegestion-main\\pages\\api/**)",
       "Read(/C:\\Users\\franc\\Downloads\\sistemadegestion-main\\sistemadegestion-main\\pages/**)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []
