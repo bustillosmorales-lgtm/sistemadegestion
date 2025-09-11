@@ -321,17 +321,27 @@ export default async function handler(req, res) {
       const analysis = getFullAnalysis(product, config, transit, precioVenta, resultadoVenta.ventaDiaria, resultadoVenta.fechasAnalisis);
       return res.status(200).json({ results: [analysis], configActual: config });
     } else {
-      const { data: products, error: productsError } = await supabase.from('products').select('*');
+      // Add pagination to avoid timeout
+      const limit = parseInt(req.query.limit) || 50; // Default 50 products per request
+      const offset = parseInt(req.query.offset) || 0;
+      
+      const { data: products, error: productsError, count } = await supabase
+        .from('products')
+        .select('*', { count: 'exact' })
+        .range(offset, offset + limit - 1)
+        .order('sku', { ascending: true });
+        
       if (productsError) throw new Error('No se pudieron cargar los productos.');
 
-      // Filtrar productos desconsiderados y con workflow completado
-      const filteredProducts = products.filter(product => 
-        !product.desconsiderado && 
-        !product.workflow_completed
-      );
-
       const results = [];
-      for (const product of filteredProducts) {
+      const processStartTime = Date.now();
+      
+      for (const product of products || []) {
+        // Check if we're approaching timeout (20 seconds of 25 second limit)
+        if (Date.now() - processStartTime > 20000) {
+          console.log(`⚠️ Approaching timeout, processed ${results.length} products`);
+          break;
+        }
         const resultadoVenta = await calculateVentaDiaria(product.sku, product.stock_actual);
         const analysis = getFullAnalysis(product, config, transit, product.analysis_details?.sellingPrice, resultadoVenta.ventaDiaria, resultadoVenta.fechasAnalisis);
         
@@ -425,7 +435,17 @@ export default async function handler(req, res) {
         results.push(analysis);
       }
       clearTimeout(timeoutId);
-      return res.status(200).json({ results, configActual: config });
+      return res.status(200).json({ 
+        results, 
+        configActual: config,
+        metadata: {
+          total: count,
+          offset: offset,
+          limit: limit,
+          processed: results.length,
+          hasMore: offset + limit < count
+        }
+      });
     }
   } catch (error) {
     console.error('Error en API analysis:', error);
