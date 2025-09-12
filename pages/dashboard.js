@@ -27,8 +27,8 @@ const usePaginatedAnalysis = () => {
     else setLoadingMore(true);
     
     try {
-      // Use fast endpoint for initial load, full endpoint for detailed data
-      const endpoint = fastMode ? 'analysis-fast' : 'analysis';
+      // Use NEW no-cache endpoint for initial load, full endpoint for detailed data
+      const endpoint = fastMode ? 'analysis-nocache' : 'analysis';
       // CACHE BUSTER - Force real prices display
       const cacheBuster = Date.now();
       const response = await fetch(`/api/${endpoint}?limit=${limit}&offset=${pageOffset}&v=${cacheBuster}`, {
