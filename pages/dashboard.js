@@ -31,7 +31,14 @@ const usePaginatedAnalysis = () => {
       const endpoint = fastMode ? 'analysis-fast' : 'analysis';
       // CACHE BUSTER - Force real prices display
       const cacheBuster = Date.now();
-      const response = await fetch(`/api/${endpoint}?limit=${limit}&offset=${pageOffset}&v=${cacheBuster}`);
+      const response = await fetch(`/api/${endpoint}?limit=${limit}&offset=${pageOffset}&v=${cacheBuster}`, {
+        cache: 'no-cache',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
       if (!response.ok) throw new Error('Error loading data');
       
       const data = await response.json();
