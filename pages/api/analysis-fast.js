@@ -2,15 +2,23 @@
 import { supabase } from '../../lib/supabaseClient';
 import cache from '../../lib/cache';
 
-// Fast calculation with minimal complexity - for initial dashboard load
+// Fast calculation with simplified price estimation
 function getFastAnalysis(product, config, ventaDiariaCalculada = 0) {
   const stockObjetivo = ventaDiariaCalculada * (config.stockSaludableMinDias || 30);
   const cantidadSugerida = Math.max(0, Math.round(stockObjetivo - (product.stock_actual || 0)));
   
-  // Cálculo rápido de impacto (simplificado para velocidad)
-  const gananciaEstimada = cantidadSugerida * 2000; // Estimación conservadora
-  const urgencia = ventaDiariaCalculada > 1 ? ventaDiariaCalculada * 1000 : 500;
-  const impactoRapido = gananciaEstimada + urgencia;
+  // Estimación rápida de precio promedio (sin consultar BD por velocidad)
+  // Usar precio de venta guardado en analysis_details o estimación conservadora
+  const precioEstimado = product.analysis_details?.sellingPrice || 5000; // Estimación $5k CLP promedio
+  
+  // CÁLCULO SIMPLE: Precio Estimado × Cantidad a Reponer  
+  const valorTotal = precioEstimado * cantidadSugerida;
+  
+  // Determinar prioridad
+  let prioridad = 'BAJA';
+  if (valorTotal > 500000) prioridad = 'CRÍTICA';      // >$500k
+  else if (valorTotal > 200000) prioridad = 'ALTA';    // >$200k  
+  else if (valorTotal > 100000) prioridad = 'MEDIA';   // >$100k
   
   return {
     sku: product.sku,
@@ -20,8 +28,11 @@ function getFastAnalysis(product, config, ventaDiariaCalculada = 0) {
     venta_diaria: ventaDiariaCalculada,
     cantidadSugerida: cantidadSugerida,
     impactoEconomico: {
-      valorTotal: Math.round(impactoRapido),
-      prioridad: impactoRapido > 50000 ? 'ALTA' : impactoRapido > 20000 ? 'MEDIA' : 'BAJA'
+      valorTotal: Math.round(valorTotal),
+      precioPromedioReal: Math.round(precioEstimado),
+      prioridad: prioridad,
+      ventasPotenciales: Math.round(valorTotal),
+      estimado: true // Marcar como estimación rápida
     },
     // Minimal set of data for fast loading
     essential: true
@@ -132,11 +143,17 @@ export default async function handler(req, res) {
       results.push(analysis);
     }
     
-    // 5. ORDENAR por valor de impacto económico (mayor a menor)
+    // 5. ORDENAR por valor de impacto económico real (mayor a menor)
+    // Priorizar productos con cantidad sugerida > 0 y ordenar por valor total
     results.sort((a, b) => {
-      const aValue = a.cantidadSugerida > 0 ? (a.impactoEconomico?.valorTotal || 0) : -1;
-      const bValue = b.cantidadSugerida > 0 ? (b.impactoEconomico?.valorTotal || 0) : -1;
-      return bValue - aValue;
+      // Si uno tiene cantidad sugerida 0 y el otro no, priorizar el que tiene cantidad > 0
+      if (a.cantidadSugerida <= 0 && b.cantidadSugerida > 0) return 1;
+      if (b.cantidadSugerida <= 0 && a.cantidadSugerida > 0) return -1;
+      
+      // Si ambos tienen cantidad 0 o ambos tienen cantidad > 0, ordenar por valor total
+      const aValue = a.impactoEconomico?.valorTotal || 0;
+      const bValue = b.impactoEconomico?.valorTotal || 0;
+      return bValue - aValue; // Orden descendente (mayor a menor)
     });
     
     clearTimeout(timeoutId);

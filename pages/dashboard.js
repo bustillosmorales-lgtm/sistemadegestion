@@ -1919,16 +1919,16 @@ export default function Dashboard() {
                               product.impactoEconomico?.prioridad === 'ALTA' ? 'bg-orange-100 text-orange-800' :
                               product.impactoEconomico?.prioridad === 'MEDIA' ? 'bg-yellow-100 text-yellow-800' :
                               'bg-green-100 text-green-800'
-                            }`} title={`Impacto económico total: ${product.impactoEconomico ? 
-                              `$${product.impactoEconomico.valorTotal.toLocaleString('es-CL')} (${product.impactoEconomico.prioridad})` :
+                            }`} title={`Valor reposición: ${product.impactoEconomico ? 
+                              `$${product.impactoEconomico.valorTotal.toLocaleString('es-CL')} = $${product.impactoEconomico.precioPromedioReal?.toLocaleString('es-CL') || 0}/u × ${product.cantidadSugerida} unidades (${product.impactoEconomico.prioridad})` :
                               'Estimación básica'}`}>
                               💰 ${(product.impactoEconomico?.valorTotal || impactoVentas).toLocaleString('es-CL')}
                             </span>
                             
-                            {product.impactoEconomico?.roi > 0 && (
+                            {product.impactoEconomico?.precioPromedioReal > 0 && (
                               <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full" 
-                                    title={`ROI esperado: ${product.impactoEconomico.roi}%`}>
-                                📈 {product.impactoEconomico.roi}%
+                                    title={`Precio promedio histórico por unidad${product.impactoEconomico.periodoDatos ? ' (' + product.impactoEconomico.periodoDatos + ')' : ''}`}>
+                                📊 ${product.impactoEconomico.precioPromedioReal.toLocaleString('es-CL')}/u
                               </span>
                             )}
                           </div>
