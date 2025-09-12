@@ -2,8 +2,8 @@
 import { supabase } from '../../lib/supabaseClient';
 import cache from '../../lib/cache';
 
-// Ultra-fast analysis using complete pre-computed cache
-function getFastAnalysisFromCache(product, config, analysisCache = new Map()) {
+// Ultra-fast analysis using complete pre-computed cache  
+async function getFastAnalysisFromCache(product, config, analysisCache = new Map()) {
   const cacheData = analysisCache.get(product.sku);
   
   // Si hay datos en cache, usarlos directamente
@@ -242,7 +242,7 @@ export default async function handler(req, res) {
     // 4. Generate analysis from cache (INSTANT!)
     const results = [];
     for (const product of products) {
-      const analysis = getFastAnalysisFromCache(product, config, analysisCache);
+      const analysis = await getFastAnalysisFromCache(product, config, analysisCache);
       results.push(analysis);
     }
     
