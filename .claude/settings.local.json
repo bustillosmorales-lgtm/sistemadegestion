@@ -61,7 +61,10 @@
       "Read(//c/Users/franc/Downloads/sistemadegestion-main/archivos/**)",
       "Bash(npm run upload-archivos:*)",
       "Bash(npm --version)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(timeout:*)",
+      "Read(//c/Users/franc/Downloads/sistemadegestion-main/ventas/**)",
+      "Bash(pkill:*)"
     ],
     "deny": [],
     "ask": []
