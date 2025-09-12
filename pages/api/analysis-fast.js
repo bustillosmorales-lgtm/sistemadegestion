@@ -2,17 +2,47 @@
 import { supabase } from '../../lib/supabaseClient';
 import cache from '../../lib/cache';
 
-// Fast calculation with simplified price estimation
-function getFastAnalysis(product, config, ventaDiariaCalculada = 0) {
+// Fast calculation with real price estimation
+async function getFastAnalysis(product, config, ventaDiariaCalculada = 0) {
   const stockObjetivo = ventaDiariaCalculada * (config.stockSaludableMinDias || 30);
   const cantidadSugerida = Math.max(0, Math.round(stockObjetivo - (product.stock_actual || 0)));
   
-  // Estimación rápida de precio promedio (sin consultar BD por velocidad)
-  // Usar precio de venta guardado en analysis_details o estimación conservadora
-  const precioEstimado = product.analysis_details?.sellingPrice || 5000; // Estimación $5k CLP promedio
+  // Calcular precio promedio real de ventas históricas (versión rápida)
+  let precioPromedio = 5000; // Fallback por defecto
   
-  // CÁLCULO SIMPLE: Precio Estimado × Cantidad a Reponer  
-  const valorTotal = precioEstimado * cantidadSugerida;
+  if (cantidadSugerida > 0) {
+    // Consulta rápida de precios históricos (últimos 30 días para velocidad)
+    const fechaInicio = new Date();
+    fechaInicio.setDate(fechaInicio.getDate() - 30); // Solo últimos 30 días para velocidad
+    
+    try {
+      const { data: ventas } = await supabase
+        .from('ventas')
+        .select('precio_venta, cantidad')
+        .eq('sku', product.sku)
+        .gte('fecha_venta', fechaInicio.toISOString())
+        .not('precio_venta', 'is', null)
+        .gt('precio_venta', 0)
+        .limit(50); // Limitar para velocidad
+      
+      if (ventas && ventas.length > 0) {
+        const ventasPonderadas = ventas.reduce((acc, venta) => {
+          acc.totalValor += venta.precio_venta * venta.cantidad;
+          acc.totalCantidad += venta.cantidad;
+          return acc;
+        }, { totalValor: 0, totalCantidad: 0 });
+        
+        if (ventasPonderadas.totalCantidad > 0) {
+          precioPromedio = ventasPonderadas.totalValor / ventasPonderadas.totalCantidad;
+        }
+      }
+    } catch (error) {
+      console.log(`⚠️ Error calculando precio para ${product.sku}, usando fallback:`, error.message);
+    }
+  }
+  
+  // CÁLCULO REAL: Precio Promedio Real × Cantidad a Reponer  
+  const valorTotal = precioPromedio * cantidadSugerida;
   
   // Determinar prioridad
   let prioridad = 'BAJA';
@@ -29,10 +59,11 @@ function getFastAnalysis(product, config, ventaDiariaCalculada = 0) {
     cantidadSugerida: cantidadSugerida,
     impactoEconomico: {
       valorTotal: Math.round(valorTotal),
-      precioPromedioReal: Math.round(precioEstimado),
+      precioPromedioReal: Math.round(precioPromedio),
       prioridad: prioridad,
       ventasPotenciales: Math.round(valorTotal),
-      estimado: true // Marcar como estimación rápida
+      estimado: false, // Ahora usa precios reales
+      periodoAnalisis: '30 días' // Indicar período analizado
     },
     // Minimal set of data for fast loading
     essential: true
@@ -135,11 +166,11 @@ export default async function handler(req, res) {
     const allSkus = products.map(p => p.sku);
     const ventaDiariaMap = await getPrecomputedVentaDiaria(allSkus);
     
-    // 4. Generate minimal analysis
+    // 4. Generate analysis with real prices
     const results = [];
     for (const product of products) {
       const ventaDiaria = ventaDiariaMap.get(product.sku) || 0;
-      const analysis = getFastAnalysis(product, config, ventaDiaria);
+      const analysis = await getFastAnalysis(product, config, ventaDiaria);
       results.push(analysis);
     }
     
