@@ -10,7 +10,7 @@ import * as XLSX from 'xlsx';
 
 const fetcher = (url) => fetch(url).then((res) => res.json());
 
-// Hook personalizado para carga paginada con caché
+// Hook personalizado para carga híbrida: rápida inicial + completa en background
 const usePaginatedAnalysis = () => {
   const [allProducts, setAllProducts] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -19,24 +19,41 @@ const usePaginatedAnalysis = () => {
   const [hasMore, setHasMore] = useState(true);
   const [metadata, setMetadata] = useState(null);
   const [offset, setOffset] = useState(0);
-  const limit = 25; // Tamaño de página
+  const [isEnhanced, setIsEnhanced] = useState(false); // Track if we have detailed data
+  const limit = 15; // Tamaño más pequeño para carga rápida
 
-  const loadPage = async (pageOffset = 0, isLoadingMore = false) => {
+  const loadPage = async (pageOffset = 0, isLoadingMore = false, fastMode = true) => {
     if (!isLoadingMore) setLoading(true);
     else setLoadingMore(true);
     
     try {
-      const response = await fetch(`/api/analysis?limit=${limit}&offset=${pageOffset}`);
+      // Use fast endpoint for initial load, full endpoint for detailed data
+      const endpoint = fastMode ? 'analysis-fast' : 'analysis';
+      const response = await fetch(`/api/${endpoint}?limit=${limit}&offset=${pageOffset}`);
       if (!response.ok) throw new Error('Error loading data');
       
       const data = await response.json();
       
+      console.log(`📊 Loaded ${data.results?.length || 0} products using ${endpoint} (${data.metadata?.processingTime || 'N/A'})`);
+      
       if (pageOffset === 0) {
         // Primera carga - reemplazar datos
         setAllProducts(data.results || []);
+        
+        // If using fast mode, schedule background enhancement
+        if (fastMode) {
+          setIsEnhanced(false);
+          scheduleBackgroundEnhancement(pageOffset);
+        } else {
+          setIsEnhanced(true);
+        }
       } else {
         // Cargar más - agregar datos
         setAllProducts(prev => [...prev, ...(data.results || [])]);
+        
+        if (fastMode) {
+          scheduleBackgroundEnhancement(pageOffset);
+        }
       }
       
       setMetadata(data.metadata);
@@ -51,22 +68,49 @@ const usePaginatedAnalysis = () => {
     }
   };
 
+  // Schedule background processing for detailed calculations
+  const scheduleBackgroundEnhancement = async (pageOffset) => {
+    try {
+      // Schedule preload of next batch
+      await fetch('/api/background-processor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'schedule_preload',
+          offset: pageOffset + limit,
+          limit: limit * 2 // Preload 2 pages ahead
+        })
+      });
+      
+      console.log('📅 Background processing scheduled');
+    } catch (error) {
+      console.error('Failed to schedule background processing:', error);
+    }
+  };
+
   const loadMore = () => {
     if (hasMore && !loadingMore) {
       const newOffset = offset + limit;
       setOffset(newOffset);
-      loadPage(newOffset, true);
+      loadPage(newOffset, true, true); // Load more with fast mode
     }
   };
 
   const refresh = () => {
     setOffset(0);
     setHasMore(true);
-    loadPage(0, false);
+    setIsEnhanced(false);
+    loadPage(0, false, true); // Refresh with fast mode
+  };
+
+  const loadDetailed = () => {
+    // Switch to detailed mode for current data
+    setOffset(0);
+    loadPage(0, false, false); // Load with full analysis
   };
 
   useEffect(() => {
-    loadPage(0, false);
+    loadPage(0, false, true); // Initial load with fast mode
   }, []);
 
   return {
@@ -76,8 +120,10 @@ const usePaginatedAnalysis = () => {
     error,
     hasMore,
     metadata,
+    isEnhanced,
     loadMore,
-    refresh
+    refresh,
+    loadDetailed
   };
 };
 
@@ -176,8 +222,10 @@ export default function Dashboard() {
     error, 
     hasMore, 
     metadata, 
+    isEnhanced,
     loadMore, 
-    refresh 
+    refresh,
+    loadDetailed
   } = usePaginatedAnalysis();
   
   const { data: reminders } = useSWR('/api/reminders', fetcher);
@@ -2111,26 +2159,75 @@ export default function Dashboard() {
             </div>
           )}
           
-          {/* Información de progreso */}
+          {/* Información de progreso y controles de rendimiento */}
           {metadata && (
             <div className="bg-gray-50 p-4 rounded-lg border">
-              <div className="text-sm text-gray-600 text-center">
-                <span className="font-medium">
-                  Mostrando {products.length} de {metadata.total} productos
-                </span>
-                {metadata.processed && (
-                  <span className="ml-2 text-xs">
-                    ({metadata.processed} procesados en esta página)
+              <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                <div className="text-sm text-gray-600">
+                  <span className="font-medium">
+                    Mostrando {products.length} de {metadata.total} productos
                   </span>
-                )}
+                  {metadata.processed && (
+                    <span className="ml-2 text-xs">
+                      ({metadata.processed} procesados en esta página)
+                    </span>
+                  )}
+                  {metadata.processingTime && (
+                    <span className="ml-2 text-xs text-green-600">
+                      ⚡ {metadata.processingTime}
+                    </span>
+                  )}
+                </div>
+                
+                {/* Controles de modo de carga */}
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    {isEnhanced ? (
+                      <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                        🔬 Análisis Completo
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                        ⚡ Carga Rápida
+                      </span>
+                    )}
+                    
+                    {!isEnhanced && (
+                      <button
+                        onClick={loadDetailed}
+                        className="ml-2 px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded-full transition-colors"
+                        title="Cargar análisis detallado con todos los cálculos"
+                      >
+                        📊 Cargar Detalles
+                      </button>
+                    )}
+                    
+                    <button
+                      onClick={refresh}
+                      className="ml-2 px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white text-xs rounded-full transition-colors"
+                      title="Actualizar datos"
+                    >
+                      🔄 Actualizar
+                    </button>
+                  </div>
+                </div>
               </div>
-              {!hasMore && products.length > 0 && (
-                <div className="text-center mt-2">
-                  <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-                    ✅ Todos los productos cargados
-                  </span>
+              
+              {/* Cache stats if available */}
+              {metadata.cacheStats && (
+                <div className="mt-2 text-xs text-gray-500 flex justify-between">
+                  <span>Cache: {metadata.cacheStats.hitRate} hit rate</span>
+                  <span>{metadata.cacheStats.memoryEfficiency}</span>
                 </div>
               )}
+            </div>
+          )}
+          
+          {!hasMore && products.length > 0 && (
+            <div className="text-center mt-4">
+              <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                ✅ Todos los productos cargados
+              </span>
             </div>
           )}
         </div>

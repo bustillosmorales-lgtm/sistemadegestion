@@ -16,7 +16,10 @@
     "test-insert": "node scripts/test-single-insert.js",
     "fix-missing-data": "node scripts/fix-missing-data.js",
     "test-connection": "node scripts/test-connection.js",
-    "fix-legacy-status": "node scripts/fix-legacy-status.js"
+    "fix-legacy-status": "node scripts/fix-legacy-status.js",
+    "optimize-db": "node scripts/optimize-database.js optimize",
+    "check-db": "node scripts/optimize-database.js check",
+    "benchmark-db": "node scripts/optimize-database.js benchmark"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",
