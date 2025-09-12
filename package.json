@@ -15,7 +15,8 @@
     "diagnose-data": "node scripts/diagnose-data.js",
     "test-insert": "node scripts/test-single-insert.js",
     "fix-missing-data": "node scripts/fix-missing-data.js",
-    "test-connection": "node scripts/test-connection.js"
+    "test-connection": "node scripts/test-connection.js",
+    "fix-legacy-status": "node scripts/fix-legacy-status.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",

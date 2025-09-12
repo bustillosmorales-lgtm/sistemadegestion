@@ -134,6 +134,10 @@ const formatDateTime = (isoDate) => {
 };
 
 const statusConfig = {
+    // Status legados/temporales
+    activo: { text: 'Producto Activo (Legacy)', color: 'bg-blue-400', nextAction: 'NEEDS_REPLENISHMENT', buttonText: 'Evaluar Reposición', role: 'chile', hasForm: true },
+    
+    // Status del nuevo workflow
     NO_REPLENISHMENT_NEEDED: { text: 'Sin Reposición Programada', color: 'bg-gray-400', nextAction: null, buttonText: 'Sin Acción Requerida', role: null, hasForm: false },
     NEEDS_REPLENISHMENT: { text: 'Necesita Reposición', color: 'bg-yellow-500', nextAction: 'QUOTE_REQUESTED', buttonText: 'Pedir Cotización', role: 'chile', hasForm: true },
     QUOTE_REQUESTED: { text: 'Cotización Solicitada', color: 'bg-blue-500', nextAction: 'QUOTED', buttonText: 'Cotizar', role: 'china', hasForm: true },
@@ -147,7 +151,7 @@ const statusConfig = {
     QUOTE_REJECTED: { text: 'Cotización Rechazada', color: 'bg-red-700', nextAction: 'QUOTED', buttonText: 'Re-cotizar', role: 'china', hasForm: true },
 };
 
-const workflowOrder = Object.keys(statusConfig).filter(s => s !== 'QUOTE_REJECTED');
+const workflowOrder = Object.keys(statusConfig).filter(s => s !== 'QUOTE_REJECTED' && s !== 'activo');
 
 const detailFieldNames = {
     quantityToQuote: 'Cantidad Solicitada', comments: 'Comentarios', unitPrice: 'Precio Unitario',
@@ -1755,7 +1759,7 @@ export default function Dashboard() {
 
         <div className="p-4 space-y-4">
           {filteredProducts.map((product) => {
-            const currentStatusInfo = statusConfig[product.status] || { text: 'Desconocido', color: 'bg-gray-400' };
+            const currentStatusInfo = statusConfig[product.status] || { text: `Desconocido: ${product.status}`, color: 'bg-gray-400' };
             const currentStatusIndex = workflowOrder.indexOf(product.status);
             const isExpanded = expandedSku === product.sku;
             const diasDeStock = (product.venta_diaria || product.ventaDiaria || 0) > 0 ? ((product.stock_actual || product.stockActual || 0) + (product.enTransito || 0)) / (product.venta_diaria || product.ventaDiaria || 1) : Infinity;
