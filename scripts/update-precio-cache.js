@@ -5,44 +5,40 @@ const BATCH_SIZE = 100; // Procesar SKUs en lotes para evitar timeouts
 
 async function obtenerPrecioProducto(sku, diasPeriodo = 30) {
   try {
-    // Obtener información completa del producto
-    const { data: product, error } = await supabase
-      .from('products')
-      .select('precio_venta_sugerido, costo_fob_rmb')
+    // PRIORIDAD 1: Obtener último precio real de ventas
+    const { data: ultimaVenta, error: ventaError } = await supabase
+      .from('ventas')
+      .select('precio_unitario, fecha_venta')
       .eq('sku', sku)
-      .single();
+      .not('precio_unitario', 'is', null)
+      .gt('precio_unitario', 0)
+      .order('fecha_venta', { ascending: false })
+      .limit(1);
     
-    if (error) {
-      // Si no se encuentra el producto, usar fallback
-      return { precioPromedio: 5000, totalVentas: 0 };
-    }
-    
-    // Si tiene precio sugerido válido, usarlo
-    if (product && product.precio_venta_sugerido && product.precio_venta_sugerido > 0) {
+    // Si encontramos precio real de venta, usarlo
+    if (ultimaVenta && ultimaVenta.length > 0 && ultimaVenta[0].precio_unitario) {
       return {
-        precioPromedio: Math.round(product.precio_venta_sugerido),
-        totalVentas: 1 // Indica que hay precio disponible
+        precioPromedio: Math.round(ultimaVenta[0].precio_unitario),
+        totalVentas: 1, // Indica que es precio real de venta
+        fuente: 'venta_real'
       };
     }
     
-    // Si no hay precio sugerido pero hay costo FOB, estimar precio con margen
-    if (product && product.costo_fob_rmb && product.costo_fob_rmb > 0) {
-      // Convertir RMB a CLP (aproximadamente 1 RMB = 130 CLP) y aplicar margen de 2.5x
-      const costoCLP = product.costo_fob_rmb * 130; // Conversión estimada
-      const precioEstimado = costoCLP * 2.5; // Margen típico
-      
-      return {
-        precioPromedio: Math.round(precioEstimado),
-        totalVentas: 0 // Indica que es estimación basada en costo
-      };
-    }
-    
-    // Fallback si no hay precio ni costo
-    return { precioPromedio: 8000, totalVentas: 0 }; // Precio promedio más realista
+    // PRIORIDAD 2: Si no hay ventas con precio, producto no ha vendido = precio 0
+    // Esto hace que vaya automáticamente al final del ordenamiento
+    return {
+      precioPromedio: 0,
+      totalVentas: 0,
+      fuente: 'sin_ventas'
+    };
     
   } catch (error) {
     console.error(`❌ Error obteniendo precio para ${sku}:`, error.message);
-    return { precioPromedio: 8000, totalVentas: 0 };
+    return { 
+      precioPromedio: 0, 
+      totalVentas: 0,
+      fuente: 'error'
+    };
   }
 }
 

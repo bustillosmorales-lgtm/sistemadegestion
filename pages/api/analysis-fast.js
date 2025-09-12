@@ -75,15 +75,25 @@ function getFastAnalysisFromCache(product, config, analysisCache = new Map()) {
   const stockObjetivo = 0.5 * (config.stockSaludableMinDias || 30); // Estimación conservadora
   const cantidadSugerida = Math.max(0, Math.round(stockObjetivo - (product.stock_actual || 0)));
   
-  // Estimar precio usando la misma lógica que el script de cache
+  // Fallback: intentar obtener último precio real de venta
   let precioPromedio = 0;
-  if (product.precio_venta_sugerido && product.precio_venta_sugerido > 0) {
-    precioPromedio = product.precio_venta_sugerido;
-  } else if (product.costo_fob_rmb && product.costo_fob_rmb > 0) {
-    // Convertir RMB a CLP y aplicar margen
-    precioPromedio = product.costo_fob_rmb * 130 * 2.5;
-  } else {
-    precioPromedio = 8000; // Fallback más realista
+  try {
+    const { data: ultimaVenta } = await supabase
+      .from('ventas')
+      .select('precio_unitario')
+      .eq('sku', product.sku)
+      .not('precio_unitario', 'is', null)
+      .gt('precio_unitario', 0)
+      .order('fecha_venta', { ascending: false })
+      .limit(1);
+    
+    if (ultimaVenta && ultimaVenta.length > 0) {
+      precioPromedio = ultimaVenta[0].precio_unitario;
+    }
+    // Si no tiene ventas, precio = 0 (va al final automáticamente)
+  } catch (error) {
+    console.error(`Error obteniendo precio de venta para ${product.sku}:`, error.message);
+    precioPromedio = 0;
   }
   const valorTotal = precioPromedio * cantidadSugerida;
   
