@@ -230,6 +230,33 @@ export default function Dashboard() {
   
   const { data: reminders } = useSWR('/api/reminders', fetcher);
   const [expandedSku, setExpandedSku] = useState(null);
+  
+  // Función para actualizar cache de precios
+  const updateCache = async () => {
+    if (isUpdatingCache) return;
+    
+    setIsUpdatingCache(true);
+    try {
+      const response = await fetch('/api/update-cache', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        alert(`✅ Cache actualizado exitosamente!\n\n📊 ${result.stats.productosProcessados} productos procesados\n💰 ${result.stats.conNuevosPrecios} con precios dinámicos\n📈 ${result.stats.porcentajeActualizado}% actualizado\n⏱️ ${result.stats.tiempoMs}ms`);
+        // Refrescar datos del dashboard
+        refresh();
+      } else {
+        alert(`❌ Error actualizando cache: ${result.error}`);
+      }
+    } catch (error) {
+      alert(`❌ Error: ${error.message}`);
+    } finally {
+      setIsUpdatingCache(false);
+    }
+  };
   const [isUpdating, setIsUpdating] = useState(null);
   const [modalState, setModalState] = useState({ isOpen: false, product: null, status: null });
   
@@ -257,6 +284,9 @@ export default function Dashboard() {
   // Estados para funcionalidades IA
   const [aiChatModal, setAiChatModal] = useState({ isOpen: false, product: null });
   const [chatHistory, setChatHistory] = useState([]);
+  
+  // Estado para actualización de cache
+  const [isUpdatingCache, setIsUpdatingCache] = useState(false);
   const [chatMessage, setChatMessage] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [showAIPredictions, setShowAIPredictions] = useState(true);
@@ -2291,6 +2321,19 @@ export default function Dashboard() {
                       title="Actualizar datos"
                     >
                       🔄 Actualizar
+                    </button>
+                    
+                    <button
+                      onClick={updateCache}
+                      disabled={isUpdatingCache}
+                      className={`ml-2 px-3 py-1 text-white text-xs rounded-full transition-colors ${
+                        isUpdatingCache 
+                          ? 'bg-orange-400 cursor-not-allowed' 
+                          : 'bg-orange-500 hover:bg-orange-600'
+                      }`}
+                      title="Actualizar cache de precios con valores dinámicos"
+                    >
+                      {isUpdatingCache ? '⏳ Actualizando...' : '💰 Actualizar Precios'}
                     </button>
                   </div>
                 </div>
