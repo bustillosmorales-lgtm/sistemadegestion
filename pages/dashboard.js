@@ -10,6 +10,77 @@ import * as XLSX from 'xlsx';
 
 const fetcher = (url) => fetch(url).then((res) => res.json());
 
+// Hook personalizado para carga paginada con caché
+const usePaginatedAnalysis = () => {
+  const [allProducts, setAllProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [metadata, setMetadata] = useState(null);
+  const [offset, setOffset] = useState(0);
+  const limit = 25; // Tamaño de página
+
+  const loadPage = async (pageOffset = 0, isLoadingMore = false) => {
+    if (!isLoadingMore) setLoading(true);
+    else setLoadingMore(true);
+    
+    try {
+      const response = await fetch(`/api/analysis?limit=${limit}&offset=${pageOffset}`);
+      if (!response.ok) throw new Error('Error loading data');
+      
+      const data = await response.json();
+      
+      if (pageOffset === 0) {
+        // Primera carga - reemplazar datos
+        setAllProducts(data.results || []);
+      } else {
+        // Cargar más - agregar datos
+        setAllProducts(prev => [...prev, ...(data.results || [])]);
+      }
+      
+      setMetadata(data.metadata);
+      setHasMore(data.metadata?.hasMore || false);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+      if (pageOffset === 0) setAllProducts([]);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  const loadMore = () => {
+    if (hasMore && !loadingMore) {
+      const newOffset = offset + limit;
+      setOffset(newOffset);
+      loadPage(newOffset, true);
+    }
+  };
+
+  const refresh = () => {
+    setOffset(0);
+    setHasMore(true);
+    loadPage(0, false);
+  };
+
+  useEffect(() => {
+    loadPage(0, false);
+  }, []);
+
+  return {
+    products: allProducts,
+    loading,
+    loadingMore,
+    error,
+    hasMore,
+    metadata,
+    loadMore,
+    refresh
+  };
+};
+
 // Hook para predicciones IA
 const useAIPredictions = (skus = []) => {
   const { data, error, mutate } = useSWR(
@@ -92,7 +163,19 @@ const detailFieldNames = {
 export default function Dashboard() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading, logout } = useUser();
-  const { data, error } = useSWR('/api/analysis', fetcher);
+  
+  // Usar el nuevo hook paginado en lugar de SWR estándar
+  const { 
+    products: data, 
+    loading: analysisLoading, 
+    loadingMore, 
+    error, 
+    hasMore, 
+    metadata, 
+    loadMore, 
+    refresh 
+  } = usePaginatedAnalysis();
+  
   const { data: reminders } = useSWR('/api/reminders', fetcher);
   const [expandedSku, setExpandedSku] = useState(null);
   const [isUpdating, setIsUpdating] = useState(null);
@@ -136,7 +219,8 @@ export default function Dashboard() {
     }
   }, [isAuthenticated, user, isLoading, router]);
 
-  const products = data?.results || [];
+  const products = data || []; // data ya son los productos directamente
+  const config = metadata?.config || null; // Obtener config del metadata
   const activeReminders = (Array.isArray(reminders) ? reminders.filter(r => r.is_active) : []);
   
   // Filtrar recordatorios por fecha
@@ -221,7 +305,7 @@ export default function Dashboard() {
         const costoFinalBodegaCLP = p.costoFinalBodega || 0;
         const cantidadComprada = p.approval_details?.purchaseQuantity || 0;
         const costoTotalCLP = costoFinalBodegaCLP * cantidadComprada;
-        const usdToClp = data?.configActual?.usdToClp || 1000;
+        const usdToClp = config?.usdToClp || 1000;
         const costoTotalUSD = costoTotalCLP / usdToClp;
         return sum + costoTotalUSD;
       }, 0);
@@ -232,11 +316,11 @@ export default function Dashboard() {
     usdTotals.TOTAL = Object.values(usdTotals).reduce((sum, val) => sum + val, 0);
     
     return { cbm: cbmTotals, usd: usdTotals };
-  }, [products, data?.configActual]);
+  }, [products, config]);
 
   if (isLoading || !isAuthenticated || !user) return <div className="p-8 text-center">Cargando...</div>;
-  if (error) return <div className="p-8 text-red-500 font-bold">Error al cargar datos</div>;
-  if (!data) return <div className="p-8 text-center">Cargando datos...</div>;
+  if (analysisLoading && products.length === 0) return <div className="p-8 text-center">Cargando datos...</div>;
+  if (error) return <div className="p-8 text-red-500 font-bold">Error al cargar datos: {error}</div>;
 
   const handleActionClick = (product, status) => {
     const action = statusConfig[status];
@@ -273,7 +357,7 @@ export default function Dashboard() {
             // No mostrar alert para no interferir con el flujo
         }
         console.log('🔄 Ejecutando mutate para refrescar datos...');
-        await mutate('/api/analysis', undefined, { revalidate: true });
+        refresh(); // Usar refresh en lugar de mutate
         console.log('✅ Datos actualizados desde el servidor');
     } catch (err) {
         console.error('❌ Error en handleStatusChange:', err);
@@ -299,7 +383,7 @@ export default function Dashboard() {
         const errorData = await res.json();
         alert(`Error: ${errorData.error}`);
       } else {
-        await mutate('/api/analysis', undefined, { revalidate: true });
+        refresh(); // Usar refresh en lugar de mutate
       }
     } catch (err) {
       console.error('❌ Error al cambiar estado desconsiderado:', err);
@@ -340,7 +424,7 @@ export default function Dashboard() {
         setReminderDate('');
         setReminderNotes('');
         // Actualizar datos del dashboard
-        await mutate('/api/analysis', undefined, { revalidate: true });
+        refresh(); // Usar refresh en lugar de mutate
         await mutate('/api/reminders', undefined, { revalidate: true });
       } else {
         const errorData = await response.json();
@@ -401,7 +485,7 @@ export default function Dashboard() {
         const result = await response.json();
         alert(`✅ Predicciones IA generadas: ${result.resultados.exitosas} exitosas, ${result.resultados.errores} errores`);
         refreshPredictions();
-        await mutate('/api/analysis', undefined, { revalidate: true });
+        refresh(); // Usar refresh en lugar de mutate
       } else {
         const errorData = await response.json();
         alert(`Error generando predicciones: ${errorData.error}`);
@@ -604,7 +688,7 @@ export default function Dashboard() {
         alert(`✅ Mapeo automático completado:\n${result.exitosos}/${result.procesados} productos categorizados${result.errores > 0 ? `\n${result.errores} errores` : ''}`);
         
         // Refrescar datos
-        await mutate('/api/analysis', undefined, { revalidate: true });
+        refresh(); // Usar refresh en lugar de mutate
       } else {
         const errorData = await response.json();
         alert(`Error en mapeo automático: ${errorData.error}`);
@@ -657,7 +741,7 @@ export default function Dashboard() {
         setNewPrice('');
         setPriceModificationNotes('');
         // Actualizar datos del dashboard
-        await mutate('/api/analysis', undefined, { revalidate: true });
+        refresh(); // Usar refresh en lugar de mutate
       } else {
         const errorData = await response.json();
         alert(`Error: ${errorData.error}`);
@@ -1067,7 +1151,7 @@ export default function Dashboard() {
 
   return (
     <>
-      <ActionModal isOpen={modalState.isOpen} onClose={() => setModalState({ isOpen: false, product: null, status: null })} product={modalState.product} status={modalState.status} config={data?.configActual}
+      <ActionModal isOpen={modalState.isOpen} onClose={() => setModalState({ isOpen: false, product: null, status: null })} product={modalState.product} status={modalState.status} config={config}
         onSubmit={(sku, status, formData, overrideNextStatus) => {
             console.log('🚀 onSubmit del dashboard ejecutado');
             console.log('📦 SKU:', sku);
@@ -1999,6 +2083,52 @@ export default function Dashboard() {
               </div>
             );
           })}
+        </div>
+
+        {/* Indicador de carga y botón "Cargar más" */}
+        <div className="mt-6 space-y-4">
+          {loadingMore && (
+            <div className="text-center py-4">
+              <div className="inline-flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-lg border border-blue-200">
+                <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                <span className="text-blue-700 font-medium">Cargando más productos...</span>
+              </div>
+            </div>
+          )}
+          
+          {hasMore && !loadingMore && (
+            <div className="text-center">
+              <button
+                onClick={loadMore}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-colors font-medium shadow-lg"
+              >
+                📦 Cargar más productos
+              </button>
+            </div>
+          )}
+          
+          {/* Información de progreso */}
+          {metadata && (
+            <div className="bg-gray-50 p-4 rounded-lg border">
+              <div className="text-sm text-gray-600 text-center">
+                <span className="font-medium">
+                  Mostrando {products.length} de {metadata.total} productos
+                </span>
+                {metadata.processed && (
+                  <span className="ml-2 text-xs">
+                    ({metadata.processed} procesados en esta página)
+                  </span>
+                )}
+              </div>
+              {!hasMore && products.length > 0 && (
+                <div className="text-center mt-2">
+                  <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                    ✅ Todos los productos cargados
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </>

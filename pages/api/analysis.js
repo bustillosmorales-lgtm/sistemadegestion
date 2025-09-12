@@ -1,8 +1,16 @@
 ﻿// pages/api/analysis.js
 import { supabase } from '../../lib/supabaseClient';
+import cache from '../../lib/cache';
 
 // Función para calcular venta diaria basada en fechas reales de llegada y quiebre
 async function calculateVentaDiaria(sku, currentStock = 0) {
+  // Buscar en caché primero
+  const cacheKey = `venta_diaria_${sku}_${currentStock}`;
+  const cachedResult = cache.get(cacheKey);
+  if (cachedResult) {
+    return cachedResult;
+  }
+
   try {
     let fechaInicio = null;
     let fechasAnalisis = null;
@@ -76,7 +84,7 @@ async function calculateVentaDiaria(sku, currentStock = 0) {
     const totalVendido = ventas.reduce((sum, venta) => sum + (venta.cantidad || 0), 0);
     const ventaDiaria = totalVendido / diffDays;
     
-    return {
+    const result = {
       ventaDiaria,
       fechasAnalisis: {
         fechaInicio: fechaInicio,
@@ -85,10 +93,17 @@ async function calculateVentaDiaria(sku, currentStock = 0) {
         unidadesVendidas: totalVendido
       }
     };
+
+    // Guardar en caché por 30 minutos
+    cache.set(cacheKey, result, 30 * 60 * 1000);
+    return result;
     
   } catch (error) {
     console.error('Error calculando venta diaria:', error);
-    return { ventaDiaria: 0, fechasAnalisis: null };
+    const errorResult = { ventaDiaria: 0, fechasAnalisis: null };
+    // Cachear errores por menos tiempo (5 minutos)
+    cache.set(cacheKey, errorResult, 5 * 60 * 1000);
+    return errorResult;
   }
 }
 
@@ -321,24 +336,41 @@ export default async function handler(req, res) {
       const analysis = getFullAnalysis(product, config, transit, precioVenta, resultadoVenta.ventaDiaria, resultadoVenta.fechasAnalisis);
       return res.status(200).json({ results: [analysis], configActual: config });
     } else {
-      // Add pagination to avoid timeout
-      const limit = parseInt(req.query.limit) || 50; // Default 50 products per request
+      // Add pagination to avoid timeout - reducir límite por defecto
+      const limit = parseInt(req.query.limit) || 25; // Default 25 products per request
       const offset = parseInt(req.query.offset) || 0;
       
-      const { data: products, error: productsError, count } = await supabase
-        .from('products')
-        .select('*', { count: 'exact' })
-        .range(offset, offset + limit - 1)
-        .order('sku', { ascending: true });
+      // Cachear datos básicos de productos
+      const productsCacheKey = `products_${offset}_${limit}`;
+      let products, count;
+      
+      const cachedProducts = cache.get(productsCacheKey);
+      if (cachedProducts) {
+        products = cachedProducts.data;
+        count = cachedProducts.count;
+      } else {
+        const { data: productsData, error: productsError, count: productsCount } = await supabase
+          .from('products')
+          .select('*', { count: 'exact' })
+          .range(offset, offset + limit - 1)
+          .order('sku', { ascending: true });
+          
+        if (productsError) throw new Error('No se pudieron cargar los productos.');
         
-      if (productsError) throw new Error('No se pudieron cargar los productos.');
+        products = productsData;
+        count = productsCount;
+        
+        // Cachear por 10 minutos
+        cache.set(productsCacheKey, { data: products, count: count }, 10 * 60 * 1000);
+      }
 
       const results = [];
       const processStartTime = Date.now();
       
+      // Procesar productos en batch más pequeño y con timeout más estricto
       for (const product of products || []) {
-        // Check if we're approaching timeout (20 seconds of 25 second limit)
-        if (Date.now() - processStartTime > 20000) {
+        // Check if we're approaching timeout (15 seconds of 25 second limit)
+        if (Date.now() - processStartTime > 15000) {
           console.log(`⚠️ Approaching timeout, processed ${results.length} products`);
           break;
         }
@@ -443,7 +475,8 @@ export default async function handler(req, res) {
           offset: offset,
           limit: limit,
           processed: results.length,
-          hasMore: offset + limit < count
+          hasMore: offset + limit < count,
+          config: config // Incluir config en metadata
         }
       });
     }
