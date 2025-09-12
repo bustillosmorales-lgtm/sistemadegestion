@@ -16,17 +16,18 @@ async function getFastAnalysisFromCache(product, config, analysisCache = new Map
     if (stockDias <= 30) {
       cantidadSugerida = cacheData.cantidad_sugerida_30d || 0;
       stockObjetivo = cacheData.stock_objetivo_30d || 0;
-      precioPromedio = cacheData.precio_promedio_30d || cacheData.precio_promedio_90d || 0;
+      // ARQUITECTURA OPTIMIZADA: Usar precio de products primero
+      precioPromedio = product.precio_venta_sugerido || cacheData.precio_promedio_30d || cacheData.precio_promedio_90d || 0;
       periodoAnalisis = '30 días';
     } else if (stockDias <= 60) {
       cantidadSugerida = cacheData.cantidad_sugerida_60d || 0;
       stockObjetivo = cacheData.stock_objetivo_60d || 0;
-      precioPromedio = cacheData.precio_promedio_30d || cacheData.precio_promedio_90d || 0;
+      precioPromedio = product.precio_venta_sugerido || cacheData.precio_promedio_30d || cacheData.precio_promedio_90d || 0;
       periodoAnalisis = '60 días';
     } else {
       cantidadSugerida = cacheData.cantidad_sugerida_90d || 0;
       stockObjetivo = cacheData.stock_objetivo_90d || 0;
-      precioPromedio = cacheData.precio_promedio_90d || cacheData.precio_promedio_30d || 0;
+      precioPromedio = product.precio_venta_sugerido || cacheData.precio_promedio_90d || cacheData.precio_promedio_30d || 0;
       periodoAnalisis = '90 días';
     }
     
@@ -75,24 +76,15 @@ async function getFastAnalysisFromCache(product, config, analysisCache = new Map
   const stockObjetivo = 0.5 * (config.stockSaludableMinDias || 30); // Estimación conservadora
   const cantidadSugerida = Math.max(0, Math.round(stockObjetivo - (product.stock_actual || 0)));
   
-  // Fallback: intentar obtener último precio real de venta
+  // ARQUITECTURA OPTIMIZADA: Usar precio ya almacenado en products
   let precioPromedio = 0;
-  try {
-    const { data: ultimaVenta } = await supabase
-      .from('ventas')
-      .select('precio_unitario')
-      .eq('sku', product.sku)
-      .not('precio_unitario', 'is', null)
-      .gt('precio_unitario', 0)
-      .order('fecha_venta', { ascending: false })
-      .limit(1);
-    
-    if (ultimaVenta && ultimaVenta.length > 0) {
-      precioPromedio = ultimaVenta[0].precio_unitario;
-    }
-    // Si no tiene ventas, precio = 0 (va al final automáticamente)
-  } catch (error) {
-    console.error(`Error obteniendo precio de venta para ${product.sku}:`, error.message);
+  
+  // 1. Prioridad: precio_venta_sugerido (ya contiene precios reales)
+  if (product.precio_venta_sugerido && product.precio_venta_sugerido > 0) {
+    precioPromedio = product.precio_venta_sugerido;
+  } else {
+    // 2. Si no tiene precio en products, es un producto sin ventas = precio 0
+    // Esto hace que automáticamente vaya al final del ordenamiento
     precioPromedio = 0;
   }
   const valorTotal = precioPromedio * cantidadSugerida;
