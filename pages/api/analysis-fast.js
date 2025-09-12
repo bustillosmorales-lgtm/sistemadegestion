@@ -16,17 +16,17 @@ function getFastAnalysisFromCache(product, config, analysisCache = new Map()) {
     if (stockDias <= 30) {
       cantidadSugerida = cacheData.cantidad_sugerida_30d || 0;
       stockObjetivo = cacheData.stock_objetivo_30d || 0;
-      precioPromedio = cacheData.precio_promedio_30d || 5000;
+      precioPromedio = cacheData.precio_promedio_30d || cacheData.precio_promedio_90d || 0;
       periodoAnalisis = '30 días';
     } else if (stockDias <= 60) {
       cantidadSugerida = cacheData.cantidad_sugerida_60d || 0;
       stockObjetivo = cacheData.stock_objetivo_60d || 0;
-      precioPromedio = cacheData.precio_promedio_30d || cacheData.precio_promedio_90d || 5000;
+      precioPromedio = cacheData.precio_promedio_30d || cacheData.precio_promedio_90d || 0;
       periodoAnalisis = '60 días';
     } else {
       cantidadSugerida = cacheData.cantidad_sugerida_90d || 0;
       stockObjetivo = cacheData.stock_objetivo_90d || 0;
-      precioPromedio = cacheData.precio_promedio_90d || cacheData.precio_promedio_30d || 5000;
+      precioPromedio = cacheData.precio_promedio_90d || cacheData.precio_promedio_30d || 0;
       periodoAnalisis = '90 días';
     }
     
@@ -74,7 +74,17 @@ function getFastAnalysisFromCache(product, config, analysisCache = new Map()) {
   // Fallback: cálculo básico si no hay cache
   const stockObjetivo = 0.5 * (config.stockSaludableMinDias || 30); // Estimación conservadora
   const cantidadSugerida = Math.max(0, Math.round(stockObjetivo - (product.stock_actual || 0)));
-  const precioPromedio = 5000; // Fallback
+  
+  // Estimar precio usando la misma lógica que el script de cache
+  let precioPromedio = 0;
+  if (product.precio_venta_sugerido && product.precio_venta_sugerido > 0) {
+    precioPromedio = product.precio_venta_sugerido;
+  } else if (product.costo_fob_rmb && product.costo_fob_rmb > 0) {
+    // Convertir RMB a CLP y aplicar margen
+    precioPromedio = product.costo_fob_rmb * 130 * 2.5;
+  } else {
+    precioPromedio = 8000; // Fallback más realista
+  }
   const valorTotal = precioPromedio * cantidadSugerida;
   
   // Determinar prioridad
@@ -182,7 +192,7 @@ export default async function handler(req, res) {
       // Only get essential fields for speed
       const { data: productsData, error: productsError, count: productsCount } = await supabase
         .from('products')
-        .select('sku, descripcion, status, stock_actual', { count: 'exact' })
+        .select('sku, descripcion, status, stock_actual, precio_venta_sugerido, costo_fob_rmb', { count: 'exact' })
         .range(offset, offset + limit - 1)
         .order('sku', { ascending: true });
         
