@@ -19,7 +19,8 @@
     "fix-legacy-status": "node scripts/fix-legacy-status.js",
     "optimize-db": "node scripts/optimize-database.js optimize",
     "check-db": "node scripts/optimize-database.js check",
-    "benchmark-db": "node scripts/optimize-database.js benchmark"
+    "benchmark-db": "node scripts/optimize-database.js benchmark",
+    "update-precio-cache": "node scripts/update-precio-cache.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",

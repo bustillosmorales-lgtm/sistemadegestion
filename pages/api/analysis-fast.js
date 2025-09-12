@@ -2,71 +2,104 @@
 import { supabase } from '../../lib/supabaseClient';
 import cache from '../../lib/cache';
 
-// Fast calculation with real price estimation
-async function getFastAnalysis(product, config, ventaDiariaCalculada = 0) {
-  const stockObjetivo = ventaDiariaCalculada * (config.stockSaludableMinDias || 30);
-  const cantidadSugerida = Math.max(0, Math.round(stockObjetivo - (product.stock_actual || 0)));
+// Ultra-fast analysis using complete pre-computed cache
+function getFastAnalysisFromCache(product, config, analysisCache = new Map()) {
+  const cacheData = analysisCache.get(product.sku);
   
-  // Calcular precio promedio real de ventas históricas (versión rápida)
-  let precioPromedio = 5000; // Fallback por defecto
-  
-  if (cantidadSugerida > 0) {
-    // Consulta rápida de precios históricos (últimos 30 días para velocidad)
-    const fechaInicio = new Date();
-    fechaInicio.setDate(fechaInicio.getDate() - 30); // Solo últimos 30 días para velocidad
+  // Si hay datos en cache, usarlos directamente
+  if (cacheData) {
+    // Usar configuración actual para período de stock (30, 60 o 90 días)
+    const stockDias = config.stockSaludableMinDias || 30;
+    let cantidadSugerida, stockObjetivo, precioPromedio, periodoAnalisis;
     
-    try {
-      const { data: ventas } = await supabase
-        .from('ventas')
-        .select('precio_venta, cantidad')
-        .eq('sku', product.sku)
-        .gte('fecha_venta', fechaInicio.toISOString())
-        .not('precio_venta', 'is', null)
-        .gt('precio_venta', 0)
-        .limit(50); // Limitar para velocidad
-      
-      if (ventas && ventas.length > 0) {
-        const ventasPonderadas = ventas.reduce((acc, venta) => {
-          acc.totalValor += venta.precio_venta * venta.cantidad;
-          acc.totalCantidad += venta.cantidad;
-          return acc;
-        }, { totalValor: 0, totalCantidad: 0 });
-        
-        if (ventasPonderadas.totalCantidad > 0) {
-          precioPromedio = ventasPonderadas.totalValor / ventasPonderadas.totalCantidad;
-        }
-      }
-    } catch (error) {
-      console.log(`⚠️ Error calculando precio para ${product.sku}, usando fallback:`, error.message);
+    // Seleccionar datos según configuración
+    if (stockDias <= 30) {
+      cantidadSugerida = cacheData.cantidad_sugerida_30d || 0;
+      stockObjetivo = cacheData.stock_objetivo_30d || 0;
+      precioPromedio = cacheData.precio_promedio_30d || 5000;
+      periodoAnalisis = '30 días';
+    } else if (stockDias <= 60) {
+      cantidadSugerida = cacheData.cantidad_sugerida_60d || 0;
+      stockObjetivo = cacheData.stock_objetivo_60d || 0;
+      precioPromedio = cacheData.precio_promedio_30d || cacheData.precio_promedio_90d || 5000;
+      periodoAnalisis = '60 días';
+    } else {
+      cantidadSugerida = cacheData.cantidad_sugerida_90d || 0;
+      stockObjetivo = cacheData.stock_objetivo_90d || 0;
+      precioPromedio = cacheData.precio_promedio_90d || cacheData.precio_promedio_30d || 5000;
+      periodoAnalisis = '90 días';
     }
+    
+    // Recalcular con stock actual real (puede haber cambiado)
+    const stockActual = product.stock_actual || 0;
+    if (cacheData.venta_diaria > 0) {
+      const stockObjetivoActual = Math.round(cacheData.venta_diaria * stockDias);
+      cantidadSugerida = Math.max(0, stockObjetivoActual - stockActual);
+    }
+    
+    const valorTotal = precioPromedio * cantidadSugerida;
+    
+    // Determinar prioridad
+    let prioridad = 'BAJA';
+    if (valorTotal > 500000) prioridad = 'CRÍTICA';
+    else if (valorTotal > 200000) prioridad = 'ALTA';
+    else if (valorTotal > 100000) prioridad = 'MEDIA';
+    
+    return {
+      sku: product.sku,
+      descripcion: product.descripcion,
+      status: product.status,
+      stock_actual: stockActual,
+      venta_diaria: cacheData.venta_diaria || 0,
+      cantidadSugerida: cantidadSugerida,
+      impactoEconomico: {
+        valorTotal: Math.round(valorTotal),
+        precioPromedioReal: Math.round(precioPromedio),
+        prioridad: prioridad,
+        ventasPotenciales: Math.round(valorTotal),
+        estimado: !cacheData.calculo_confiable,
+        periodoAnalisis: periodoAnalisis,
+        fechaCache: cacheData.ultima_actualizacion
+      },
+      // Datos adicionales del cache
+      fechasAnalisis: cacheData.dias_periodo ? {
+        diasPeriodo: cacheData.dias_periodo,
+        unidadesVendidas: cacheData.unidades_vendidas_periodo
+      } : null,
+      essential: true,
+      fromCache: true
+    };
   }
   
-  // CÁLCULO REAL: Precio Promedio Real × Cantidad a Reponer  
+  // Fallback: cálculo básico si no hay cache
+  const stockObjetivo = 0.5 * (config.stockSaludableMinDias || 30); // Estimación conservadora
+  const cantidadSugerida = Math.max(0, Math.round(stockObjetivo - (product.stock_actual || 0)));
+  const precioPromedio = 5000; // Fallback
   const valorTotal = precioPromedio * cantidadSugerida;
   
   // Determinar prioridad
   let prioridad = 'BAJA';
-  if (valorTotal > 500000) prioridad = 'CRÍTICA';      // >$500k
-  else if (valorTotal > 200000) prioridad = 'ALTA';    // >$200k  
-  else if (valorTotal > 100000) prioridad = 'MEDIA';   // >$100k
+  if (valorTotal > 500000) prioridad = 'CRÍTICA';
+  else if (valorTotal > 200000) prioridad = 'ALTA';
+  else if (valorTotal > 100000) prioridad = 'MEDIA';
   
   return {
     sku: product.sku,
     descripcion: product.descripcion,
     status: product.status,
     stock_actual: product.stock_actual || 0,
-    venta_diaria: ventaDiariaCalculada,
+    venta_diaria: 0.5, // Estimación
     cantidadSugerida: cantidadSugerida,
     impactoEconomico: {
       valorTotal: Math.round(valorTotal),
       precioPromedioReal: Math.round(precioPromedio),
       prioridad: prioridad,
       ventasPotenciales: Math.round(valorTotal),
-      estimado: false, // Ahora usa precios reales
-      periodoAnalisis: '30 días' // Indicar período analizado
+      estimado: true, // Es estimación
+      periodoAnalisis: 'estimado'
     },
-    // Minimal set of data for fast loading
-    essential: true
+    essential: true,
+    fromCache: false
   };
 }
 
@@ -162,15 +195,34 @@ export default async function handler(req, res) {
       cache.set(productsCacheKey, { data: products, count: count }, 15 * 60 * 1000);
     }
 
-    // 3. Fast venta diaria calculation
+    // 3. Load COMPLETE analysis cache for all SKUs in one query (ULTRA FAST!)
     const allSkus = products.map(p => p.sku);
-    const ventaDiariaMap = await getPrecomputedVentaDiaria(allSkus);
+    const analysisCache = new Map();
+    try {
+      const { data: cacheAnalysis } = await supabase
+        .from('sku_analysis_cache')
+        .select(`
+          sku, venta_diaria, precio_promedio_30d, precio_promedio_90d,
+          cantidad_sugerida_30d, cantidad_sugerida_60d, cantidad_sugerida_90d,
+          stock_objetivo_30d, unidades_vendidas_periodo, dias_periodo,
+          calculo_confiable, stock_actual_cache, ultima_actualizacion
+        `)
+        .in('sku', allSkus);
+      
+      if (cacheAnalysis) {
+        cacheAnalysis.forEach(cache => {
+          analysisCache.set(cache.sku, cache);
+        });
+      }
+      console.log(`🚀 Cache análisis completo cargado: ${analysisCache.size}/${allSkus.length} SKUs`);
+    } catch (error) {
+      console.log('⚠️ Error cargando cache análisis, usando cálculos legacy:', error.message);
+    }
     
-    // 4. Generate analysis with real prices
+    // 4. Generate analysis from cache (INSTANT!)
     const results = [];
     for (const product of products) {
-      const ventaDiaria = ventaDiariaMap.get(product.sku) || 0;
-      const analysis = await getFastAnalysis(product, config, ventaDiaria);
+      const analysis = getFastAnalysisFromCache(product, config, analysisCache);
       results.push(analysis);
     }
     
@@ -190,7 +242,8 @@ export default async function handler(req, res) {
     clearTimeout(timeoutId);
     
     const processingTime = Date.now() - startTime;
-    console.log(`⚡ Fast analysis completed in ${processingTime}ms for ${results.length} products`);
+    const fromCacheCount = results.filter(r => r.fromCache).length;
+    console.log(`🚀 Ultra-fast analysis completed in ${processingTime}ms for ${results.length} products (${fromCacheCount} from cache)`);
     
     return res.status(200).json({ 
       results, 
@@ -202,7 +255,10 @@ export default async function handler(req, res) {
         processed: results.length,
         hasMore: offset + limit < count,
         fastMode: true,
+        ultraFastMode: true, // Indica uso de cache expandido
         processingTime: `${processingTime}ms`,
+        fromCacheCount: fromCacheCount,
+        cacheHitRatio: `${Math.round((fromCacheCount/results.length)*100)}%`,
         cacheStats: cache.getStats()
       }
     });
