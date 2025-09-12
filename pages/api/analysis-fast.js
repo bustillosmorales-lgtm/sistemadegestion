@@ -143,7 +143,8 @@ export const config = {
   maxDuration: 10, // Fast 10 second timeout
 }
 
-// Force cache bust - 2025-09-12 15:35 - Real prices implemented
+// CACHE BUST v2 - 2025-09-12 16:55 - 1147 real prices confirmed working
+// Frontend cache issue - forcing complete refresh
 
 export default async function handler(req, res) {
   const startTime = Date.now();
