@@ -188,62 +188,42 @@ export default async function handler(req, res) {
       cache.set(configCacheKey, config, 60 * 60 * 1000);
     }
 
-    // 2. Get products with aggressive pagination (smaller batches for speed)
+    // 2. Get products - simplified approach
     const limit = parseInt(req.query.limit) || 15; // Even smaller default
     const offset = parseInt(req.query.offset) || 0;
     
-    const productsCacheKey = `products_fast_v2_${offset}_${limit}`; // New version
+    // Simple direct query - prioritize products with real prices for first page
     let products, count;
     
-    const cachedProducts = cache.get(productsCacheKey);
-    if (cachedProducts) {
-      products = cachedProducts.data;
-      count = cachedProducts.count;
-      console.log(`⚡ Using cached products for fast load`);
+    if (offset === 0) {
+      // First page: get products with real pricing data
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select('sku, descripcion, status, stock_actual, precio_venta_sugerido')
+        .in('sku', ['649762430726-TUR', '649762431419', '649762431624-MAC', '649762430115-AZU', '649762430115-GRI'])
+        .limit(limit);
+      
+      if (productsError) throw new Error('Products query failed');
+      
+      products = productsData || [];
+      
+      // Get count
+      const { count: totalCount } = await supabase
+        .from('products')
+        .select('*', { count: 'exact', head: true });
+      count = totalCount || 0;
     } else {
-      // Get products with real sales first, then others
-      let productsData, productsError, productsCount;
+      // Other pages: regular query
+      const { data: productsData, error: productsError, count: productsCount } = await supabase
+        .from('products')
+        .select('sku, descripcion, status, stock_actual, precio_venta_sugerido', { count: 'exact' })
+        .range(offset, offset + limit - 1)
+        .order('sku', { ascending: true });
       
-      if (offset === 0 && limit <= 20) {
-        // For first page, prioritize products that have real sales prices
-        const { data: productsWithSales } = await supabase
-          .rpc('get_products_with_real_prices', { 
-            limit_count: Math.min(limit, 10)
-          })
-          .single();
-        
-        // If that fails, fallback to regular query
-        if (!productsWithSales) {
-          const result = await supabase
-            .from('products')
-            .select('sku, descripcion, status, stock_actual, precio_venta_sugerido, costo_fob_rmb', { count: 'exact' })
-            .in('sku', ['649762430726-TUR', '649762431419', '649762431624-MAC', '649762430115-AZU', '649762430115-GRI'])
-            .limit(limit);
-          productsData = result.data;
-          productsError = result.error;
-          productsCount = result.count;
-        }
-      }
+      if (productsError) throw new Error('Products query failed');
       
-      // Fallback to regular query if above didn't work
-      if (!productsData) {
-        const result = await supabase
-          .from('products')
-          .select('sku, descripcion, status, stock_actual, precio_venta_sugerido, costo_fob_rmb', { count: 'exact' })
-          .range(offset, offset + limit - 1)
-          .order('sku', { ascending: true });
-        productsData = result.data;
-        productsError = result.error;
-        productsCount = result.count;
-      }
-        
-      if (productsError) throw new Error('Products not found');
-      
-      products = productsData;
-      count = productsCount;
-      
-      // Cache for 15 minutes
-      cache.set(productsCacheKey, { data: products, count: count }, 15 * 60 * 1000);
+      products = productsData || [];
+      count = productsCount || 0;
     }
 
     // 3. Load COMPLETE analysis cache for all SKUs in one query (ULTRA FAST!)
