@@ -151,6 +151,8 @@ export const config = {
   maxDuration: 10, // Fast 10 second timeout
 }
 
+// Force cache bust - 2025-09-12 15:35 - Real prices implemented
+
 export default async function handler(req, res) {
   const startTime = Date.now();
   
@@ -168,8 +170,8 @@ export default async function handler(req, res) {
   }, 8000);
   
   try {
-    // 1. Get config from cache or DB
-    const configCacheKey = 'config_fast';
+    // 1. Get config from cache or DB (cache cleared for price update)
+    const configCacheKey = 'config_fast_v2'; // New version to clear old cache
     let config = cache.get(configCacheKey);
     
     if (!config) {
@@ -190,7 +192,7 @@ export default async function handler(req, res) {
     const limit = parseInt(req.query.limit) || 15; // Even smaller default
     const offset = parseInt(req.query.offset) || 0;
     
-    const productsCacheKey = `products_fast_${offset}_${limit}`;
+    const productsCacheKey = `products_fast_v2_${offset}_${limit}`; // New version
     let products, count;
     
     const cachedProducts = cache.get(productsCacheKey);
