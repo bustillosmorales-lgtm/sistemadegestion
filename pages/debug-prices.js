@@ -40,15 +40,22 @@ export default function DebugPrices() {
         };
         
         // Test 5: Call analysis API directly
-        const apiResponse = await fetch('/api/analysis-fast?limit=3');
+        const apiResponse = await fetch('/api/analysis-fast?limit=5');
         const apiData = await apiResponse.json();
+        
+        // Test 6: Check what products are being queried
+        const { data: firstProducts } = await supabase
+          .from('products')
+          .select('sku, descripcion, precio_venta_sugerido')
+          .limit(10);
         
         setDebugData({
           connection: testConnection ? 'OK' : 'FAILED',
           realPrices: realPrices || [],
           specificSku: specificSku || [],
           environment: env,
-          apiSample: apiData?.results?.slice(0, 2) || [],
+          apiSample: apiData?.results?.slice(0, 3) || [],
+          firstProducts: firstProducts || [],
           timestamp: new Date().toISOString()
         });
         
@@ -107,6 +114,15 @@ export default function DebugPrices() {
       <div style={{marginBottom: '20px', padding: '10px', border: '1px solid #ccc'}}>
         <h3>🔧 Environment Info</h3>
         <pre>{JSON.stringify(debugData.environment, null, 2)}</pre>
+      </div>
+      
+      <div style={{marginBottom: '20px', padding: '10px', border: '1px solid #ccc'}}>
+        <h3>📦 First Products in Database</h3>
+        {debugData.firstProducts?.slice(0, 5).map((product, i) => (
+          <div key={i} style={{margin: '5px 0', fontSize: '12px'}}>
+            {product.sku} - {product.descripcion?.substring(0, 40)}...
+          </div>
+        ))}
       </div>
       
       <div style={{marginBottom: '20px', padding: '10px', border: '1px solid #ccc'}}>

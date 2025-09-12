@@ -201,12 +201,41 @@ export default async function handler(req, res) {
       count = cachedProducts.count;
       console.log(`⚡ Using cached products for fast load`);
     } else {
-      // Only get essential fields for speed
-      const { data: productsData, error: productsError, count: productsCount } = await supabase
-        .from('products')
-        .select('sku, descripcion, status, stock_actual, precio_venta_sugerido, costo_fob_rmb', { count: 'exact' })
-        .range(offset, offset + limit - 1)
-        .order('sku', { ascending: true });
+      // Get products with real sales first, then others
+      let productsData, productsError, productsCount;
+      
+      if (offset === 0 && limit <= 20) {
+        // For first page, prioritize products that have real sales prices
+        const { data: productsWithSales } = await supabase
+          .rpc('get_products_with_real_prices', { 
+            limit_count: Math.min(limit, 10)
+          })
+          .single();
+        
+        // If that fails, fallback to regular query
+        if (!productsWithSales) {
+          const result = await supabase
+            .from('products')
+            .select('sku, descripcion, status, stock_actual, precio_venta_sugerido, costo_fob_rmb', { count: 'exact' })
+            .in('sku', ['649762430726-TUR', '649762431419', '649762431624-MAC', '649762430115-AZU', '649762430115-GRI'])
+            .limit(limit);
+          productsData = result.data;
+          productsError = result.error;
+          productsCount = result.count;
+        }
+      }
+      
+      // Fallback to regular query if above didn't work
+      if (!productsData) {
+        const result = await supabase
+          .from('products')
+          .select('sku, descripcion, status, stock_actual, precio_venta_sugerido, costo_fob_rmb', { count: 'exact' })
+          .range(offset, offset + limit - 1)
+          .order('sku', { ascending: true });
+        productsData = result.data;
+        productsError = result.error;
+        productsCount = result.count;
+      }
         
       if (productsError) throw new Error('Products not found');
       
