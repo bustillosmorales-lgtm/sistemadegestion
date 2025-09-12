@@ -1911,10 +1911,27 @@ export default function Dashboard() {
                             (Original: {product.original_sku})
                           </span>
                         )}
-                        {impactoVentas > 0 && (
-                          <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full" title="Impacto estimado de ventas">
-                            💰 ${impactoVentas.toLocaleString('es-CL')}
-                          </span>
+                        {/* Indicador de impacto económico mejorado */}
+                        {(product.impactoEconomico?.valorTotal > 0 || impactoVentas > 0) && (
+                          <div className="flex gap-1">
+                            <span className={`px-2 py-1 text-xs font-bold rounded-full ${
+                              product.impactoEconomico?.prioridad === 'CRÍTICA' ? 'bg-red-100 text-red-800' :
+                              product.impactoEconomico?.prioridad === 'ALTA' ? 'bg-orange-100 text-orange-800' :
+                              product.impactoEconomico?.prioridad === 'MEDIA' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-green-100 text-green-800'
+                            }`} title={`Impacto económico total: ${product.impactoEconomico ? 
+                              `$${product.impactoEconomico.valorTotal.toLocaleString('es-CL')} (${product.impactoEconomico.prioridad})` :
+                              'Estimación básica'}`}>
+                              💰 ${(product.impactoEconomico?.valorTotal || impactoVentas).toLocaleString('es-CL')}
+                            </span>
+                            
+                            {product.impactoEconomico?.roi > 0 && (
+                              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full" 
+                                    title={`ROI esperado: ${product.impactoEconomico.roi}%`}>
+                                📈 {product.impactoEconomico.roi}%
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
                       <span className={`text-xs font-bold text-white px-2 py-1 rounded-full ${currentStatusInfo.color}`}>{currentStatusInfo.text}</span>
@@ -2220,6 +2237,29 @@ export default function Dashboard() {
                       ⚡ {metadata.processingTime}
                     </span>
                   )}
+                  
+                  {/* Resumen de impacto económico total */}
+                  {(() => {
+                    const impactoTotal = filteredProducts
+                      .filter(p => p.cantidadSugerida > 0)
+                      .reduce((sum, p) => sum + (p.impactoEconomico?.valorTotal || 0), 0);
+                    
+                    const productosConReposicion = filteredProducts.filter(p => p.cantidadSugerida > 0).length;
+                    
+                    if (impactoTotal > 0) {
+                      return (
+                        <div className="ml-4 text-xs">
+                          <span className="font-bold text-green-700">
+                            💰 Impacto Total: ${impactoTotal.toLocaleString('es-CL')}
+                          </span>
+                          <span className="ml-2 text-gray-500">
+                            ({productosConReposicion} productos)
+                          </span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
                 
                 {/* Controles de modo de carga */}

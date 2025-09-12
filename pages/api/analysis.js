@@ -127,6 +127,56 @@ async function calculateVentaDiaria(sku, currentStock = 0) {
   return batchResults.get(sku) || { ventaDiaria: 0, fechasAnalisis: null };
 }
 
+// Función para calcular el impacto económico de una reposición
+function calcularImpactoEconomico(cantidadSugerida, ventaDiaria, precioVenta, costoFinalBodega, gananciaNeta) {
+  if (!cantidadSugerida || cantidadSugerida <= 0) {
+    return {
+      valorTotal: 0,
+      gananciaTotal: 0,
+      ventasPotenciales: 0,
+      riesgoStockout: 0,
+      prioridad: 'BAJA',
+      factorUrgencia: 0
+    };
+  }
+  
+  const precioVentaNum = parseFloat(precioVenta) || 0;
+  const costoFinalNum = parseFloat(costoFinalBodega) || 0;
+  const gananciaTotalNum = parseFloat(gananciaNeta) || 0;
+  
+  // Cálculos de impacto
+  const ventasPotenciales = cantidadSugerida * precioVentaNum;
+  const gananciaTotal = cantidadSugerida * gananciaTotalNum;
+  const inversionRequerida = cantidadSugerida * costoFinalNum;
+  
+  // Factor de urgencia basado en venta diaria
+  const diasSinStock = ventaDiaria > 0 ? cantidadSugerida / ventaDiaria : 0;
+  const factorUrgencia = Math.min(100, Math.max(0, (30 - diasSinStock) / 30 * 100)); // 0-100%
+  
+  // Riesgo de stockout (mayor si vende rápido y poca cantidad sugerida)
+  const riesgoStockout = ventaDiaria > 1 ? Math.min(100, ventaDiaria * 10) : ventaDiaria * 20;
+  
+  // Valor total = ganancia esperada + factor de urgencia + riesgo de pérdida
+  const valorTotal = gananciaTotal + (gananciaTotal * factorUrgencia / 100) + (ventasPotenciales * riesgoStockout / 100);
+  
+  // Determinar prioridad
+  let prioridad = 'BAJA';
+  if (valorTotal > 100000) prioridad = 'CRÍTICA';
+  else if (valorTotal > 50000) prioridad = 'ALTA';  
+  else if (valorTotal > 20000) prioridad = 'MEDIA';
+  
+  return {
+    valorTotal: Math.round(valorTotal),
+    gananciaTotal: Math.round(gananciaTotal),
+    ventasPotenciales: Math.round(ventasPotenciales),
+    inversionRequerida: Math.round(inversionRequerida),
+    riesgoStockout: Math.round(riesgoStockout),
+    factorUrgencia: Math.round(factorUrgencia),
+    prioridad: prioridad,
+    roi: inversionRequerida > 0 ? Math.round((gananciaTotal / inversionRequerida) * 100) : 0
+  };
+}
+
 // La lógica de cálculo ahora calcula venta_diaria dinámicamente
 function getFullAnalysis(product, config, transit, precioVenta = null, ventaDiariaCalculada = 0, fechasAnalisis = null) {
     const precioVentaCLP = precioVenta ? parseFloat(precioVenta) : 0;
@@ -179,8 +229,17 @@ function getFullAnalysis(product, config, transit, precioVenta = null, ventaDiar
     const stockProyectadoParaCalculo = Math.max(0, stockFinalProyectado);
     const cantidadSugerida = Math.max(0, Math.round(stockObjetivo - stockProyectadoParaCalculo));
     
+    // NUEVO: Calcular valor de impacto económico de la reposición
+    const impactoEconomico = calcularImpactoEconomico(
+        cantidadSugerida,
+        ventaDiariaCalculada,
+        precioVenta,
+        costoFinalBodegaCLP,
+        gananciaNeta
+    );
+    
     // Debug: log values
-    console.log(`DEBUG ${product.sku}: stockObjetivo=${stockObjetivo}, stockProyectado=${stockFinalProyectado}, stockParaCalculo=${stockProyectadoParaCalculo}, cantidadSugerida=${cantidadSugerida}`);
+    console.log(`DEBUG ${product.sku}: stockObjetivo=${stockObjetivo}, stockProyectado=${stockFinalProyectado}, stockParaCalculo=${stockProyectadoParaCalculo}, cantidadSugerida=${cantidadSugerida}, impacto=${impactoEconomico.valorTotal}`);
     const diasCoberturaLlegada = ventaDiariaCalculada > 0 ? stockFinalProyectado / ventaDiariaCalculada : 0;
     
     // Usar las fechas reales del análisis si están disponibles
@@ -208,6 +267,7 @@ function getFullAnalysis(product, config, transit, precioVenta = null, ventaDiar
         costosVenta: costosVenta || 0, 
         gananciaNeta: gananciaNeta || 0, 
         margen: margen || 0,
+        impactoEconomico: impactoEconomico,
         breakdown: {
             stockObjetivo: (stockObjetivo || 0).toFixed(0),
             stockActual: product.stock_actual || 0,
@@ -493,6 +553,20 @@ export default async function handler(req, res) {
         
         results.push(analysis);
       }
+      
+      // ORDENAR por valor de impacto económico (mayor a menor)
+      results.sort((a, b) => {
+        // Priorizar productos que necesitan reposición
+        const aValue = a.cantidadSugerida > 0 ? (a.impactoEconomico?.valorTotal || 0) : -1;
+        const bValue = b.cantidadSugerida > 0 ? (b.impactoEconomico?.valorTotal || 0) : -1;
+        return bValue - aValue;
+      });
+      
+      console.log(`📈 Productos ordenados por impacto económico (top 3):
+        1. ${results[0]?.sku}: $${results[0]?.impactoEconomico?.valorTotal?.toLocaleString() || 0}
+        2. ${results[1]?.sku}: $${results[1]?.impactoEconomico?.valorTotal?.toLocaleString() || 0}  
+        3. ${results[2]?.sku}: $${results[2]?.impactoEconomico?.valorTotal?.toLocaleString() || 0}`);
+      
       clearTimeout(timeoutId);
       return res.status(200).json({ 
         results, 

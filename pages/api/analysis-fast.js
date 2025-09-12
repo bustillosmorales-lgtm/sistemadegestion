@@ -7,6 +7,11 @@ function getFastAnalysis(product, config, ventaDiariaCalculada = 0) {
   const stockObjetivo = ventaDiariaCalculada * (config.stockSaludableMinDias || 30);
   const cantidadSugerida = Math.max(0, Math.round(stockObjetivo - (product.stock_actual || 0)));
   
+  // Cálculo rápido de impacto (simplificado para velocidad)
+  const gananciaEstimada = cantidadSugerida * 2000; // Estimación conservadora
+  const urgencia = ventaDiariaCalculada > 1 ? ventaDiariaCalculada * 1000 : 500;
+  const impactoRapido = gananciaEstimada + urgencia;
+  
   return {
     sku: product.sku,
     descripcion: product.descripcion,
@@ -14,6 +19,10 @@ function getFastAnalysis(product, config, ventaDiariaCalculada = 0) {
     stock_actual: product.stock_actual || 0,
     venta_diaria: ventaDiariaCalculada,
     cantidadSugerida: cantidadSugerida,
+    impactoEconomico: {
+      valorTotal: Math.round(impactoRapido),
+      prioridad: impactoRapido > 50000 ? 'ALTA' : impactoRapido > 20000 ? 'MEDIA' : 'BAJA'
+    },
     // Minimal set of data for fast loading
     essential: true
   };
@@ -122,6 +131,13 @@ export default async function handler(req, res) {
       const analysis = getFastAnalysis(product, config, ventaDiaria);
       results.push(analysis);
     }
+    
+    // 5. ORDENAR por valor de impacto económico (mayor a menor)
+    results.sort((a, b) => {
+      const aValue = a.cantidadSugerida > 0 ? (a.impactoEconomico?.valorTotal || 0) : -1;
+      const bValue = b.cantidadSugerida > 0 ? (b.impactoEconomico?.valorTotal || 0) : -1;
+      return bValue - aValue;
+    });
     
     clearTimeout(timeoutId);
     
