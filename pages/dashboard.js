@@ -29,7 +29,9 @@ const usePaginatedAnalysis = () => {
     try {
       // Use fast endpoint for initial load, full endpoint for detailed data
       const endpoint = fastMode ? 'analysis-fast' : 'analysis';
-      const response = await fetch(`/api/${endpoint}?limit=${limit}&offset=${pageOffset}`);
+      // CACHE BUSTER - Force real prices display
+      const cacheBuster = Date.now();
+      const response = await fetch(`/api/${endpoint}?limit=${limit}&offset=${pageOffset}&v=${cacheBuster}`);
       if (!response.ok) throw new Error('Error loading data');
       
       const data = await response.json();
