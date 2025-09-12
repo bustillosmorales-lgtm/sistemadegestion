@@ -271,6 +271,16 @@ export default function Dashboard() {
     }
   }, [isAuthenticated, user, isLoading, router]);
 
+  // Detectar filtro de status desde URL
+  useEffect(() => {
+    if (router.isReady) {
+      const { status } = router.query;
+      if (status && status !== statusFilter) {
+        setStatusFilter(status);
+      }
+    }
+  }, [router.isReady, router.query]);
+
   const products = data || []; // data ya son los productos directamente
   const config = metadata?.config || null; // Obtener config del metadata
   const activeReminders = (Array.isArray(reminders) ? reminders.filter(r => r.is_active) : []);
@@ -1596,6 +1606,13 @@ export default function Dashboard() {
                         >
                             {showNoActionItems ? '👁️ Ocultar Sin Acción' : '👁️‍🗨️ Mostrar Sin Acción'}
                         </button>
+                        <button
+                            onClick={() => router.push('/dashboard-status')}
+                            className="text-xs px-3 py-1 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                            title="Vista rápida organizada por status"
+                        >
+                            ⚡ Dashboard por Status
+                        </button>
                     </div>
                 </div>
                 <div className="flex flex-wrap gap-2 text-sm">
@@ -1705,6 +1722,32 @@ export default function Dashboard() {
                   )}
                 </div>
             </div>
+            
+            {/* Indicador de filtro por status */}
+            {statusFilter && (
+                <div className="mt-2 px-2 py-1 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <span className="text-blue-600">🔍</span>
+                            <span className="text-sm text-blue-800 font-medium">
+                                Filtrando por: {statusConfig[statusFilter]?.text || statusFilter}
+                            </span>
+                            <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                                {filteredProducts.length} productos
+                            </span>
+                        </div>
+                        <button
+                            onClick={() => {
+                                setStatusFilter('');
+                                router.push('/dashboard', undefined, { shallow: true });
+                            }}
+                            className="text-xs px-2 py-1 text-blue-600 hover:bg-blue-100 rounded"
+                        >
+                            ✕ Quitar filtro
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
 
         {/* Panel de alertas temporales IA */}
