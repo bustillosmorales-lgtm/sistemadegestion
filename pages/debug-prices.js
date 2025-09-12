@@ -79,7 +79,7 @@ export default function DebugPrices() {
       </div>
       
       <div style={{marginBottom: '20px', padding: '10px', border: '1px solid #ccc'}}>
-        <h3>💰 Real Prices Found (>$10,000)</h3>
+        <h3>💰 Real Prices Found (&gt;$10,000)</h3>
         {debugData.realPrices?.length > 0 ? (
           <ul>
             {debugData.realPrices.map((price, i) => (
