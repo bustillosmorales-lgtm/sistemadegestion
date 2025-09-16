@@ -1,0 +1,44 @@
+{
+  "name": "sistema-gestion-inventario",
+  "version": "1.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "export": "next build",
+    "upload-archivos": "node scripts/upload-archivos.js",
+    "upload-archivos-admin": "node scripts/upload-archivos-admin.js",
+    "process-storage-files": "node scripts/process-storage-files.js",
+    "check-data": "node scripts/check-data.js",
+    "diagnose-data": "node scripts/diagnose-data.js",
+    "test-insert": "node scripts/test-single-insert.js",
+    "fix-missing-data": "node scripts/fix-missing-data.js",
+    "test-connection": "node scripts/test-connection.js",
+    "fix-legacy-status": "node scripts/fix-legacy-status.js",
+    "optimize-db": "node scripts/optimize-database.js optimize",
+    "check-db": "node scripts/optimize-database.js check",
+    "benchmark-db": "node scripts/optimize-database.js benchmark",
+    "update-precio-cache": "node scripts/update-precio-cache.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.0",
+    "autoprefixer": "^10.4.0",
+    "axios": "^1.11.0",
+    "cors": "^2.8.5",
+    "crypto-js": "^4.2.0",
+    "dotenv": "^17.2.2",
+    "jsonwebtoken": "^9.0.2",
+    "next": "^14.2.3",
+    "postcss": "^8.4.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "swr": "^2.2.5",
+    "tailwindcss": "^3.4.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@netlify/plugin-nextjs": "^5.12.1"
+  }
+}
