@@ -67,7 +67,10 @@
       "Bash(pkill:*)",
       "Bash(cat:*)",
       "Bash(sed:*)",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(git config:*)",
+      "Bash(git remote add:*)",
+      "Bash(git pull:*)"
     ],
     "deny": [],
     "ask": []
