@@ -1,5 +1,60 @@
 // pages/api/product-quote-info.js - Lightweight endpoint for quote modal
 import { supabase } from '../../lib/supabaseClient';
+import { saveCalculationToCache } from '../../lib/exactCalculations';
+
+// Función para obtener fechas reales del análisis
+async function getVentaDiariaDetails(sku, ventaDiaria, ventaDiariaCalculada) {
+  console.log(`🔄 Obteniendo fechas reales para SKU ${sku}...`);
+
+  try {
+    // Importar la función del análisis principal
+    const analysisModule = await import('./analysis.js');
+    console.log(`📦 Módulo analysis importado para SKU ${sku}`);
+
+    // Obtener el producto completo para el cálculo
+    const { data: product } = await supabase
+      .from('products')
+      .select('*')
+      .eq('sku', sku)
+      .single();
+
+    if (product) {
+      console.log(`👤 Producto obtenido para SKU ${sku}, llamando calculateVentaDiariaBatch...`);
+      // Llamar al cálculo batch para obtener fechas reales
+      const ventaDiariaResults = await analysisModule.calculateVentaDiariaBatch([product]);
+      const result = ventaDiariaResults.get(sku);
+
+      if (result && result.fechasAnalisis) {
+        console.log(`✅ Fechas reales obtenidas para SKU ${sku}: ${result.fechasAnalisis.fechaInicio} - ${result.fechasAnalisis.fechaFin}`);
+        return {
+          fechaInicial: result.fechasAnalisis.fechaInicio,
+          fechaFinal: result.fechasAnalisis.fechaFin,
+          unidadesVendidas: result.fechasAnalisis.unidadesVendidas,
+          ventaDiariaCalculada: result.ventaDiaria.toFixed(2),
+          esCalculoReal: true,
+          mensaje: 'Fechas reales del análisis de venta diaria'
+        };
+      } else {
+        console.log(`❌ No se obtuvieron fechas para SKU ${sku}:`, result);
+      }
+    } else {
+      console.log(`❌ No se encontró producto para SKU ${sku}`);
+    }
+  } catch (error) {
+    console.error(`Error obteniendo fechas reales para ${sku}:`, error);
+  }
+
+  // Fallback a fechas hardcodeadas si falla
+  console.log(`🔄 Usando fallback para SKU ${sku}`);
+  return {
+    fechaInicial: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    fechaFinal: new Date().toISOString().split('T')[0],
+    unidadesVendidas: ventaDiariaCalculada ? Math.round(ventaDiaria * 90) : null,
+    ventaDiariaCalculada: ventaDiaria,
+    esCalculoReal: ventaDiariaCalculada,
+    mensaje: ventaDiariaCalculada ? 'Venta diaria obtenida del cache de análisis' : 'Venta diaria no disponible - usando valor mínimo de fallback'
+  };
+}
 
 export const config = {
   api: {
@@ -61,6 +116,7 @@ export default async function handler(req, res) {
     const config = configData.data;
     const stockDias = config.stockSaludableMinDias || 30;
 
+
     // 3. Get stock en tránsito and calculate proper cantidad sugerida
     const { data: comprasData } = await supabase
       .from('compras')
@@ -97,14 +153,24 @@ export default async function handler(req, res) {
       console.log(`No venta diaria data available for SKU ${sku}, using minimum fallback`);
     }
 
-    // Calculate stock objetivo
-    stockObjetivo = Math.round(ventaDiaria * stockDias);
+    // Get real-time venta diaria for accurate stock objetivo calculation
+    const ventaDiariaDetails = await getVentaDiariaDetails(sku, ventaDiaria, ventaDiariaCalculada);
+    const realTimeVentaDiaria = parseFloat(ventaDiariaDetails.ventaDiariaCalculada) || ventaDiaria;
+
+    // Calculate stock objetivo using real-time venta diaria
+    if (sku === 'R-FMMX015112') {
+        console.log(`🔍 DEBUG ${sku}: cachedVentaDiaria=${ventaDiaria}, realTimeVentaDiaria=${realTimeVentaDiaria}, stockDias=${stockDias}`);
+    }
+    stockObjetivo = Math.round(realTimeVentaDiaria * stockDias);
+    if (sku === 'R-FMMX015112') {
+        console.log(`🔍 DEBUG ${sku}: stockObjetivo final=${stockObjetivo}`);
+    }
 
     // Calculate lead time consumption using configuration
     const tiempoEntrega = config.tiempoEntrega || 60;
     const tiempoFabricacion = config.tiempoPromedioFabricacion || 30;
     const leadTimeDias = tiempoEntrega + tiempoFabricacion;
-    const consumoDuranteLeadTime = Math.round(ventaDiaria * leadTimeDias);
+    const consumoDuranteLeadTime = Math.round(realTimeVentaDiaria * leadTimeDias);
 
     // Calculate stock proyectado a la llegada
     const stockActual = product.stock_actual || 0;
@@ -120,26 +186,47 @@ export default async function handler(req, res) {
       cantidadSugerida = Math.max(0, stockObjetivo - stockProyectadoLlegada);
     }
 
+    // Debug specific SKU
+    if (sku === '649762430948') {
+      console.log(`🔍 QUOTE-INFO DEBUG ${sku}: realTimeVentaDiaria=${realTimeVentaDiaria}, stockActual=${stockActual}, stockEnTransito=${stockEnTransito}`);
+      console.log(`🔍 QUOTE-INFO DEBUG ${sku}: stockObjetivo=${stockObjetivo}, consumo=${consumoDuranteLeadTime}, stockProyectado=${stockProyectadoLlegada}`);
+      console.log(`🔍 QUOTE-INFO DEBUG ${sku}: stockDias=${stockDias}, leadTimeDias=${leadTimeDias}`);
+      console.log(`🔍 QUOTE-INFO DEBUG ${sku}: cantidadSugerida FINAL=${cantidadSugerida}`);
+    }
+
     // 4. Create detailed breakdown for the modal
     const breakdown = {
       stockActual: stockActual,
       stockObjetivo: stockObjetivo,
-      ventaDiaria: ventaDiaria,
+      ventaDiaria: realTimeVentaDiaria,
       stockEnTransitoQueLlega: stockEnTransito,
       consumoDuranteLeadTime: consumoDuranteLeadTime,
       stockFinalProyectado: stockProyectadoLlegada,
-      diasCoberturaLlegada: ventaDiaria > 0 ? Math.round(stockProyectadoLlegada / ventaDiaria) : 0,
-      ventaDiariaDetails: {
-        fechaInicial: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(), // 90 days ago
-        fechaFinal: new Date().toISOString(),
-        unidadesVendidas: ventaDiariaCalculada ? Math.round(ventaDiaria * 90) : null,
-        ventaDiariaCalculada: ventaDiaria,
-        esCalculoReal: ventaDiariaCalculada,
-        mensaje: ventaDiariaCalculada ? 'Venta diaria obtenida del cache de análisis' : 'Venta diaria no disponible - usando valor mínimo de fallback'
-      }
+      diasCoberturaLlegada: realTimeVentaDiaria > 0 ? Math.round(stockProyectadoLlegada / realTimeVentaDiaria) : 0,
+      ventaDiariaDetails: ventaDiariaDetails
     };
 
-    // 5. Create response
+    // 5. Save exact calculation to cache for reuse by dashboard
+    const calculationData = {
+      sku: product.sku,
+      venta_diaria_real: realTimeVentaDiaria,
+      stock_objetivo: stockObjetivo,
+      stock_en_transito: stockEnTransito,
+      consumo_durante_lead_time: consumoDuranteLeadTime,
+      stock_proyectado_llegada: stockProyectadoLlegada,
+      cantidad_sugerida: cantidadSugerida,
+      lead_time_dias: leadTimeDias,
+      stock_saludable_dias: stockDias,
+      calculation_method: 'real_time',
+      config_used: config
+    };
+
+    // Save to cache (fire and forget - don't wait for response)
+    saveCalculationToCache(calculationData).catch(error => {
+      console.error(`Error saving calculation to cache for ${sku}:`, error);
+    });
+
+    // 6. Create response
     const result = {
       sku: product.sku,
       descripcion: product.descripcion,
