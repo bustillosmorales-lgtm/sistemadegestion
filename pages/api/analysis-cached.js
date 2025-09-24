@@ -1,4 +1,5 @@
 // pages/api/analysis-cached.js - API súper rápida usando cache de dashboard
+// NETLIFY FORCE BUILD: 2025-09-23
 import { supabase } from '../../lib/supabaseClient';
 import { getCalculationFromCache, calculateExactQuoteInfo } from '../../lib/exactCalculations';
 
