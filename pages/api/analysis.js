@@ -3,72 +3,98 @@ import { supabase } from '../../lib/supabaseClient';
 import cache from '../../lib/cache';
 
 // Optimized batch calculation for venta diaria - reduces DB calls dramatically
-async function calculateVentaDiariaBatch(skus) {
+export async function calculateVentaDiariaBatch(products) {
   const results = new Map();
   const cacheResults = new Map();
-  const uncachedSkus = [];
+  const uncachedProducts = [];
 
   // Check cache first
-  for (const sku of skus) {
-    const cacheKey = `venta_diaria_${sku}`;
+  for (const product of products) {
+    const cacheKey = `venta_diaria_${product.sku}`;
     const cachedResult = cache.get(cacheKey);
-    if (cachedResult) {
-      cacheResults.set(sku, cachedResult);
+    // TEMPORAL: Forzar recálculo para SKU 120
+    if (cachedResult && product.sku !== '120') {
+      cacheResults.set(product.sku, cachedResult);
     } else {
-      uncachedSkus.push(sku);
+      uncachedProducts.push(product);
     }
   }
 
-  if (uncachedSkus.length === 0) {
+  if (uncachedProducts.length === 0) {
     return cacheResults;
   }
 
   try {
-    // Batch query all sales data for uncached SKUs
-    const hace30Dias = new Date();
-    hace30Dias.setDate(hace30Dias.getDate() - 30);
+    const uncachedSkus = uncachedProducts.map(p => p.sku);
 
-    // Get all compras in one query
+    // Get ALL compras (without 30-day filter) - we'll apply 30-day logic per SKU
     const { data: compras } = await supabase
       .from('compras')
       .select('sku, fecha_llegada_real')
       .in('sku', uncachedSkus)
       .not('fecha_llegada_real', 'is', null)
-      .lte('fecha_llegada_real', hace30Dias.toISOString())
       .order('fecha_llegada_real', { ascending: false });
 
-    // Get all ventas in one query  
+    // Get all ventas in one query
     const { data: ventas } = await supabase
       .from('ventas')
       .select('sku, fecha_venta, cantidad')
       .in('sku', uncachedSkus)
-      .order('fecha_venta', { ascending: true });
+      .order('fecha_venta', { ascending: true }); // First sale first, last sale last
 
-    // Process each SKU
-    for (const sku of uncachedSkus) {
+    // Process each product
+    for (const product of uncachedProducts) {
       try {
+        const sku = product.sku;
         const skuCompras = compras?.filter(c => c.sku === sku) || [];
         const skuVentas = ventas?.filter(v => v.sku === sku) || [];
 
         let fechaInicio = null;
-        
-        // Find latest compra older than 30 days
+        const hoy = new Date();
+
+        // LÓGICA CORRECTA: Buscar llegada más reciente que tenga ≥30 días desde HOY
         if (skuCompras.length > 0) {
-          fechaInicio = new Date(skuCompras[0].fecha_llegada_real);
-        } else if (skuVentas.length > 0) {
-          // Use first sale date
-          fechaInicio = new Date(skuVentas[0].fecha_venta);
+          for (const compra of skuCompras) {
+            const fechaLlegada = new Date(compra.fecha_llegada_real);
+            const diasDesdeHoy = Math.floor((hoy - fechaLlegada) / (1000 * 60 * 60 * 24));
+
+            if (diasDesdeHoy >= 30) {
+              fechaInicio = fechaLlegada;
+              console.log(`📦 SKU ${sku}: Usando llegada ${fechaLlegada.toISOString().split('T')[0]} (${diasDesdeHoy} días atrás)`);
+              break; // Tomar la más reciente que cumpla ≥30 días
+            }
+          }
         }
 
+        // Si no hay llegadas válidas, usar primera venta
+        if (!fechaInicio && skuVentas.length > 0) {
+          fechaInicio = new Date(skuVentas[0].fecha_venta); // Primera venta (orden ascendente)
+          console.log(`🛒 SKU ${sku}: Sin llegadas válidas, usando primera venta: ${fechaInicio.toISOString().split('T')[0]}`);
+        }
+
+        // NUEVO: Si no hay llegadas ni ventas, usar fechas por defecto para análisis básico
         if (!fechaInicio) {
-          const result = { ventaDiaria: 0, fechasAnalisis: null };
-          results.set(sku, result);
-          cache.set(`venta_diaria_${sku}`, result, 30 * 60 * 1000);
-          continue;
+          fechaInicio = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000); // 90 días atrás
+          console.log(`⚠️ SKU ${sku}: Sin datos históricos, usando período por defecto: ${fechaInicio.toISOString().split('T')[0]}`);
         }
 
-        // Calculate end date - use today or last sale date if no stock
+
+        // CORRECCIÓN: Calculate end date based on stock status
         let fechaFin = new Date();
+
+        // Si el producto NO tiene stock
+        if ((product.stock_actual || 0) <= 0) {
+          if (product.last_stockout_date) {
+            // Usar fecha de último quiebre registrada
+            fechaFin = new Date(product.last_stockout_date);
+            console.log(`📅 SKU ${sku}: Sin stock, usando fecha quiebre registrada: ${fechaFin.toISOString().split('T')[0]}`);
+          } else if (skuVentas.length > 0) {
+            // Fallback: usar fecha de última venta
+            fechaFin = new Date(skuVentas[skuVentas.length - 1].fecha_venta); // Última venta (orden ascendente)
+            console.log(`📅 SKU ${sku}: Sin stock, sin fecha quiebre, usando última venta: ${fechaFin.toISOString().split('T')[0]}`);
+          }
+          // Si no tiene ventas ni fecha de quiebre, usar HOY (fechaFin ya está en HOY)
+        }
         
         // Calculate days and total sales
         const diffTime = fechaFin.getTime() - fechaInicio.getTime();
@@ -85,12 +111,15 @@ async function calculateVentaDiariaBatch(skus) {
         const result = {
           ventaDiaria,
           fechasAnalisis: {
-            fechaInicio: fechaInicio,
-            fechaFin: fechaFin,
+            fechaInicio: fechaInicio.toISOString().split('T')[0],
+            fechaFin: fechaFin.toISOString().split('T')[0],
             diasPeriodo: diffDays,
             unidadesVendidas: totalVendido
           }
         };
+
+        // DEBUG: Log para verificar fechas
+        console.log(`🔍 SKU ${sku}: fechaInicio=${result.fechasAnalisis.fechaInicio}, fechaFin=${result.fechasAnalisis.fechaFin}`);
 
         results.set(sku, result);
         cache.set(`venta_diaria_${sku}`, result, 30 * 60 * 1000);
@@ -123,12 +152,23 @@ async function calculateVentaDiariaBatch(skus) {
 
 // Legacy function for single SKU compatibility
 async function calculateVentaDiaria(sku, currentStock = 0) {
-  const batchResults = await calculateVentaDiariaBatch([sku]);
+  // Need to fetch product data for the single SKU case
+  const { data: product } = await supabase
+    .from('products')
+    .select('sku, stock_actual, last_stockout_date')
+    .eq('sku', sku)
+    .single();
+
+  if (!product) {
+    return { ventaDiaria: 0, fechasAnalisis: null };
+  }
+
+  const batchResults = await calculateVentaDiariaBatch([product]);
   return batchResults.get(sku) || { ventaDiaria: 0, fechasAnalisis: null };
 }
 
 // Función para calcular el impacto económico basado en precio promedio real × cantidad
-async function calcularImpactoEconomicoReal(sku, cantidadSugerida, fechasAnalisis) {
+async function calcularImpactoEconomicoReal(sku, cantidadSugerida, fechasAnalisis, product = null) {
   if (!cantidadSugerida || cantidadSugerida <= 0) {
     return {
       valorTotal: 0,
@@ -138,11 +178,11 @@ async function calcularImpactoEconomicoReal(sku, cantidadSugerida, fechasAnalisi
       periodoDatos: null
     };
   }
-  
+
   try {
     // Obtener precios reales de ventas del período de análisis
     let fechaInicio, fechaFin;
-    
+
     if (fechasAnalisis && fechasAnalisis.fechaInicio && fechasAnalisis.fechaFin) {
       fechaInicio = new Date(fechasAnalisis.fechaInicio);
       fechaFin = new Date(fechasAnalisis.fechaFin);
@@ -152,51 +192,55 @@ async function calcularImpactoEconomicoReal(sku, cantidadSugerida, fechasAnalisi
       fechaInicio = new Date();
       fechaInicio.setDate(fechaFin.getDate() - 90);
     }
-    
+
     // Consultar precios de ventas históricas
     const { data: ventas, error } = await supabase
       .from('ventas')
-      .select('precio_venta, cantidad')
+      .select('precio_unitario, cantidad')
       .eq('sku', sku)
       .gte('fecha_venta', fechaInicio.toISOString())
       .lte('fecha_venta', fechaFin.toISOString())
-      .not('precio_venta', 'is', null)
-      .gt('precio_venta', 0);
-    
+      .not('precio_unitario', 'is', null)
+      .gt('precio_unitario', 0);
+
     if (error || !ventas || ventas.length === 0) {
-      // Sin datos de precio histórico
+      // Sin datos de precio histórico - usar precio_venta_sugerido del producto
+      const precioSugerido = product?.precio_venta_sugerido || 0;
+      const valorTotal = precioSugerido * cantidadSugerida;
+
       return {
-        valorTotal: 0,
-        precioPromedioReal: 0,
-        ventasPotenciales: 0,
-        prioridad: 'BAJA',
-        periodoDatos: 'Sin datos históricos'
+        valorTotal: Math.round(valorTotal),
+        precioPromedioReal: Math.round(precioSugerido),
+        ventasPotenciales: Math.round(valorTotal),
+        prioridad: valorTotal > 100000 ? 'MEDIA' : 'BAJA',
+        periodoDatos: 'Precio sugerido (sin historial)'
       };
     }
-    
+
     // Calcular precio promedio ponderado por cantidad
     let sumaTotal = 0;
     let cantidadTotal = 0;
-    
+
     ventas.forEach(venta => {
-      const precio = parseFloat(venta.precio_venta) || 0;
+      const precio = parseFloat(venta.precio_unitario) || 0;
       const cantidad = parseFloat(venta.cantidad) || 0;
-      
+
       sumaTotal += precio * cantidad;
       cantidadTotal += cantidad;
     });
-    
-    const precioPromedio = cantidadTotal > 0 ? sumaTotal / cantidadTotal : 0;
-    
+
+    // Si no hay ventas con precios válidos, usar precio_venta_sugerido como fallback
+    const precioPromedio = cantidadTotal > 0 ? sumaTotal / cantidadTotal : (product?.precio_venta_sugerido || 0);
+
     // CÁLCULO SIMPLE: Precio Promedio × Cantidad a Reponer
     const valorTotal = precioPromedio * cantidadSugerida;
-    
+
     // Determinar prioridad basada en valor total
     let prioridad = 'BAJA';
     if (valorTotal > 500000) prioridad = 'CRÍTICA';      // >$500k
-    else if (valorTotal > 200000) prioridad = 'ALTA';    // >$200k  
+    else if (valorTotal > 200000) prioridad = 'ALTA';    // >$200k
     else if (valorTotal > 100000) prioridad = 'MEDIA';   // >$100k
-    
+
     return {
       valorTotal: Math.round(valorTotal),
       precioPromedioReal: Math.round(precioPromedio),
@@ -205,9 +249,9 @@ async function calcularImpactoEconomicoReal(sku, cantidadSugerida, fechasAnalisi
       periodoDatos: `${fechaInicio.toISOString().split('T')[0]} a ${fechaFin.toISOString().split('T')[0]}`,
       ventasAnalizadas: ventas.length
     };
-    
+
   } catch (error) {
-    console.error(`Error calculando impacto real para ${sku}:`, error);
+    console.error(`💰 Error calculando impacto real para ${sku}:`, error);
     return {
       valorTotal: 0,
       precioPromedioReal: 0,
@@ -274,7 +318,8 @@ async function getFullAnalysis(product, config, transit, precioVenta = null, ven
     const impactoEconomico = await calcularImpactoEconomicoReal(
         product.sku,
         cantidadSugerida,
-        fechasAnalisis
+        fechasAnalisis,
+        product
     );
     
     // Debug: log values
@@ -283,10 +328,11 @@ async function getFullAnalysis(product, config, transit, precioVenta = null, ven
     
     // Usar las fechas reales del análisis si están disponibles
     let fechaInicial, fechaFinal, diasDeVenta, unidadesVendidas;
-    
+
     if (fechasAnalisis && fechasAnalisis.fechaInicio && fechasAnalisis.fechaFin) {
-      fechaInicial = new Date(fechasAnalisis.fechaInicio);
-      fechaFinal = new Date(fechasAnalisis.fechaFin);
+      // CORRECCIÓN: Usar directamente las fechas sin conversión problemática
+      fechaInicial = fechasAnalisis.fechaInicio;
+      fechaFinal = fechasAnalisis.fechaFin;
       diasDeVenta = fechasAnalisis.diasPeriodo;
       unidadesVendidas = fechasAnalisis.unidadesVendidas;
     } else {
@@ -317,8 +363,8 @@ async function getFullAnalysis(product, config, transit, precioVenta = null, ven
             tiempoEntrega: config.tiempoEntrega || 0,
             diasCoberturaLlegada: (diasCoberturaLlegada || 0).toFixed(0),
             ventaDiariaDetails: {
-                fechaInicial: fechaInicial.toISOString().split('T')[0],
-                fechaFinal: fechaFinal.toISOString().split('T')[0],
+                fechaInicial: fechaInicial instanceof Date ? fechaInicial.toISOString().split('T')[0] : fechaInicial,
+                fechaFinal: fechaFinal instanceof Date ? fechaFinal.toISOString().split('T')[0] : fechaFinal,
                 unidadesVendidas: unidadesVendidas || 0,
                 ventaDiariaCalculada: (ventaDiariaCalculada || 0).toFixed(2)
             }
@@ -515,9 +561,8 @@ export default async function handler(req, res) {
       
       // MAJOR OPTIMIZATION: Batch calculate all venta diaria values in one operation
       console.log(`📊 Processing ${products.length} products with batch optimization`);
-      const allSkus = products.map(p => p.sku);
-      const ventaDiariaResults = await calculateVentaDiariaBatch(allSkus);
-      console.log(`✅ Batch calculation completed for ${allSkus.length} SKUs`);
+      const ventaDiariaResults = await calculateVentaDiariaBatch(products);
+      console.log(`✅ Batch calculation completed for ${products.length} products`);
       
       // Process products with pre-calculated venta diaria
       for (const product of products || []) {
@@ -628,10 +673,11 @@ export default async function handler(req, res) {
         return bValue - aValue;
       });
       
-      console.log(`📈 Productos ordenados por valor real de reposición (top 3):
-        1. ${results[0]?.sku}: $${results[0]?.impactoEconomico?.valorTotal?.toLocaleString() || 0} (${results[0]?.impactoEconomico?.precioPromedioReal?.toLocaleString() || 0}/u × ${results[0]?.cantidadSugerida || 0})
-        2. ${results[1]?.sku}: $${results[1]?.impactoEconomico?.valorTotal?.toLocaleString() || 0} (${results[1]?.impactoEconomico?.precioPromedioReal?.toLocaleString() || 0}/u × ${results[1]?.cantidadSugerida || 0})
-        3. ${results[2]?.sku}: $${results[2]?.impactoEconomico?.valorTotal?.toLocaleString() || 0} (${results[2]?.impactoEconomico?.precioPromedioReal?.toLocaleString() || 0}/u × ${results[2]?.cantidadSugerida || 0})`);
+      // Log top 3 productos ordenados por valor económico
+      console.log('📈 Top 3 productos ordenados por valor económico de reposición:');
+      if (results[0]) console.log(`  1. ${results[0].sku}: $${results[0].impactoEconomico?.valorTotal?.toLocaleString() || 0} (${results[0].impactoEconomico?.precioPromedioReal?.toLocaleString() || 0}/u × ${results[0].cantidadSugerida || 0})`);
+      if (results[1]) console.log(`  2. ${results[1].sku}: $${results[1].impactoEconomico?.valorTotal?.toLocaleString() || 0} (${results[1].impactoEconomico?.precioPromedioReal?.toLocaleString() || 0}/u × ${results[1].cantidadSugerida || 0})`);
+      if (results[2]) console.log(`  3. ${results[2].sku}: $${results[2].impactoEconomico?.valorTotal?.toLocaleString() || 0} (${results[2].impactoEconomico?.precioPromedioReal?.toLocaleString() || 0}/u × ${results[2].cantidadSugerida || 0})`);
       
       clearTimeout(timeoutId);
       return res.status(200).json({ 

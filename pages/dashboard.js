@@ -7,6 +7,7 @@ import { useState, useMemo, useEffect } from 'react';
 import ActionModal from '../components/ActionModal';
 import { useUser } from '../components/UserContext';
 import * as XLSX from 'xlsx';
+import { formatCurrency, formatNumber, formatDaysOfStock, formatPercentage, shouldShowSpinner } from '../utils/dataDisplayUtils';
 
 const fetcher = (url) => fetch(url).then((res) => res.json());
 
@@ -20,15 +21,19 @@ const usePaginatedAnalysis = () => {
   const [metadata, setMetadata] = useState(null);
   const [offset, setOffset] = useState(0);
   const [isEnhanced, setIsEnhanced] = useState(false); // Track if we have detailed data
-  const limit = 15; // Tamaño más pequeño para carga rápida
+  const [isProgressiveLoading, setIsProgressiveLoading] = useState(false);
+  const [progressiveLoadingProgress, setProgressiveLoadingProgress] = useState({ loaded: 0, total: 0 });
+  const [progressiveLoadingController, setProgressiveLoadingController] = useState(null);
+  const limit = 50; // Carga inicial de 50 productos
+  const progressiveLimit = 100; // Lotes de 100 para carga progresiva
 
   const loadPage = async (pageOffset = 0, isLoadingMore = false, fastMode = true) => {
     if (!isLoadingMore) setLoading(true);
     else setLoadingMore(true);
     
     try {
-      // Use NEW no-cache endpoint for initial load, full endpoint for detailed data
-      const endpoint = fastMode ? 'analysis-nocache' : 'analysis';
+      // Use regular analysis endpoint
+      const endpoint = 'analysis';
       // CACHE BUSTER - Force real prices display
       const cacheBuster = Date.now();
       const response = await fetch(`/api/${endpoint}?limit=${limit}&offset=${pageOffset}&v=${cacheBuster}`, {
@@ -44,7 +49,20 @@ const usePaginatedAnalysis = () => {
       const data = await response.json();
       
       console.log(`📊 Loaded ${data.results?.length || 0} products using ${endpoint} (${data.metadata?.processingTime || 'N/A'})`);
-      
+
+      // Debug: Log first 3 products to verify sorting
+      if (data.results && data.results.length > 0) {
+        const top3 = data.results.slice(0, 3).map(p => ({
+          sku: p.sku,
+          valorTotal: p.impactoEconomico?.valorTotal || 0,
+          precio: p.precio_venta_sugerido || 0
+        }));
+        console.log('🔍 Top 3 products by value:');
+        top3.forEach((p, i) => {
+          console.log(`  ${i+1}. SKU: ${p.sku} | Valor: $${p.valorTotal.toLocaleString()} | Precio: $${p.precio.toLocaleString()}`);
+        });
+      }
+
       if (pageOffset === 0) {
         // Primera carga - reemplazar datos
         setAllProducts(data.results || []);
@@ -98,10 +116,13 @@ const usePaginatedAnalysis = () => {
   };
 
   const loadMore = () => {
+    console.log('🔄 LoadMore clicked:', { hasMore, loadingMore, currentOffset: offset, newOffset: offset + limit });
     if (hasMore && !loadingMore) {
       const newOffset = offset + limit;
       setOffset(newOffset);
-      loadPage(newOffset, true, true); // Load more with fast mode
+      loadPage(newOffset, true, true); // Load more with fast mode (analysis sin cache problemático)
+    } else {
+      console.log('❌ LoadMore blocked:', { hasMore, loadingMore });
     }
   };
 
@@ -118,9 +139,114 @@ const usePaginatedAnalysis = () => {
     loadPage(0, false, false); // Load with full analysis
   };
 
+  // Función para carga progresiva automática
+  const startProgressiveLoading = async () => {
+    if (isProgressiveLoading || !metadata?.total) return;
+
+    // Stop any existing progressive loading
+    if (progressiveLoadingController) {
+      progressiveLoadingController.abort();
+    }
+
+    const controller = new AbortController();
+    setProgressiveLoadingController(controller);
+    setIsProgressiveLoading(true);
+
+    const totalProducts = metadata.total;
+    let currentOffset = allProducts.length;
+
+    console.log('🚀 Starting progressive loading...', {
+      total: totalProducts,
+      currentLoaded: currentOffset,
+      remaining: totalProducts - currentOffset
+    });
+
+    setProgressiveLoadingProgress({ loaded: currentOffset, total: totalProducts });
+
+    try {
+      while (currentOffset < totalProducts && !controller.signal.aborted) {
+        await new Promise(resolve => setTimeout(resolve, 1000)); // 1 segundo entre lotes
+
+        // Check if loading was stopped
+        if (controller.signal.aborted) break;
+
+        const response = await fetch(`/api/analysis?limit=${progressiveLimit}&offset=${currentOffset}&v=${Date.now()}`, {
+          signal: controller.signal
+        });
+
+        if (!response.ok || controller.signal.aborted) break;
+
+        const data = await response.json();
+        if (!data.results || data.results.length === 0) break;
+
+        // Check again after async operation
+        if (controller.signal.aborted) break;
+
+        // Agregar nuevos productos manteniendo el orden
+        setAllProducts(prev => [...prev, ...data.results]);
+        currentOffset += data.results.length;
+
+        setProgressiveLoadingProgress({ loaded: currentOffset, total: totalProducts });
+
+        console.log(`📦 Progressive loading: ${currentOffset}/${totalProducts} products loaded`);
+
+        // Parar si se cargaron todos
+        if (currentOffset >= totalProducts) {
+          console.log('✅ Progressive loading completed - all products loaded');
+          // Show 100% completion for 2 seconds before hiding progress bar
+          setProgressiveLoadingProgress({ loaded: totalProducts, total: totalProducts });
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          break;
+        }
+      }
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log('⚠️ Progressive loading was cancelled');
+      } else {
+        console.error('❌ Progressive loading error:', error);
+      }
+    } finally {
+      setIsProgressiveLoading(false);
+      setProgressiveLoadingController(null);
+      if (currentOffset >= totalProducts) {
+        console.log('✅ Progressive loading completed successfully');
+      }
+    }
+  };
+
+  // Detener carga progresiva
+  const stopProgressiveLoading = () => {
+    if (progressiveLoadingController) {
+      progressiveLoadingController.abort();
+    }
+    setIsProgressiveLoading(false);
+    setProgressiveLoadingController(null);
+    console.log('🛑 Progressive loading stopped by user');
+  };
+
   useEffect(() => {
     loadPage(0, false, true); // Initial load with fast mode
   }, []);
+
+  // Iniciar carga progresiva automáticamente después de la carga inicial
+  useEffect(() => {
+    if (metadata?.total && allProducts.length > 0 && allProducts.length < metadata.total && !isProgressiveLoading) {
+      const timer = setTimeout(() => {
+        startProgressiveLoading();
+      }, 2000); // Esperar 2 segundos después de la carga inicial
+
+      return () => clearTimeout(timer);
+    }
+  }, [metadata, allProducts.length]);
+
+  // Cleanup progressive loading on unmount
+  useEffect(() => {
+    return () => {
+      if (progressiveLoadingController) {
+        progressiveLoadingController.abort();
+      }
+    };
+  }, [progressiveLoadingController]);
 
   return {
     products: allProducts,
@@ -132,7 +258,10 @@ const usePaginatedAnalysis = () => {
     isEnhanced,
     loadMore,
     refresh,
-    loadDetailed
+    loadDetailed,
+    isProgressiveLoading,
+    progressiveLoadingProgress,
+    stopProgressiveLoading
   };
 };
 
@@ -222,19 +351,23 @@ const detailFieldNames = {
 export default function Dashboard() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading, logout } = useUser();
-  
+
+
   // Usar el nuevo hook paginado en lugar de SWR estándar
-  const { 
-    products: data, 
-    loading: analysisLoading, 
-    loadingMore, 
-    error, 
-    hasMore, 
-    metadata, 
+  const {
+    products: data,
+    loading: analysisLoading,
+    loadingMore,
+    error,
+    hasMore,
+    metadata,
     isEnhanced,
-    loadMore, 
+    loadMore,
     refresh,
-    loadDetailed
+    loadDetailed,
+    isProgressiveLoading,
+    progressiveLoadingProgress,
+    stopProgressiveLoading
   } = usePaginatedAnalysis();
   
   const { data: reminders } = useSWR('/api/reminders', fetcher);
@@ -359,30 +492,31 @@ export default function Dashboard() {
         'QUOTE_REJECTED': 11
     };
     
-    // Ordenar por prioridad de status y luego por impacto de ventas
+    // Ordenar por valor económico (impacto de reposición) como criterio principal
     filtered.sort((a, b) => {
-        // Primer criterio: prioridad de status
+        // Primer criterio: valor económico (cantidad × precio)
+        const valorA = a.impactoEconomico?.valorTotal || 0;
+        const valorB = b.impactoEconomico?.valorTotal || 0;
+
+        if (valorA !== valorB) {
+            return valorB - valorA; // Mayor valor primero
+        }
+
+        // Segundo criterio: prioridad de status (solo para productos con mismo valor)
         const statusPriorityA = statusPriority[a.status] || 999;
         const statusPriorityB = statusPriority[b.status] || 999;
-        
-        if (statusPriorityA !== statusPriorityB) {
-            return statusPriorityA - statusPriorityB;
-        }
-        
-        // Segundo criterio: impacto de ventas (cantidad sugerida * precio de venta)
-        const getImpactValue = (product) => {
-            const cantidadSugerida = product.cantidadSugerida || 0;
-            const precioVenta = product.analysis_details?.sellingPrice || 0;
-            return cantidadSugerida * precioVenta;
-        };
-        
-        const impactA = getImpactValue(a);
-        const impactB = getImpactValue(b);
-        
-        // Ordenar de mayor a menor impacto
-        return impactB - impactA;
+
+        return statusPriorityA - statusPriorityB;
     });
-    
+
+    // Debug: Log the top 3 after frontend sorting
+    if (filtered.length > 0) {
+      console.log('🔍 Top 3 after frontend sorting:');
+      filtered.slice(0, 3).forEach((p, i) => {
+        console.log(`  ${i+1}. SKU: ${p.sku} | Status: ${p.status} | Valor: $${(p.impactoEconomico?.valorTotal || 0).toLocaleString()}`);
+      });
+    }
+
     return filtered;
   }, [products, skuFilter, nameFilter, statusFilter, showNoActionItems]);
 
@@ -395,20 +529,24 @@ export default function Dashboard() {
     const statusesToTrack = ['PURCHASE_APPROVED', 'PURCHASE_CONFIRMED', 'MANUFACTURED', 'SHIPPED'];
     const cbmTotals = {};
     const usdTotals = {};
-    
+
     statusesToTrack.forEach(status => {
       const statusProducts = products.filter(p => p.status === status);
-      
-      cbmTotals[status] = statusProducts.reduce((sum, p) => sum + (p.cbm || 0), 0);
-      
-      // Calcular totales USD basado en costoFinalBodega convertido a USD
+
+      // Calculate CBM from quote_details and purchase quantity
+      cbmTotals[status] = statusProducts.reduce((sum, p) => {
+        const cbmPerUnit = p.quote_details?.cbmPerUnit || 0;
+        const purchaseQuantity = p.approval_details?.purchaseQuantity || 0;
+        const totalCbm = cbmPerUnit * purchaseQuantity;
+        return sum + totalCbm;
+      }, 0);
+
+      // Calculate USD totals from quote prices and purchase quantity
       usdTotals[status] = statusProducts.reduce((sum, p) => {
-        const costoFinalBodegaCLP = p.costoFinalBodega || 0;
-        const cantidadComprada = p.approval_details?.purchaseQuantity || 0;
-        const costoTotalCLP = costoFinalBodegaCLP * cantidadComprada;
-        const usdToClp = config?.usdToClp || 1000;
-        const costoTotalUSD = costoTotalCLP / usdToClp;
-        return sum + costoTotalUSD;
+        const unitPriceUSD = p.quote_details?.unitPriceUSD || 0;
+        const purchaseQuantity = p.approval_details?.purchaseQuantity || 0;
+        const totalUSD = unitPriceUSD * purchaseQuantity;
+        return sum + totalUSD;
       }, 0);
     });
     
@@ -956,7 +1094,7 @@ export default function Dashboard() {
         'CBM': product.cbm || 0,
         'Costo Final Bodega': product.costoFinalBodega ? Math.round(product.costoFinalBodega) : 0,
         'Ganancia Neta': product.gananciaNeta ? Math.round(product.gananciaNeta) : 0,
-        'Margen %': product.margen ? product.margen.toFixed(1) : '0.0',
+        'Margen %': formatPercentage(product.margen, product, 'margen'),
         'Fecha Actualización': product.updated_at ? formatDateTime(product.updated_at) : '',
         
         // Detalles específicos por status (solo para admin y chile)
@@ -1060,13 +1198,36 @@ export default function Dashboard() {
            </div>
        );
     }
-    if (!details) return null;
+
+    // Show appropriate content even without detailed data
+    if (!details) {
+        // For completed stages, show completion status
+        if (!isPending) {
+            return (
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <h4 className="font-bold text-green-700 mb-2">{title}</h4>
+                    <p className="text-sm text-green-600">✅ Completado</p>
+                    <p className="text-xs text-green-500 mt-1">Sin detalles adicionales registrados</p>
+                </div>
+            );
+        }
+        // For future/pending stages, return null to not show them
+        return null;
+    }
+
+    // For completed stages with data, show green background
+    const isCompleted = !isPending && details;
+    const bgColor = isCompleted ? 'bg-green-50' : 'bg-blue-50';
+    const borderColor = isCompleted ? 'border-green-200' : 'border-blue-200';
 
     if (title.includes("Modificación de Precio")) {
         const history = product.price_modification_history || [];
         return (
-            <div className="bg-orange-50 p-4 rounded-lg shadow-sm border-l-4 border-orange-500 col-span-full lg:col-span-1">
-                <h4 className="font-bold text-gray-800 mb-2">{title}</h4>
+            <div className={`${bgColor} p-4 rounded-lg shadow-sm border ${borderColor} ${isCompleted ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-orange-500'} col-span-full lg:col-span-1`}>
+                <div className="flex items-center gap-2 mb-2">
+                    <h4 className={`font-bold ${isCompleted ? 'text-green-700' : 'text-gray-800'}`}>{title}</h4>
+                    {isCompleted && <span className="text-green-600 font-bold">✅</span>}
+                </div>
                 <div className="space-y-2 text-sm">
                     <div className="bg-red-100 p-2 rounded">
                         <div className="flex justify-between"><span className="text-gray-600">Precio Anterior:</span><span className="font-mono font-bold">{details.previousPrice} {details.previousCurrency}</span></div>
@@ -1146,8 +1307,11 @@ export default function Dashboard() {
     if (title.includes("Decisión de Compra")) {
         const snapshot = details.analysisSnapshot;
         return (
-             <div className="bg-white p-4 rounded-lg shadow-sm">
-                <h4 className={`font-bold mb-2 ${details.approved ? 'text-green-600' : 'text-red-600'}`}>{details.approved ? "👍 Aprobación" : "👎 Rechazo"}</h4>
+             <div className={`${bgColor} p-4 rounded-lg shadow-sm border ${borderColor}`}>
+                <div className="flex items-center gap-2 mb-2">
+                    <h4 className={`font-bold ${details.approved ? 'text-green-600' : 'text-red-600'}`}>{details.approved ? "👍 Aprobación" : "👎 Rechazo"}</h4>
+                    {isCompleted && <span className="text-green-600 font-bold">✅</span>}
+                </div>
                 {snapshot && (
                     <div className="text-sm space-y-1 mb-2">
                         <div className="flex justify-between"><span className="text-gray-600">Precio Venta Usado:</span><span className="font-mono">${parseInt(snapshot.sellingPrice || 0).toLocaleString('es-CL')}</span></div>
@@ -1165,9 +1329,12 @@ export default function Dashboard() {
     }
 
     return (
-        <div className="bg-white p-4 rounded-lg shadow-sm">
+        <div className={`${bgColor} p-4 rounded-lg shadow-sm border ${borderColor}`}>
             <div className="flex justify-between items-start mb-3">
-                <h4 className="font-bold text-gray-800">{title}</h4>
+                <div className="flex items-center gap-2">
+                    <h4 className={`font-bold ${isCompleted ? 'text-green-700' : 'text-gray-800'}`}>{title}</h4>
+                    {isCompleted && <span className="text-green-600 font-bold">✅</span>}
+                </div>
                 {details.timestamp && (
                     <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
                         {formatDateTime(details.timestamp)}
@@ -1789,6 +1956,66 @@ export default function Dashboard() {
             )}
         </div>
 
+        {/* Barra de progreso de carga automática - REMOVIDA */}
+        {/* {isProgressiveLoading && (
+          <div className="sticky top-0 z-30 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-blue-200 shadow-sm">
+            <div className="px-4 py-3">
+              <div className="flex items-center justify-between max-w-7xl mx-auto">
+                <div className="flex items-center gap-3">
+                  {progressiveLoadingProgress.loaded >= progressiveLoadingProgress.total ? (
+                    <div className="h-4 w-4 bg-green-500 border-2 border-green-600 rounded-full flex items-center justify-center">
+                      <span className="text-white text-xs">✓</span>
+                    </div>
+                  ) : (
+                    <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                  )}
+                  <div className="flex flex-col">
+                    <span className="text-blue-700 font-medium text-sm">
+                      {progressiveLoadingProgress.loaded >= progressiveLoadingProgress.total
+                        ? '✅ ¡Todos los productos cargados exitosamente!'
+                        : 'Cargando todos los productos automáticamente...'
+                      }
+                    </span>
+                    <div className="flex items-center gap-3 mt-1">
+                      <div className="w-48 bg-blue-200 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full transition-all duration-300 ${
+                            progressiveLoadingProgress.loaded >= progressiveLoadingProgress.total
+                              ? 'bg-gradient-to-r from-green-500 to-green-600'
+                              : 'bg-gradient-to-r from-blue-500 to-purple-500'
+                          }`}
+                          style={{ width: `${(progressiveLoadingProgress.loaded / progressiveLoadingProgress.total) * 100}%` }}
+                        ></div>
+                      </div>
+                      <span className={`text-xs font-mono min-w-0 ${
+                        progressiveLoadingProgress.loaded >= progressiveLoadingProgress.total
+                          ? 'text-green-600'
+                          : 'text-blue-600'
+                      }`}>
+                        {progressiveLoadingProgress.loaded.toLocaleString()} / {progressiveLoadingProgress.total.toLocaleString()}
+                      </span>
+                      <span className={`text-xs ${
+                        progressiveLoadingProgress.loaded >= progressiveLoadingProgress.total
+                          ? 'text-green-500'
+                          : 'text-blue-500'
+                      }`}>
+                        ({Math.round((progressiveLoadingProgress.loaded / progressiveLoadingProgress.total) * 100)}%)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={stopProgressiveLoading}
+                  className="text-gray-500 hover:text-red-500 transition-colors px-2 py-1"
+                  title="Detener carga automática"
+                >
+                  ✕ Detener
+                </button>
+              </div>
+            </div>
+          </div>
+        )} */}
+
         {/* Panel de alertas temporales IA */}
         {alertasIA.length > 0 && showAIPredictions && (
           <div className="sticky top-0 z-40 bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg">
@@ -1888,7 +2115,7 @@ export default function Dashboard() {
         </div>
 
         <div className="p-4 space-y-4">
-          {filteredProducts.map((product) => {
+          {filteredProducts.map((product, index) => {
             const currentStatusInfo = statusConfig[product.status] || { text: `Desconocido: ${product.status}`, color: 'bg-gray-400' };
             const currentStatusIndex = workflowOrder.indexOf(product.status);
             const isExpanded = expandedSku === product.sku;
@@ -1914,18 +2141,18 @@ export default function Dashboard() {
             const priority = getPriorityIndicator(product.status);
 
             const detailStages = [
-                { title: "🗣️ Solicitud de Cotización", data: product.request_details, statusKey: 'NEEDS_REPLENISHMENT' },
-                { title: "📝 Cotización", data: product.quote_details, statusKey: 'QUOTE_REQUESTED' },
-                { title: "📈 Análisis", data: product.analysis_details, statusKey: 'QUOTED' },
+                { title: "🗣️ Solicitud de Cotización", data: product.request_details, statusKey: 'QUOTE_REQUESTED' },
+                { title: "📝 Cotización", data: product.quote_details, statusKey: 'QUOTED' },
+                { title: "📈 Análisis", data: product.analysis_details, statusKey: 'ANALYZING' },
                 { title: "💰 Modificación de Precio", data: product.price_modification_details, statusKey: 'QUOTED_PRICE_MODIFIED' },
-                { title: "⚖️ Decisión de Compra", data: product.approval_details, statusKey: 'ANALYZING' },
-                { title: "✅ Compra Confirmada", data: product.purchase_details, statusKey: 'PURCHASE_APPROVED' },
-                { title: "🏭 Fabricación", data: product.manufacturing_details, statusKey: 'PURCHASE_CONFIRMED' },
-                { title: "🚢 Embarque", data: product.shipping_details, statusKey: 'MANUFACTURED' }
+                { title: "⚖️ Decisión de Compra", data: product.approval_details, statusKey: 'PURCHASE_APPROVED' },
+                { title: "✅ Compra Confirmada", data: product.purchase_details, statusKey: 'PURCHASE_CONFIRMED' },
+                { title: "🏭 Fabricación", data: product.manufacturing_details, statusKey: 'MANUFACTURED' },
+                { title: "🚢 Embarque", data: product.shipping_details, statusKey: 'SHIPPED' }
             ];
 
             return (
-              <div key={product.sku} className="bg-white rounded-lg shadow-md">
+              <div key={`${product.sku}-${index}`} className="bg-white rounded-lg shadow-md">
                 <div className="p-6">
                   <div className="flex justify-between items-start mb-4">
                     <div>
@@ -1961,7 +2188,7 @@ export default function Dashboard() {
                             }`} title={`Valor reposición: ${product.impactoEconomico ? 
                               `$${product.impactoEconomico.valorTotal.toLocaleString('es-CL')} = $${product.impactoEconomico.precioPromedioReal?.toLocaleString('es-CL') || 0}/u × ${product.cantidadSugerida} unidades (${product.impactoEconomico.prioridad})` :
                               'Estimación básica'}`}>
-                              💰 ${(product.impactoEconomico?.valorTotal || impactoVentas).toLocaleString('es-CL')}
+                              💰 {formatCurrency(product.impactoEconomico?.valorTotal || impactoVentas, product, 'impacto_economico')}
                             </span>
                             
                             {product.impactoEconomico?.precioPromedioReal > 0 && (
@@ -2063,8 +2290,8 @@ export default function Dashboard() {
                       )}
                     </div>
                     <div><p className="text-xs text-gray-500 font-bold">CANT. COMPRADA</p><p className="text-2xl font-bold text-purple-600">{product.approval_details?.purchaseQuantity || 0}</p></div>
-                    <div><p className="text-xs text-gray-500 font-bold">VENTA DIARIA</p><p className="text-lg font-bold">{(product.venta_diaria || product.ventaDiaria || 0).toFixed(1)}</p></div>
-                    <div><p className="text-xs text-gray-500 font-bold">DÍAS DE STOCK</p><p className={`text-lg font-bold ${diasDeStock < 30 ? 'text-red-600' : 'text-green-600'}`}>{diasDeStock === Infinity ? '∞' : diasDeStock.toFixed(0)}</p></div>
+                    <div><p className="text-xs text-gray-500 font-bold">VENTA DIARIA</p><p className={`text-lg font-bold ${shouldShowSpinner(product.venta_diaria || product.ventaDiaria, product, 'venta_diaria') ? 'text-blue-600' : ''}`}>{shouldShowSpinner(product.venta_diaria || product.ventaDiaria, product, 'venta_diaria') && <span className="inline-block animate-spin mr-1">⏳</span>}{formatNumber(product.venta_diaria || product.ventaDiaria, product, 'venta_diaria')}</p></div>
+                    <div><p className="text-xs text-gray-500 font-bold">DÍAS DE STOCK</p><p className={`text-lg font-bold ${diasDeStock < 30 && diasDeStock !== Infinity ? 'text-red-600' : 'text-green-600'} ${shouldShowSpinner(product.venta_diaria || product.ventaDiaria, product, 'diasCobertura') ? 'text-blue-600' : ''}`}>{shouldShowSpinner(product.venta_diaria || product.ventaDiaria, product, 'diasCobertura') && <span className="inline-block animate-spin mr-1">⏳</span>}{formatDaysOfStock(diasDeStock, product)}</p></div>
                   </div>
                   
                   {/* Panel de IA Insights */}
@@ -2213,20 +2440,38 @@ export default function Dashboard() {
                     <h3 className="text-xl font-bold mb-4">Historial y Detalles del Proceso</h3>
                     <div className="grid lg:grid-cols-2 gap-6">
                         {detailStages.map((stage, index) => {
-                            const isPending = index > currentStatusIndex;
-                            
+                            // Get the workflow position of this stage's status
+                            const stageStatusIndex = workflowOrder.indexOf(stage.statusKey);
+
+                            // Determine stage status based on actual workflow progression
+                            const isCompleted = stageStatusIndex !== -1 && stageStatusIndex < currentStatusIndex;
+                            const isCurrent = stageStatusIndex === currentStatusIndex;
+                            const isFuture = stageStatusIndex === -1 || stageStatusIndex > currentStatusIndex;
+
+                            // Only mark as "pending" (showing just "Pendiente") for future stages
+                            const isPending = isFuture;
+
                             // Definir qué roles pueden ver cada tipo de detalle
                             let allowedRoles = ['admin', 'chile']; // Por defecto solo admin y usuario1
-                            
+
                             // Usuario2 (china) puede ver solo sus propios detalles de cotización
                             if (stage.statusKey === 'QUOTE_REQUESTED') {
                                 allowedRoles = ['admin', 'chile', 'china']; // Todos pueden ver cotización
                             }
-                            
+
+                            // Special handling for quote rejection
                             if (product.status === 'QUOTE_REJECTED' && stage.statusKey === 'ANALYZING') {
-                                return renderDetailCard(stage.title, stage.data, product, false, allowedRoles);
+                                return <div key={stage.statusKey}>{renderDetailCard(stage.title, stage.data, product, false, allowedRoles)}</div>;
                             }
-                            return renderDetailCard(stage.title, stage.data, product, isPending, allowedRoles);
+
+                            // Skip stages that aren't part of the main workflow or are way ahead
+                            if (stageStatusIndex === -1) {
+                                return null;
+                            }
+
+                            // For completed and current stages, always show details (not pending)
+                            // For future stages, show as pending
+                            return <div key={stage.statusKey}>{renderDetailCard(stage.title, stage.data, product, isPending, allowedRoles)}</div>;
                         })}
                     </div>
                   </div>
@@ -2236,25 +2481,25 @@ export default function Dashboard() {
           })}
         </div>
 
-        {/* Indicador de carga y botón "Cargar más" */}
+        {/* Controles de carga manual */}
         <div className="mt-6 space-y-4">
-          {loadingMore && (
-            <div className="text-center py-4">
-              <div className="inline-flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-lg border border-blue-200">
-                <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
-                <span className="text-blue-700 font-medium">Cargando más productos...</span>
-              </div>
-            </div>
-          )}
-          
-          {hasMore && !loadingMore && (
+          {!isProgressiveLoading && hasMore && !loadingMore && (
             <div className="text-center">
               <button
                 onClick={loadMore}
                 className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-colors font-medium shadow-lg"
               >
-                📦 Cargar más productos
+                📦 Cargar más productos manualmente
               </button>
+            </div>
+          )}
+
+          {loadingMore && !isProgressiveLoading && (
+            <div className="text-center py-4">
+              <div className="inline-flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-lg border border-blue-200">
+                <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                <span className="text-blue-700 font-medium">Cargando más productos...</span>
+              </div>
             </div>
           )}
           
@@ -2271,27 +2516,22 @@ export default function Dashboard() {
                       ({metadata.processed} procesados en esta página)
                     </span>
                   )}
-                  {metadata.processingTime && (
-                    <span className="ml-2 text-xs text-green-600">
-                      ⚡ {metadata.processingTime}
-                    </span>
-                  )}
-                  
-                  {/* Resumen de impacto económico total */}
+
+                  {/* Resumen de impacto económico total - MOVIDO AL TOPE */}
                   {(() => {
                     const impactoTotal = filteredProducts
                       .filter(p => p.cantidadSugerida > 0)
                       .reduce((sum, p) => sum + (p.impactoEconomico?.valorTotal || 0), 0);
-                    
+
                     const productosConReposicion = filteredProducts.filter(p => p.cantidadSugerida > 0).length;
-                    
+
                     if (impactoTotal > 0) {
                       return (
-                        <div className="ml-4 text-xs">
-                          <span className="font-bold text-green-700">
+                        <div className="mt-2 text-sm">
+                          <span className="font-bold text-green-700 text-base">
                             💰 Impacto Total: ${impactoTotal.toLocaleString('es-CL')}
                           </span>
-                          <span className="ml-2 text-gray-500">
+                          <span className="ml-2 text-gray-500 text-xs">
                             ({productosConReposicion} productos)
                           </span>
                         </div>
@@ -2299,6 +2539,12 @@ export default function Dashboard() {
                     }
                     return null;
                   })()}
+
+                  {metadata.processingTime && (
+                    <span className="ml-2 text-xs text-green-600">
+                      ⚡ {metadata.processingTime}
+                    </span>
+                  )}
                 </div>
                 
                 {/* Controles de modo de carga */}
