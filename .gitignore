@@ -41,3 +41,21 @@ next-env.d.ts
 # OS
 .DS_Store
 Thumbs.db
+
+# Source maps (ocultar código fuente)
+*.map
+*.js.map
+*.css.map
+
+# Bundle analyzer reports
+bundle-analyzer-report.html
+
+# Archivos de configuración sensibles
+.env.production
+.env.development
+
+# Cache y archivos temporales
+*.tmp
+*.temp
+cache_result.txt
+test_result.txt

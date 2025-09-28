@@ -2,13 +2,16 @@
 import '../styles/globals.css';
 import { UserProvider, useUser } from '../components/UserContext';
 import UserSelector from '../components/UserSelector';
+import SecurityWrapperSimple from '../components/SecurityWrapperSimple';
 
 function MyApp({ Component, pageProps }) {
   return (
-    <UserProvider>
-      <ConditionalUserSelector />
-      <Component {...pageProps} />
-    </UserProvider>
+    <SecurityWrapperSimple>
+      <UserProvider>
+        <ConditionalUserSelector />
+        <Component {...pageProps} />
+      </UserProvider>
+    </SecurityWrapperSimple>
   );
 }
 

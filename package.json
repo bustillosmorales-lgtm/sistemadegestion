@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:analyze": "set ANALYZE=true && next build",
+    "build:prod": "set NODE_ENV=production && next build",
     "start": "next start",
     "lint": "next lint",
     "export": "next build",
@@ -20,9 +22,15 @@
     "optimize-db": "node scripts/optimize-database.js optimize",
     "check-db": "node scripts/optimize-database.js check",
     "benchmark-db": "node scripts/optimize-database.js benchmark",
-    "update-precio-cache": "node scripts/update-precio-cache.js"
+    "update-precio-cache": "node scripts/update-precio-cache.js",
+    "cache-clean": "node scripts/dashboard-cache-manager.js clean",
+    "cache-refresh": "node scripts/dashboard-cache-manager.js refresh",
+    "cache-stats": "node scripts/dashboard-cache-manager.js stats",
+    "cache-optimize": "node scripts/dashboard-cache-manager.js optimize",
+    "cache-schedule": "node scripts/dashboard-cache-manager.js schedule"
   },
   "dependencies": {
+    "@babel/runtime": "^7.28.4",
     "@supabase/supabase-js": "^2.57.0",
     "autoprefixer": "^10.4.0",
     "axios": "^1.11.0",
@@ -32,13 +40,21 @@
     "jsonwebtoken": "^9.0.2",
     "next": "^14.2.3",
     "postcss": "^8.4.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "swr": "^2.2.5",
     "tailwindcss": "^3.4.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@netlify/plugin-nextjs": "^5.12.1"
+    "@babel/core": "^7.28.4",
+    "@babel/preset-env": "^7.28.3",
+    "@babel/preset-react": "^7.27.1",
+    "@netlify/plugin-nextjs": "^5.12.1",
+    "@next/bundle-analyzer": "^15.5.4",
+    "babel-loader": "^10.0.0",
+    "javascript-obfuscator": "^4.1.1",
+    "terser-webpack-plugin": "^5.3.14",
+    "webpack-obfuscator": "^3.5.1"
   }
 }
