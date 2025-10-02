@@ -27,7 +27,10 @@
     "cache-refresh": "node scripts/dashboard-cache-manager.js refresh",
     "cache-stats": "node scripts/dashboard-cache-manager.js stats",
     "cache-optimize": "node scripts/dashboard-cache-manager.js optimize",
-    "cache-schedule": "node scripts/dashboard-cache-manager.js schedule"
+    "cache-schedule": "node scripts/dashboard-cache-manager.js schedule",
+    "refresh-venta-diaria": "node scripts/refresh-venta-diaria-mv.js",
+    "populate-dashboard-cache": "node scripts/populate-dashboard-cache.js",
+    "daily-maintenance": "node scripts/daily-maintenance.js"
   },
   "dependencies": {
     "@babel/runtime": "^7.28.4",

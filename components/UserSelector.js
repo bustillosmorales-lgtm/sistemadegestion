@@ -1,4 +1,5 @@
 // components/UserSelector.js
+import React from 'react';
 import { useUser } from './UserContext';
 import { useRouter } from 'next/router';
 import useSWR from 'swr';
@@ -34,7 +35,7 @@ export default function UserSelector() {
       <span>Usuario actual: <strong>{user ? user.name : 'Ninguno'}</strong></span>
       <div className="flex gap-2">
         {users.map(userData => (
-          <button 
+          <button
             key={userData.id}
             onClick={() => handleLogin(userData)}
             disabled={user?.id === userData.id}

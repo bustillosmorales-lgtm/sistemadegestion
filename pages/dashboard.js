@@ -8,213 +8,99 @@ import ActionModal from '../components/ActionModal';
 import { useUser } from '../components/UserContext';
 import * as XLSX from 'xlsx';
 import { formatCurrency, formatNumber, formatDaysOfStock, formatPercentage, shouldShowSpinner } from '../utils/dataDisplayUtils';
+import { loadFromLocalStorage, saveToLocalStorage, clearLocalStorage } from '../lib/dashboardPersistence';
 
 const fetcher = (url) => fetch(url).then((res) => res.json());
 
-// Hook personalizado para carga híbrida: rápida inicial + completa en background
+// Hook personalizado con persistencia localStorage + carga progresiva optimizada
 const usePaginatedAnalysis = () => {
-  const [allProducts, setAllProducts] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
+  // 1. Intentar cargar desde localStorage primero (INSTANTÁNEO si existe)
+  const localCache = loadFromLocalStorage();
+
+  const [allProducts, setAllProducts] = useState(localCache?.data || []);
+  const [loading, setLoading] = useState(!localCache); // No loading si hay cache
   const [error, setError] = useState(null);
-  const [hasMore, setHasMore] = useState(true);
-  const [metadata, setMetadata] = useState(null);
-  const [offset, setOffset] = useState(0);
-  const [isEnhanced, setIsEnhanced] = useState(false); // Track if we have detailed data
+  const [metadata, setMetadata] = useState(localCache?.metadata || null);
   const [isProgressiveLoading, setIsProgressiveLoading] = useState(false);
-  const [progressiveLoadingProgress, setProgressiveLoadingProgress] = useState({ loaded: 0, total: 0 });
+  const [progressiveLoadingProgress, setProgressiveLoadingProgress] = useState({
+    loaded: localCache?.data?.length || 0,
+    total: localCache?.metadata?.total || 0
+  });
   const [progressiveLoadingController, setProgressiveLoadingController] = useState(null);
-  const limit = 50; // Carga inicial de 50 productos
   const progressiveLimit = 100; // Lotes de 100 para carga progresiva
 
-  const loadPage = async (pageOffset = 0, isLoadingMore = false, fastMode = true) => {
-    if (!isLoadingMore) setLoading(true);
-    else setLoadingMore(true);
-    
-    try {
-      // Use regular analysis endpoint
-      const endpoint = 'analysis';
-      // CACHE BUSTER - Force real prices display
-      const cacheBuster = Date.now();
-      const response = await fetch(`/api/${endpoint}?limit=${limit}&offset=${pageOffset}&v=${cacheBuster}`, {
-        cache: 'no-cache',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
-      });
-      if (!response.ok) throw new Error('Error loading data');
-      
-      const data = await response.json();
-      
-      console.log(`📊 Loaded ${data.results?.length || 0} products using ${endpoint} (${data.metadata?.processingTime || 'N/A'})`);
+  // 2. Función para cargar TODOS los productos progresivamente
+  const loadAllProducts = async (forceRefresh = false) => {
+    if (isProgressiveLoading) return;
 
-      // Debug: Log first 3 products to verify sorting
-      if (data.results && data.results.length > 0) {
-        const top3 = data.results.slice(0, 3).map(p => ({
-          sku: p.sku,
-          valorTotal: p.impactoEconomico?.valorTotal || 0,
-          precio: p.precio_venta_sugerido || 0
-        }));
-        console.log('🔍 Top 3 products by value:');
-        top3.forEach((p, i) => {
-          console.log(`  ${i+1}. SKU: ${p.sku} | Valor: $${p.valorTotal.toLocaleString()} | Precio: $${p.precio.toLocaleString()}`);
-        });
-      }
-
-      if (pageOffset === 0) {
-        // Primera carga - reemplazar datos
-        setAllProducts(data.results || []);
-        
-        // If using fast mode, schedule background enhancement
-        if (fastMode) {
-          setIsEnhanced(false);
-          scheduleBackgroundEnhancement(pageOffset);
-        } else {
-          setIsEnhanced(true);
-        }
-      } else {
-        // Cargar más - agregar datos
-        setAllProducts(prev => [...prev, ...(data.results || [])]);
-        
-        if (fastMode) {
-          scheduleBackgroundEnhancement(pageOffset);
-        }
-      }
-      
-      setMetadata(data.metadata);
-      setHasMore(data.metadata?.hasMore || false);
-      setError(null);
-    } catch (err) {
-      setError(err.message);
-      if (pageOffset === 0) setAllProducts([]);
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  };
-
-  // Schedule background processing for detailed calculations
-  const scheduleBackgroundEnhancement = async (pageOffset) => {
-    try {
-      // Schedule preload of next batch
-      await fetch('/api/background-processor', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'schedule_preload',
-          offset: pageOffset + limit,
-          limit: limit * 2 // Preload 2 pages ahead
-        })
-      });
-      
-      console.log('📅 Background processing scheduled');
-    } catch (error) {
-      console.error('Failed to schedule background processing:', error);
-    }
-  };
-
-  const loadMore = () => {
-    console.log('🔄 LoadMore clicked:', { hasMore, loadingMore, currentOffset: offset, newOffset: offset + limit });
-    if (hasMore && !loadingMore) {
-      const newOffset = offset + limit;
-      setOffset(newOffset);
-      loadPage(newOffset, true, true); // Load more with fast mode (analysis sin cache problemático)
-    } else {
-      console.log('❌ LoadMore blocked:', { hasMore, loadingMore });
-    }
-  };
-
-  const refresh = () => {
-    setOffset(0);
-    setHasMore(true);
-    setIsEnhanced(false);
-    loadPage(0, false, true); // Refresh with fast mode
-  };
-
-  const loadDetailed = () => {
-    // Switch to detailed mode for current data
-    setOffset(0);
-    loadPage(0, false, false); // Load with full analysis
-  };
-
-  // Función para carga progresiva automática
-  const startProgressiveLoading = async () => {
-    if (isProgressiveLoading || !metadata?.total) return;
-
-    // Stop any existing progressive loading
-    if (progressiveLoadingController) {
-      progressiveLoadingController.abort();
-    }
+    console.log('🚀 Starting progressive load of all products...');
+    setIsProgressiveLoading(true);
+    setLoading(true);
 
     const controller = new AbortController();
     setProgressiveLoadingController(controller);
-    setIsProgressiveLoading(true);
 
-    const totalProducts = metadata.total;
-    let currentOffset = allProducts.length;
-
-    console.log('🚀 Starting progressive loading...', {
-      total: totalProducts,
-      currentLoaded: currentOffset,
-      remaining: totalProducts - currentOffset
-    });
-
-    setProgressiveLoadingProgress({ loaded: currentOffset, total: totalProducts });
+    let allLoaded = [];
+    let totalCount = 0;
+    let offset = 0;
 
     try {
-      while (currentOffset < totalProducts && !controller.signal.aborted) {
-        await new Promise(resolve => setTimeout(resolve, 1000)); // 1 segundo entre lotes
-
-        // Check if loading was stopped
-        if (controller.signal.aborted) break;
-
-        const response = await fetch(`/api/analysis?limit=${progressiveLimit}&offset=${currentOffset}&v=${Date.now()}`, {
-          signal: controller.signal
-        });
+      while (!controller.signal.aborted) {
+        // Usar API optimizada con cache
+        const response = await fetch(
+          `/api/analysis-cached?limit=${progressiveLimit}&offset=${offset}`,
+          { signal: controller.signal }
+        );
 
         if (!response.ok || controller.signal.aborted) break;
 
         const data = await response.json();
         if (!data.results || data.results.length === 0) break;
 
-        // Check again after async operation
-        if (controller.signal.aborted) break;
+        allLoaded = [...allLoaded, ...data.results];
+        totalCount = data.metadata?.total || totalCount;
 
-        // Agregar nuevos productos manteniendo el orden
-        setAllProducts(prev => [...prev, ...data.results]);
-        currentOffset += data.results.length;
+        // Actualizar UI en tiempo real
+        setAllProducts(allLoaded);
+        setMetadata(data.metadata);
+        setProgressiveLoadingProgress({
+          loaded: allLoaded.length,
+          total: totalCount
+        });
 
-        setProgressiveLoadingProgress({ loaded: currentOffset, total: totalProducts });
-
-        console.log(`📦 Progressive loading: ${currentOffset}/${totalProducts} products loaded`);
+        console.log(`📦 Loaded ${allLoaded.length}/${totalCount} products`);
 
         // Parar si se cargaron todos
-        if (currentOffset >= totalProducts) {
-          console.log('✅ Progressive loading completed - all products loaded');
-          // Show 100% completion for 2 seconds before hiding progress bar
-          setProgressiveLoadingProgress({ loaded: totalProducts, total: totalProducts });
+        if (allLoaded.length >= totalCount) {
+          console.log('✅ All products loaded');
+
+          // Guardar en localStorage para siguiente visita
+          saveToLocalStorage(allLoaded, data.metadata);
+
+          // Mostrar 100% por 2 segundos
           await new Promise(resolve => setTimeout(resolve, 2000));
           break;
         }
+
+        offset += progressiveLimit;
+        await new Promise(resolve => setTimeout(resolve, 500)); // 0.5s entre lotes
       }
+
+      setError(null);
+
     } catch (error) {
-      if (error.name === 'AbortError') {
-        console.log('⚠️ Progressive loading was cancelled');
-      } else {
+      if (error.name !== 'AbortError') {
         console.error('❌ Progressive loading error:', error);
+        setError(error.message);
       }
     } finally {
       setIsProgressiveLoading(false);
       setProgressiveLoadingController(null);
-      if (currentOffset >= totalProducts) {
-        console.log('✅ Progressive loading completed successfully');
-      }
+      setLoading(false);
     }
   };
 
-  // Detener carga progresiva
+  // 3. Detener carga progresiva
   const stopProgressiveLoading = () => {
     if (progressiveLoadingController) {
       progressiveLoadingController.abort();
@@ -224,22 +110,37 @@ const usePaginatedAnalysis = () => {
     console.log('🛑 Progressive loading stopped by user');
   };
 
+  // 4. Invalidar cache y recargar
+  const refresh = () => {
+    console.log('🔄 Refreshing dashboard...');
+    clearLocalStorage();
+    setAllProducts([]);
+    setMetadata(null);
+    loadAllProducts(true);
+  };
+
+  // 5. useEffect para cargar datos si no hay cache
   useEffect(() => {
-    loadPage(0, false, true); // Initial load with fast mode
+    if (!localCache) {
+      // No hay cache, cargar todo
+      console.log('📥 No cache found, loading all products...');
+      loadAllProducts();
+    } else {
+      // Hay cache, verificar si está completo
+      console.log(`✅ Using cached data (${localCache.data.length} products)`);
+
+      // Si el cache no está completo, cargar el resto en background
+      const total = localCache.metadata?.total || 0;
+      if (localCache.data.length < total) {
+        console.log(`📥 Cache incomplete (${localCache.data.length}/${total}), loading rest in background...`);
+        setTimeout(() => {
+          loadAllProducts();
+        }, 2000); // Esperar 2s para que el usuario vea los datos en cache primero
+      }
+    }
   }, []);
 
-  // Iniciar carga progresiva automáticamente después de la carga inicial
-  useEffect(() => {
-    if (metadata?.total && allProducts.length > 0 && allProducts.length < metadata.total && !isProgressiveLoading) {
-      const timer = setTimeout(() => {
-        startProgressiveLoading();
-      }, 2000); // Esperar 2 segundos después de la carga inicial
-
-      return () => clearTimeout(timer);
-    }
-  }, [metadata, allProducts.length]);
-
-  // Cleanup progressive loading on unmount
+  // 6. Cleanup on unmount
   useEffect(() => {
     return () => {
       if (progressiveLoadingController) {
@@ -248,20 +149,17 @@ const usePaginatedAnalysis = () => {
     };
   }, [progressiveLoadingController]);
 
+  // 7. Return API del hook
   return {
     products: allProducts,
     loading,
-    loadingMore,
     error,
-    hasMore,
     metadata,
-    isEnhanced,
-    loadMore,
-    refresh,
-    loadDetailed,
     isProgressiveLoading,
     progressiveLoadingProgress,
-    stopProgressiveLoading
+    stopProgressiveLoading,
+    refresh,
+    cacheAge: localCache?.timestamp ? Date.now() - localCache.timestamp : null
   };
 };
 
@@ -353,21 +251,17 @@ export default function Dashboard() {
   const { user, isAuthenticated, isLoading, logout } = useUser();
 
 
-  // Usar el nuevo hook paginado en lugar de SWR estándar
+  // Usar el nuevo hook optimizado con persistencia
   const {
     products: data,
     loading: analysisLoading,
-    loadingMore,
     error,
-    hasMore,
     metadata,
-    isEnhanced,
-    loadMore,
-    refresh,
-    loadDetailed,
     isProgressiveLoading,
     progressiveLoadingProgress,
-    stopProgressiveLoading
+    stopProgressiveLoading,
+    refresh,
+    cacheAge
   } = usePaginatedAnalysis();
   
   const { data: reminders } = useSWR('/api/reminders', fetcher);
@@ -1799,8 +1693,78 @@ export default function Dashboard() {
             <div className="flex justify-between items-center mb-4">
                 <div>
                     <img src="/logo.png" alt="Logo Dashboard" className="h-8 md:h-10" />
+
+                    {/* INDICADOR DE INTEGRIDAD Y COMPLETITUD */}
+                    {isProgressiveLoading && (
+                      <div className="mt-2 mb-3 bg-gradient-to-r from-blue-50 to-green-50 border-2 border-blue-200 rounded-lg p-3 shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <div className="animate-spin text-xl">⚙️</div>
+                            <span className="font-semibold text-blue-900">
+                              Cargando análisis completo...
+                            </span>
+                          </div>
+                          <span className="text-sm font-mono text-blue-700">
+                            {progressiveLoadingProgress.loaded}/{progressiveLoadingProgress.total} SKUs
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                          <div
+                            className="bg-gradient-to-r from-blue-500 to-green-500 h-3 rounded-full transition-all duration-300 flex items-center justify-end pr-2"
+                            style={{ width: `${(progressiveLoadingProgress.loaded / progressiveLoadingProgress.total * 100) || 0}%` }}
+                          >
+                            <span className="text-xs font-bold text-white drop-shadow">
+                              {Math.round((progressiveLoadingProgress.loaded / progressiveLoadingProgress.total * 100) || 0)}%
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={stopProgressiveLoading}
+                          className="mt-2 text-xs text-red-600 hover:text-red-800 font-medium"
+                        >
+                          🛑 Detener carga
+                        </button>
+                      </div>
+                    )}
+
+                    {!isProgressiveLoading && data.length >= (metadata?.total || 0) && data.length > 0 && (
+                      <div className="mt-2 mb-3 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg p-3 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <div className="text-2xl">✅</div>
+                          <div>
+                            <div className="font-bold text-green-900">
+                              Integridad Garantizada - Todos los SKUs Analizados
+                            </div>
+                            <div className="text-sm text-green-700 flex items-center gap-4">
+                              <span>📊 {data.length} productos cargados</span>
+                              <span>💾 Ordenados por valor de reposición</span>
+                              {cacheAge && (
+                                <span>🕐 Datos de hace {Math.round(cacheAge / 1000 / 60)} minutos</span>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            onClick={refresh}
+                            className="ml-auto bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-sm font-medium"
+                            title="Recargar todos los datos desde el servidor"
+                          >
+                            🔄 Actualizar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {analysisLoading && !isProgressiveLoading && data.length === 0 && (
+                      <div className="mt-2 mb-3 bg-yellow-50 border-2 border-yellow-300 rounded-lg p-3">
+                        <div className="flex items-center gap-2">
+                          <div className="animate-pulse text-xl">⏳</div>
+                          <span className="text-yellow-900 font-medium">Cargando dashboard...</span>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-4">
-                        <p className="text-sm text-gray-600">Sesión: <span className="font-semibold">{user.name}</span> ({user.role}) - {filteredProducts.length} productos</p>
+                        <p className="text-sm text-gray-600">Sesión: <span className="font-semibold">{user.name}</span> ({user.role}) - {filteredProducts.length} productos mostrados</p>
                         <button
                             onClick={() => setShowNoActionItems(!showNoActionItems)}
                             className={`text-xs px-3 py-1 rounded-full transition-colors ${
@@ -2481,29 +2445,10 @@ export default function Dashboard() {
           })}
         </div>
 
-        {/* Controles de carga manual */}
-        <div className="mt-6 space-y-4">
-          {!isProgressiveLoading && hasMore && !loadingMore && (
-            <div className="text-center">
-              <button
-                onClick={loadMore}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-colors font-medium shadow-lg"
-              >
-                📦 Cargar más productos manualmente
-              </button>
-            </div>
-          )}
+        {/* La carga progresiva ahora es automática - no se necesitan controles manuales */}
 
-          {loadingMore && !isProgressiveLoading && (
-            <div className="text-center py-4">
-              <div className="inline-flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-lg border border-blue-200">
-                <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
-                <span className="text-blue-700 font-medium">Cargando más productos...</span>
-              </div>
-            </div>
-          )}
-          
-          {/* Información de progreso y controles de rendimiento */}
+        {/* Información de progreso y controles de rendimiento */}
+        <div className="mt-6 space-y-4">
           {metadata && (
             <div className="bg-gray-50 p-4 rounded-lg border">
               <div className="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -2547,29 +2492,19 @@ export default function Dashboard() {
                   )}
                 </div>
                 
-                {/* Controles de modo de carga */}
+                {/* Controles de actualización */}
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1">
-                    {isEnhanced ? (
-                      <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
-                        🔬 Análisis Completo
+                    {!isProgressiveLoading && data.length >= (metadata?.total || 0) ? (
+                      <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                        ✅ Todos los SKUs cargados
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-                        ⚡ Carga Rápida
+                      <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                        ⚡ Cargando en background
                       </span>
                     )}
-                    
-                    {!isEnhanced && (
-                      <button
-                        onClick={loadDetailed}
-                        className="ml-2 px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded-full transition-colors"
-                        title="Cargar análisis detallado con todos los cálculos"
-                      >
-                        📊 Cargar Detalles
-                      </button>
-                    )}
-                    
+
                     <button
                       onClick={refresh}
                       className="ml-2 px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white text-xs rounded-full transition-colors"
@@ -2604,7 +2539,7 @@ export default function Dashboard() {
             </div>
           )}
           
-          {!hasMore && products.length > 0 && (
+          {!isProgressiveLoading && products.length >= (metadata?.total || 0) && products.length > 0 && (
             <div className="text-center mt-4">
               <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
                 ✅ Todos los productos cargados

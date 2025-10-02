@@ -1,5 +1,5 @@
 // components/UserContext.js
-import { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect } from 'react';
 
 const UserContext = createContext(null);
 
@@ -73,12 +73,12 @@ export const UserProvider = ({ children }) => {
   };
 
   return (
-    <UserContext.Provider value={{ 
-      user, 
-      isAuthenticated, 
+    <UserContext.Provider value={{
+      user,
+      isAuthenticated,
       isLoading,
-      login, 
-      logout, 
+      login,
+      logout,
       authenticateWithPassword, // Mantener compatibilidad
       authenticateWithCode // Nueva función
     }}>

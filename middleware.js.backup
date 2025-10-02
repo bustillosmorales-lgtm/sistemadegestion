@@ -1,0 +1,53 @@
+import { NextResponse } from 'next/server';
+
+export function middleware(request) {
+  const response = NextResponse.next();
+
+  // Headers de seguridad para proteger el código fuente
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('X-XSS-Protection', '1; mode=block');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+
+  // Content Security Policy estricta
+  const csp = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Necesario para Next.js
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: https:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'"
+  ].join('; ');
+
+  response.headers.set('Content-Security-Policy', csp);
+
+  // Deshabilitar cache para archivos sensibles
+  if (request.nextUrl.pathname.startsWith('/api/') ||
+      request.nextUrl.pathname.startsWith('/_next/static/')) {
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+  }
+
+  // Headers adicionales anti-debugging
+  response.headers.set('X-Robots-Tag', 'noindex, nofollow, nosnippet, noarchive');
+  response.headers.set('X-Permitted-Cross-Domain-Policies', 'none');
+
+  return response;
+}
+
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    '/((?!_next/static|_next/image|favicon.ico).*)',
+  ],
+};

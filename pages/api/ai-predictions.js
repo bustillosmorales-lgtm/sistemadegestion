@@ -41,6 +41,17 @@ async function handleGetPredictions(req, res) {
 
         if (error) {
             console.error('Error obteniendo predicciones:', error);
+
+            // Si la tabla no existe, devolver datos vacíos en lugar de error 500
+            if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
+                console.log('Tabla ai_predictions no existe, devolviendo datos vacíos');
+                return res.status(200).json({
+                    predicciones: [],
+                    alertas: [],
+                    message: 'Servicio de predicciones IA no está disponible'
+                });
+            }
+
             return res.status(500).json({ error: 'Error obteniendo predicciones IA' });
         }
 
@@ -51,9 +62,20 @@ async function handleGetPredictions(req, res) {
             .eq('activo', true)
             .order('fecha_evento', { ascending: true });
 
+        // Si hay error obteniendo alertas, usar array vacío
+        let alertasResult = [];
+        if (alertasError) {
+            console.error('Error obteniendo alertas temporales:', alertasError);
+            if (alertasError.code === 'PGRST205' || alertasError.message?.includes('Could not find the table')) {
+                console.log('Tabla temporal_alerts no existe, usando array vacío');
+            }
+        } else {
+            alertasResult = alertas || [];
+        }
+
         return res.status(200).json({
             predicciones: predicciones || [],
-            alertas_temporales: alertas || [],
+            alertas_temporales: alertasResult,
             total: predicciones?.length || 0
         });
 

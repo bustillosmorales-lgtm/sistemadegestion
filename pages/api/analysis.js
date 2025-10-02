@@ -2,18 +2,17 @@
 import { supabase } from '../../lib/supabaseClient';
 import cache from '../../lib/cache';
 
-// Optimized batch calculation for venta diaria - reduces DB calls dramatically
+// Optimized batch calculation for venta diaria - uses materialized view
 export async function calculateVentaDiariaBatch(products) {
   const results = new Map();
   const cacheResults = new Map();
   const uncachedProducts = [];
 
-  // Check cache first
+  // Check memory cache first
   for (const product of products) {
     const cacheKey = `venta_diaria_${product.sku}`;
     const cachedResult = cache.get(cacheKey);
-    // TEMPORAL: Forzar recálculo para SKU 120
-    if (cachedResult && product.sku !== '120') {
+    if (cachedResult) {
       cacheResults.set(product.sku, cachedResult);
     } else {
       uncachedProducts.push(product);
@@ -27,118 +26,71 @@ export async function calculateVentaDiariaBatch(products) {
   try {
     const uncachedSkus = uncachedProducts.map(p => p.sku);
 
-    // Get ALL compras (without 30-day filter) - we'll apply 30-day logic per SKU
-    const { data: compras } = await supabase
-      .from('compras')
-      .select('sku, fecha_llegada_real')
-      .in('sku', uncachedSkus)
-      .not('fecha_llegada_real', 'is', null)
-      .order('fecha_llegada_real', { ascending: false });
+    console.log(`📊 Querying materialized view for ${uncachedSkus.length} SKUs...`);
 
-    // Get all ventas in one query
-    const { data: ventas } = await supabase
-      .from('ventas')
-      .select('sku, fecha_venta, cantidad')
-      .in('sku', uncachedSkus)
-      .order('fecha_venta', { ascending: true }); // First sale first, last sale last
+    // Query materialized view instead of calculating
+    const { data: ventaDiariaData, error: mvError } = await supabase
+      .from('sku_venta_diaria_mv')
+      .select('*')
+      .in('sku', uncachedSkus);
+
+    if (mvError) {
+      console.error('❌ Error querying materialized view:', mvError);
+      throw mvError;
+    }
+
+    console.log(`✅ Got ${ventaDiariaData?.length || 0} results from materialized view`);
+
+    // Convert to Map
+    const mvMap = new Map();
+    ventaDiariaData?.forEach(row => {
+      mvMap.set(row.sku, {
+        ventaDiaria: row.venta_diaria,
+        calculo_confiable: row.calculo_confiable,
+        fechasAnalisis: {
+          fechaInicio: row.fecha_inicio?.split('T')[0],
+          fechaFin: row.fecha_fin?.split('T')[0],
+          diasPeriodo: row.dias_periodo,
+          unidadesVendidas: row.total_vendido
+        }
+      });
+    });
 
     // Process each product
     for (const product of uncachedProducts) {
-      try {
-        const sku = product.sku;
-        const skuCompras = compras?.filter(c => c.sku === sku) || [];
-        const skuVentas = ventas?.filter(v => v.sku === sku) || [];
+      const sku = product.sku;
+      const mvData = mvMap.get(sku);
 
-        let fechaInicio = null;
-        const hoy = new Date();
-
-        // LÓGICA CORRECTA: Buscar llegada más reciente que tenga ≥30 días desde HOY
-        if (skuCompras.length > 0) {
-          for (const compra of skuCompras) {
-            const fechaLlegada = new Date(compra.fecha_llegada_real);
-            const diasDesdeHoy = Math.floor((hoy - fechaLlegada) / (1000 * 60 * 60 * 24));
-
-            if (diasDesdeHoy >= 30) {
-              fechaInicio = fechaLlegada;
-              console.log(`📦 SKU ${sku}: Usando llegada ${fechaLlegada.toISOString().split('T')[0]} (${diasDesdeHoy} días atrás)`);
-              break; // Tomar la más reciente que cumpla ≥30 días
-            }
-          }
-        }
-
-        // Si no hay llegadas válidas, usar primera venta
-        if (!fechaInicio && skuVentas.length > 0) {
-          fechaInicio = new Date(skuVentas[0].fecha_venta); // Primera venta (orden ascendente)
-          console.log(`🛒 SKU ${sku}: Sin llegadas válidas, usando primera venta: ${fechaInicio.toISOString().split('T')[0]}`);
-        }
-
-        // NUEVO: Si no hay llegadas ni ventas, usar fechas por defecto para análisis básico
-        if (!fechaInicio) {
-          fechaInicio = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000); // 90 días atrás
-          console.log(`⚠️ SKU ${sku}: Sin datos históricos, usando período por defecto: ${fechaInicio.toISOString().split('T')[0]}`);
-        }
-
-
-        // CORRECCIÓN: Calculate end date based on stock status
-        let fechaFin = new Date();
-
-        // Si el producto NO tiene stock
-        if ((product.stock_actual || 0) <= 0) {
-          if (product.last_stockout_date) {
-            // Usar fecha de último quiebre registrada
-            fechaFin = new Date(product.last_stockout_date);
-            console.log(`📅 SKU ${sku}: Sin stock, usando fecha quiebre registrada: ${fechaFin.toISOString().split('T')[0]}`);
-          } else if (skuVentas.length > 0) {
-            // Fallback: usar fecha de última venta
-            fechaFin = new Date(skuVentas[skuVentas.length - 1].fecha_venta); // Última venta (orden ascendente)
-            console.log(`📅 SKU ${sku}: Sin stock, sin fecha quiebre, usando última venta: ${fechaFin.toISOString().split('T')[0]}`);
-          }
-          // Si no tiene ventas ni fecha de quiebre, usar HOY (fechaFin ya está en HOY)
-        }
-        
-        // Calculate days and total sales
-        const diffTime = fechaFin.getTime() - fechaInicio.getTime();
-        const diffDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-        
-        const ventasEnPeriodo = skuVentas.filter(v => {
-          const ventaDate = new Date(v.fecha_venta);
-          return ventaDate >= fechaInicio && ventaDate <= fechaFin;
-        });
-        
-        const totalVendido = ventasEnPeriodo.reduce((sum, venta) => sum + (venta.cantidad || 0), 0);
-        const ventaDiaria = totalVendido / diffDays;
-        
+      if (mvData && mvData.calculo_confiable) {
+        // Use data from materialized view
         const result = {
-          ventaDiaria,
-          fechasAnalisis: {
-            fechaInicio: fechaInicio.toISOString().split('T')[0],
-            fechaFin: fechaFin.toISOString().split('T')[0],
-            diasPeriodo: diffDays,
-            unidadesVendidas: totalVendido
-          }
+          ventaDiaria: mvData.ventaDiaria,
+          esCalculoConfiable: true,
+          fechasAnalisis: mvData.fechasAnalisis
         };
-
-        // DEBUG: Log para verificar fechas
-        console.log(`🔍 SKU ${sku}: fechaInicio=${result.fechasAnalisis.fechaInicio}, fechaFin=${result.fechasAnalisis.fechaFin}`);
-
         results.set(sku, result);
-        cache.set(`venta_diaria_${sku}`, result, 30 * 60 * 1000);
-        
-      } catch (skuError) {
-        console.error(`Error procesando SKU ${sku}:`, skuError);
-        const errorResult = { ventaDiaria: 0, fechasAnalisis: null };
-        results.set(sku, errorResult);
-        cache.set(`venta_diaria_${sku}`, errorResult, 5 * 60 * 1000);
+        cache.set(`venta_diaria_${sku}`, result, 60 * 60 * 1000); // Cache 1 hora
+      } else {
+        // No reliable data - mark as insufficient
+        const result = {
+          ventaDiaria: 0,
+          esCalculoConfiable: false,
+          fechasAnalisis: mvData?.fechasAnalisis || null
+        };
+        results.set(sku, result);
+        cache.set(`venta_diaria_${sku}`, result, 30 * 60 * 1000); // Cache 30min
       }
     }
-    
+
   } catch (error) {
-    console.error('Error en cálculo batch venta diaria:', error);
-    // Return cached results and empty results for uncached SKUs
-    for (const sku of uncachedSkus) {
-      if (!results.has(sku)) {
-        results.set(sku, { ventaDiaria: 0, fechasAnalisis: null });
-      }
+    console.error('❌ Error en cálculo batch venta diaria:', error);
+    // Fallback: mark all as insufficient
+    for (const product of uncachedProducts) {
+      results.set(product.sku, {
+        ventaDiaria: 0,
+        esCalculoConfiable: false,
+        fechasAnalisis: null
+      });
     }
   }
 

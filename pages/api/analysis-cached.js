@@ -310,8 +310,47 @@ export default async function handler(req, res) {
       let cantidadSugerida = 0;
 
       // Declare these variables at top level for proper scope
-      let ventaDiaria = ventaDiariaMap[product.sku] || 0.1;
+      let ventaDiaria = ventaDiariaMap[product.sku] || null;
       let ventaDiariaCalculada = !!ventaDiariaMap[product.sku];
+      let datosInsuficientes = !ventaDiariaCalculada;
+
+      // Si no hay datos suficientes, retornar marcado como insuficiente
+      if (datosInsuficientes) {
+        return {
+          sku: product.sku,
+          descripcion: product.descripcion,
+          status: product.status,
+          stock_actual: stockActual,
+          precio_venta_sugerido: precioVenta,
+          venta_diaria: null,
+          ventaDiariaCalculada: false,
+          datosInsuficientes: true,
+          enTransito: stockEnTransitoMap[product.sku] || 0,
+          cantidadSugerida: null,
+          stockObjetivo: null,
+          stockProyectadoLlegada: null,
+          consumoDuranteLeadTime: null,
+          leadTimeDias: leadTimeDias,
+          request_details: product.request_details,
+          quote_details: product.quote_details,
+          analysis_details: product.analysis_details,
+          price_modification_details: null,
+          approval_details: product.approval_details,
+          purchase_details: product.purchase_details,
+          manufacturing_details: product.manufacturing_details,
+          shipping_details: product.shipping_details,
+          impactoEconomico: {
+            valorTotal: 0,
+            precioPromedioReal: 0,
+            prioridad: 'N/A',
+            estimado: false,
+            mensaje: '⚠️ Datos insuficientes para cálculo'
+          },
+          essential: true,
+          fromCache: false,
+          calculating: false
+        };
+      }
 
       if (precioVenta > 0) {
 
@@ -319,6 +358,45 @@ export default async function handler(req, res) {
         const ventaDiariaDetails = await getVentaDiariaDetails(product.sku, ventaDiaria, ventaDiariaCalculada);
         ventaDiaria = ventaDiariaDetails.realTimeVentaDiaria;
         ventaDiariaCalculada = ventaDiariaDetails.esCalculoReal;
+
+        // Re-check if data is still insufficient after real-time calculation
+        if (!ventaDiaria || ventaDiaria <= 0) {
+          datosInsuficientes = true;
+          return {
+            sku: product.sku,
+            descripcion: product.descripcion,
+            status: product.status,
+            stock_actual: stockActual,
+            precio_venta_sugerido: precioVenta,
+            venta_diaria: null,
+            ventaDiariaCalculada: false,
+            datosInsuficientes: true,
+            enTransito: stockEnTransitoMap[product.sku] || 0,
+            cantidadSugerida: null,
+            stockObjetivo: null,
+            stockProyectadoLlegada: null,
+            consumoDuranteLeadTime: null,
+            leadTimeDias: leadTimeDias,
+            request_details: product.request_details,
+            quote_details: product.quote_details,
+            analysis_details: product.analysis_details,
+            price_modification_details: null,
+            approval_details: product.approval_details,
+            purchase_details: product.purchase_details,
+            manufacturing_details: product.manufacturing_details,
+            shipping_details: product.shipping_details,
+            impactoEconomico: {
+              valorTotal: 0,
+              precioPromedioReal: 0,
+              prioridad: 'N/A',
+              estimado: false,
+              mensaje: '⚠️ Datos insuficientes para cálculo'
+            },
+            essential: true,
+            fromCache: false,
+            calculating: false
+          };
+        }
 
         // Debug for specific SKU
         if (product.sku === '649762430948') {
@@ -369,6 +447,7 @@ export default async function handler(req, res) {
         precio_venta_sugerido: precioVenta,
         venta_diaria: ventaDiaria,
         ventaDiariaCalculada: ventaDiariaCalculada,
+        datosInsuficientes: false, // Datos suficientes para cálculo
         enTransito: stockEnTransitoMap[product.sku] || 0,
         cantidadSugerida: cantidadSugerida,
         stockObjetivo: Math.round(ventaDiaria * stockSaludableMinDias),
