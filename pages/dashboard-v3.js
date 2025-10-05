@@ -218,7 +218,6 @@ export default function DashboardV3() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
   const [downloadingStatus, setDownloadingStatus] = useState(null);
-  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const fileInputRef = useRef(null);
 
   // Redireccionar si no está autenticado
@@ -313,25 +312,6 @@ export default function DashboardV3() {
     }
   };
 
-  // Función para descargar bases de datos
-  const handleDownloadDatabase = async (dbType) => {
-    setShowDownloadMenu(false);
-    try {
-      const endpoints = {
-        ventas: '/api/export-ventas',
-        compras: '/api/export-compras',
-        contenedores: '/api/export-contenedores'
-      };
-
-      const endpoint = endpoints[dbType];
-      const filename = `${dbType}_${new Date().toISOString().split('T')[0]}.xlsx`;
-
-      await downloadExcel(endpoint, filename);
-    } catch (error) {
-      alert('Error descargando base de datos: ' + error.message);
-    }
-  };
-
   // Función para subir Excel
   const handleFileUpload = async (event) => {
     const file = event.target.files?.[0];
@@ -386,76 +366,17 @@ export default function DashboardV3() {
                   Rol: <span className="font-semibold uppercase">{user.role}</span>
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <Link href="/dashboard-clasico">
-                  <button className="bg-gradient-to-r from-gray-600 to-gray-700 text-white px-3 py-2 rounded hover:from-gray-700 hover:to-gray-800 text-sm font-semibold" title="Volver al Dashboard Clásico">
-                    ⬅️ Dashboard Clásico
+              <div className="flex items-center gap-4">
+                <Link href="/dashboard">
+                  <button className="text-sm text-gray-600 hover:text-gray-900">
+                    Dashboard Clásico
                   </button>
                 </Link>
-                {user.role === 'admin' && (
-                  <Link href="/users">
-                    <button className="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 text-sm" title="Gestión de Usuarios">
-                      👥 Usuarios
-                    </button>
-                  </Link>
-                )}
-                <Link href="/config">
-                  <button className="bg-gray-600 text-white px-3 py-2 rounded hover:bg-gray-700 text-sm" title="Configuración del Sistema">
-                    ⚙️ Config
-                  </button>
-                </Link>
-                <Link href="/bulk-upload">
-                  <button className="bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700 text-sm" title="Cargar Datos Masivos">
-                    📤 Cargar
-                  </button>
-                </Link>
-                <Link href="/contenedores">
-                  <button className="bg-teal-600 text-white px-3 py-2 rounded hover:bg-teal-700 text-sm" title="Gestión de Contenedores">
-                    🚢 Contened.
-                  </button>
-                </Link>
-                <Link href="/profile">
-                  <button className="bg-indigo-600 text-white px-3 py-2 rounded hover:bg-indigo-700 text-sm" title="Mi Cuenta">
-                    👤 Cuenta
-                  </button>
-                </Link>
-                <div className="relative">
-                  <button
-                    onClick={() => setShowDownloadMenu(!showDownloadMenu)}
-                    className="bg-purple-600 text-white px-3 py-2 rounded hover:bg-purple-700 text-sm" title="Descargar Bases de Datos"
-                  >
-                    💾 Descarga
-                  </button>
-                  {showDownloadMenu && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-50 border border-gray-200">
-                      <div className="py-1">
-                        <button
-                          onClick={() => handleDownloadDatabase('ventas')}
-                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        >
-                          📊 Base de Ventas
-                        </button>
-                        <button
-                          onClick={() => handleDownloadDatabase('compras')}
-                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        >
-                          🛒 Base de Compras
-                        </button>
-                        <button
-                          onClick={() => handleDownloadDatabase('contenedores')}
-                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        >
-                          🚢 Base de Contenedores
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
                 <button
                   onClick={logout}
-                  className="bg-red-600 text-white px-3 py-2 rounded hover:bg-red-700 text-sm" title="Cerrar Sesión"
+                  className="text-sm bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
                 >
-                  🚪 Salir
+                  Cerrar Sesión
                 </button>
               </div>
             </div>
@@ -464,7 +385,7 @@ export default function DashboardV3() {
 
         <div className="max-w-7xl mx-auto px-8 py-8">
           {/* RESUMEN GENERAL */}
-          <div className="grid grid-cols-6 gap-4 mb-8">
+          <div className="grid grid-cols-5 gap-4 mb-8">
             <StatCard
               title="Total SKUs"
               value={stats.summary?.totalProducts || 0}
@@ -483,13 +404,6 @@ export default function DashboardV3() {
               value={stats.summary?.activeWorkflow || 0}
               icon="🔄"
               color="yellow"
-            />
-            <StatCard
-              title="Órdenes Activas"
-              value={stats.summary?.activeOrders || 0}
-              icon="📋"
-              color="orange"
-              highlight={(stats.summary?.activeOrders || 0) > 0}
             />
             <StatCard
               title="En Tránsito"
@@ -568,48 +482,8 @@ export default function DashboardV3() {
                   <div className="text-2xl font-bold text-gray-700">{stats.summary.disregarded}</div>
                 </div>
               )}
-              {stats.summary?.activeOrders > 0 && (
-                <div className="bg-orange-50 border border-orange-300 rounded-lg p-4">
-                  <div className="text-sm text-gray-600 mb-1">📋 Con Órdenes Activas</div>
-                  <div className="text-2xl font-bold text-orange-700">{stats.summary.activeOrders}</div>
-                </div>
-              )}
             </div>
           </div>
-
-          {/* ALERTA DE ÓRDENES ACTIVAS */}
-          {stats.summary?.activeOrders > 0 && (
-            <div className="mb-8 p-6 bg-gradient-to-r from-orange-50 to-yellow-50 border-2 border-orange-300 rounded-lg shadow-lg">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <h3 className="text-xl font-bold mb-2 flex items-center text-orange-800">
-                    <span className="mr-2">📋</span>
-                    Productos con Órdenes de Compra Activas
-                  </h3>
-                  <p className="text-gray-700 text-sm mb-3">
-                    Hay <strong>{stats.summary.activeOrders}</strong> productos con órdenes de compra en proceso.
-                    Estos productos pueden aparecer en múltiples estados del flujo simultáneamente.
-                  </p>
-                  {stats.activeOrdersProducts && stats.activeOrdersProducts.length > 0 && (
-                    <div className="mt-3">
-                      <p className="text-xs text-gray-600 mb-2">Ejemplos de productos con órdenes activas:</p>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {stats.activeOrdersProducts.slice(0, 6).map(product => (
-                          <div key={product.sku} className="bg-white border border-orange-200 rounded p-2 text-xs">
-                            <div className="font-semibold text-orange-800">{product.sku}</div>
-                            <div className="text-gray-600 truncate">{product.descripcion}</div>
-                            <div className="text-orange-600 mt-1">
-                              En proceso: <strong>{product.totalEnProceso || 0}</strong> unidades
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* BOTÓN DE IMPORTAR (destacado arriba) */}
           <div className="mb-8 p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300 rounded-lg shadow-lg">
@@ -769,7 +643,7 @@ export default function DashboardV3() {
           {stats.summary?.reminders > 0 && (
             <div className="mb-8">
               <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg shadow-lg p-6 border-2 border-blue-300">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-2xl font-bold mb-2 flex items-center">
                       <span className="text-blue-600 mr-2">⏰</span>
@@ -797,37 +671,6 @@ export default function DashboardV3() {
                     )}
                   </button>
                 </div>
-
-                {/* Tabla de recordatorios */}
-                {stats.reminderProducts && stats.reminderProducts.length > 0 && (
-                  <div className="mt-4 overflow-x-auto">
-                    <table className="min-w-full bg-white border border-gray-300 rounded-lg">
-                      <thead className="bg-blue-100">
-                        <tr>
-                          <th className="px-4 py-2 text-left text-sm font-semibold text-blue-900 border-b">SKU</th>
-                          <th className="px-4 py-2 text-left text-sm font-semibold text-blue-900 border-b">Descripción</th>
-                          <th className="px-4 py-2 text-left text-sm font-semibold text-blue-900 border-b">Fecha Recordatorio</th>
-                          <th className="px-4 py-2 text-left text-sm font-semibold text-blue-900 border-b">Comentarios</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {stats.reminderProducts.slice(0, 20).map((product, index) => (
-                          <tr key={product.sku} className={index % 2 === 0 ? 'bg-blue-50' : 'bg-white'}>
-                            <td className="px-4 py-2 text-sm text-gray-900 border-b font-mono">{product.sku}</td>
-                            <td className="px-4 py-2 text-sm text-gray-700 border-b">{product.descripcion}</td>
-                            <td className="px-4 py-2 text-sm text-blue-700 border-b font-semibold">{product.remind_me_date}</td>
-                            <td className="px-4 py-2 text-sm text-gray-600 border-b italic">{product.remind_me_comments || '-'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {stats.reminderProducts.length > 20 && (
-                      <p className="text-xs text-blue-700 mt-2 text-center">
-                        Mostrando 20 de {stats.reminderProducts.length} productos. Descarga el Excel para ver todos.
-                      </p>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -836,7 +679,7 @@ export default function DashboardV3() {
           {stats.summary?.disregarded > 0 && (
             <div className="mb-8">
               <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg shadow-lg p-6 border-2 border-gray-300">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-2xl font-bold mb-2 flex items-center">
                       <span className="text-gray-600 mr-2">🚫</span>
@@ -864,35 +707,6 @@ export default function DashboardV3() {
                     )}
                   </button>
                 </div>
-
-                {/* Tabla de productos desconsiderados */}
-                {stats.disregardedProducts && stats.disregardedProducts.length > 0 && (
-                  <div className="mt-4 overflow-x-auto">
-                    <table className="min-w-full bg-white border border-gray-300 rounded-lg">
-                      <thead className="bg-gray-200">
-                        <tr>
-                          <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700 border-b">SKU</th>
-                          <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700 border-b">Descripción</th>
-                          <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700 border-b">Stock Actual</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {stats.disregardedProducts.slice(0, 20).map((product, index) => (
-                          <tr key={product.sku} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
-                            <td className="px-4 py-2 text-sm text-gray-900 border-b font-mono">{product.sku}</td>
-                            <td className="px-4 py-2 text-sm text-gray-700 border-b">{product.descripcion}</td>
-                            <td className="px-4 py-2 text-sm text-gray-700 border-b text-center">{product.stock_actual || 0}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {stats.disregardedProducts.length > 20 && (
-                      <p className="text-xs text-gray-600 mt-2 text-center">
-                        Mostrando 20 de {stats.disregardedProducts.length} productos. Descarga el Excel para ver todos.
-                      </p>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
           )}

@@ -95,7 +95,14 @@
       "Bash(del .next /s /q)",
       "Bash(del \"pages\\api\\analysis-fast.js\")",
       "Bash(del pagesapi_middleware.js)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Read(//c/Users/franc/Downloads/ejemplo/**)",
+      "Bash(PORT=3013 npm run dev)",
+      "Bash(del debug-sku.js)",
+      "Bash(echo:*)",
+      "Bash(read)",
+      "Bash(npm test)",
+      "Bash(npx jest:*)"
     ],
     "deny": [],
     "ask": []

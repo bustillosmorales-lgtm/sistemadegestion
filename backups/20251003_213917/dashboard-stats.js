@@ -41,7 +41,7 @@ export default async function handler(req, res) {
     while (hasMore) {
       const { data: statusPage, error: statusError } = await supabase
         .from('products')
-        .select('status, sku, descripcion, stock_actual')
+        .select('status, sku, descripcion, stock_actual, desconsiderado')
         .not('status', 'is', null)
         .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
 
@@ -65,65 +65,22 @@ export default async function handler(req, res) {
     const statusCounts = allStatusCounts;
     console.log(`📊 Total productos analizados: ${statusCounts.length}`);
 
-    // Definir today al inicio para asegurar disponibilidad
-    const today = new Date().toISOString().split('T')[0];
-
     // Obtener recordatorios desde la tabla replenishment_reminders
     const { data: remindersData, error: remindersError } = await supabase
       .from('replenishment_reminders')
       .select('*')
       .eq('is_active', true)
-      .order('reminder_date', { ascending: true});
+      .order('reminder_date', { ascending: true });
 
     if (remindersError) {
       console.error('⚠️ Error obteniendo recordatorios:', remindersError);
     }
 
+    const today = new Date().toISOString().split('T')[0];
     const activeReminders = (remindersData || []).filter(r => r.reminder_date > today);
     const reminderSkus = new Set(activeReminders.map(r => r.sku));
 
     console.log(`🔍 DEBUG: Recordatorios activos desde tabla: ${activeReminders.length}`);
-
-    // Obtener información de órdenes parciales
-    const { data: partialOrdersData, error: partialOrdersError } = await supabase
-      .from('products')
-      .select('sku, descripcion, stock_actual, primary_status, has_active_orders, total_cantidad_en_proceso')
-      .eq('has_active_orders', true)
-      .not('primary_status', 'in', '(RECEIVED,CANCELLED)');
-
-    let partialOrdersCount = 0;
-    const partialOrdersProducts = [];
-
-    if (!partialOrdersError && partialOrdersData) {
-      // Aquí necesitaríamos consultar purchase_orders para ver si son órdenes parciales
-      // Por ahora simplemente contamos productos con órdenes activas
-      partialOrdersCount = partialOrdersData.length;
-      partialOrdersProducts.push(...partialOrdersData.map(p => ({
-        sku: p.sku,
-        descripcion: p.descripcion,
-        stock_actual: p.stock_actual,
-        status: p.primary_status,
-        totalEnProceso: p.total_cantidad_en_proceso
-      })));
-    }
-
-    console.log(`🔍 DEBUG: Productos con órdenes activas: ${partialOrdersCount}`);
-
-    // Obtener productos desconsiderados
-    const { data: disregardedData, error: disregardedError } = await supabase
-      .from('products')
-      .select('sku, descripcion, stock_actual')
-      .eq('desconsiderado', true);
-
-    let disregardedCount = 0;
-    const disregardedProducts = [];
-
-    if (!disregardedError && disregardedData) {
-      disregardedCount = disregardedData.length;
-      disregardedProducts.push(...disregardedData);
-    }
-
-    console.log(`🔍 DEBUG: Productos desconsiderados: ${disregardedCount}`);
 
     // Procesar conteos por status
     const statusStats = {};
@@ -149,13 +106,30 @@ export default async function handler(req, res) {
       remind_me_comments: r.notes || ''
     }));
 
+    let disregardedCount = 0;
+    const disregardedProducts = [];
+
     (statusCounts || []).forEach(product => {
       const status = product.status;
 
-      // Filtrar recordatorios de NEEDS_REPLENISHMENT
+      // Contar desconsiderados
+      if (product.desconsiderado) {
+        disregardedCount++;
+        disregardedProducts.push({
+          sku: product.sku,
+          descripcion: product.descripcion,
+          stock_actual: product.stock_actual
+        });
+      }
+
+      // Filtrar recordatorios y desconsiderados de NEEDS_REPLENISHMENT
       if (status === 'NEEDS_REPLENISHMENT') {
         // No contar si tiene recordatorio activo
         if (reminderSkus.has(product.sku)) {
+          return;
+        }
+        // No contar si está desconsiderado
+        if (product.desconsiderado) {
           return;
         }
       }
@@ -212,14 +186,12 @@ export default async function handler(req, res) {
         needsAttention: needsAttention,
         noActionNeeded: statusTotals['NO_REPLENISHMENT_NEEDED'],
         reminders: activeReminders.length,
-        disregarded: disregardedCount,
-        activeOrders: partialOrdersCount
+        disregarded: disregardedCount
       },
       statusBreakdown: statusTotals,
       examples: examples,
       reminderProducts: reminderProducts,
       disregardedProducts: disregardedProducts,
-      activeOrdersProducts: partialOrdersProducts,
       workflowProgress: {
         pending: statusTotals['NEEDS_REPLENISHMENT'],
         inProcess: statusTotals['QUOTE_REQUESTED'] + statusTotals['QUOTED'] + statusTotals['ANALYZING'],

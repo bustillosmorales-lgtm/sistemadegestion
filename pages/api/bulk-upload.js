@@ -424,24 +424,39 @@ async function procesarContainers(containersData) {
 // Función para verificar y crear producto automáticamente
 async function verificarYCrearProducto(sku, descripcion, resultado) {
     try {
+        // Normalizar SKU
+        const skuLimpio = sku.toString().trim().replace(/["'`]/g, '').replace(/\s+/g, ' ');
+
         // Verificar si el producto existe (manejar caso donde no hay coincidencias)
         const { data: existingProduct, error: selectError } = await supabase
             .from('products')
             .select('sku')
-            .eq('sku', sku)
+            .eq('sku', skuLimpio)
             .maybeSingle(); // Usar maybeSingle en lugar de single para evitar errores cuando no existe
 
         if (selectError) {
-            throw new Error(`Error verificando producto ${sku}: ${selectError.message}`);
+            throw new Error(`Error verificando producto ${skuLimpio}: ${selectError.message}`);
         }
 
         if (!existingProduct) {
-            console.log(`📦 Creando producto automáticamente: ${sku}`);
-            
+            console.log(`📦 Creando producto automáticamente: ${skuLimpio}`);
+
+            // Verificación doble antes de insertar
+            const { data: doubleCheck } = await supabase
+                .from('products')
+                .select('sku')
+                .eq('sku', skuLimpio)
+                .maybeSingle();
+
+            if (doubleCheck) {
+                console.log(`✓ Producto ${skuLimpio} ya existe (verificación doble)`);
+                return;
+            }
+
             // Crear producto automáticamente (solo campos que existen en la tabla)
             const nuevoProducto = {
-                sku: sku.toString(),
-                descripcion: descripcion || `Producto ${sku} (Auto-creado)`,
+                sku: skuLimpio,
+                descripcion: descripcion || `Producto ${skuLimpio} (Auto-creado)`,
                 costo_fob_rmb: 1.0,
                 cbm: 0.01,
                 stock_actual: 0,
@@ -456,16 +471,21 @@ async function verificarYCrearProducto(sku, descripcion, resultado) {
                 .select();
 
             if (error) {
-                throw new Error(`No se pudo crear producto ${sku}: ${error.message}`);
+                // Si falla por duplicado, verificar si ya existe
+                if (error.code === '23505' || error.message.includes('duplicate') || error.message.includes('unique')) {
+                    console.log(`⚠️ Producto ${skuLimpio} ya fue creado por otro proceso (error de duplicado), continuando...`);
+                    return;
+                }
+                throw new Error(`No se pudo crear producto ${skuLimpio}: ${error.message}`);
             } else {
                 resultado.productosNuevos.push(data[0]);
-                console.log(`✅ Producto ${sku} creado automáticamente`);
-                
+                console.log(`✅ Producto ${skuLimpio} creado automáticamente`);
+
                 // Pequeña pausa para asegurar que se commitee la transacción
                 await new Promise(resolve => setTimeout(resolve, 100));
             }
         } else {
-            console.log(`✓ Producto ${sku} ya existe`);
+            console.log(`✓ Producto ${skuLimpio} ya existe`);
         }
     } catch (error) {
         console.error(`❌ Error en verificarYCrearProducto para ${sku}:`, error.message);
@@ -713,7 +733,7 @@ async function procesarProductos(productosData) {
                 // ACTUALIZAR producto existente - SOBRESCRIBIR todos los campos presentes
                 console.log(`🔄 Actualizando producto existente: ${skuLimpio}`);
                 console.log(`📝 Campos a actualizar:`, Object.keys(datosProducto).filter(k => k !== 'sku'));
-                
+
                 const { data, error } = await supabase
                     .from('products')
                     .update(datosProducto)
@@ -721,35 +741,76 @@ async function procesarProductos(productosData) {
                     .select();
 
                 if (error) throw error;
-                
+
                 console.log(`✅ Producto actualizado exitosamente: ${skuLimpio}`);
                 resultado.duplicados.push(data[0]); // En este contexto significa "actualizado"
 
             } else {
-                // CREAR nuevo producto
+                // CREAR nuevo producto - VERIFICAR QUE NO EXISTA PRIMERO
                 console.log(`📦 Creando nuevo producto: ${skuLimpio}`);
-                
-                // Valores por defecto para productos nuevos
-                const nuevoProducto = {
-                    ...datosProducto,
-                    descripcion: datosProducto.descripcion || `Producto ${skuLimpio}`,
-                    stock_actual: datosProducto.stock_actual ?? 0,
-                    costo_fob_rmb: datosProducto.costo_fob_rmb ?? 1.0,
-                    cbm: datosProducto.cbm ?? 0.01,
-                    status: datosProducto.status || 'NEEDS_REPLENISHMENT',
-                    link: datosProducto.link || '',
-                    desconsiderado: datosProducto.desconsiderado ?? false
-                };
 
-                const { data, error } = await supabase
+                // Verificación adicional antes de insertar
+                const { data: doubleCheck, error: doubleCheckError } = await supabase
                     .from('products')
-                    .insert(nuevoProducto)
-                    .select();
+                    .select('sku')
+                    .eq('sku', skuLimpio)
+                    .maybeSingle();
 
-                if (error) throw error;
-                
-                resultado.nuevos.push(data[0]);
-                resultado.productosNuevos.push(data[0]);
+                if (doubleCheckError) {
+                    throw new Error(`Error verificando duplicado ${skuLimpio}: ${doubleCheckError.message}`);
+                }
+
+                if (doubleCheck) {
+                    // El producto ya existe, actualizar en lugar de insertar
+                    console.log(`⚠️ Producto ${skuLimpio} ya existe (detectado en verificación doble), actualizando...`);
+
+                    const { data, error } = await supabase
+                        .from('products')
+                        .update(datosProducto)
+                        .eq('sku', skuLimpio)
+                        .select();
+
+                    if (error) throw error;
+                    resultado.duplicados.push(data[0]);
+                } else {
+                    // Valores por defecto para productos nuevos
+                    const nuevoProducto = {
+                        ...datosProducto,
+                        descripcion: datosProducto.descripcion || `Producto ${skuLimpio}`,
+                        stock_actual: datosProducto.stock_actual ?? 0,
+                        costo_fob_rmb: datosProducto.costo_fob_rmb ?? 1.0,
+                        cbm: datosProducto.cbm ?? 0.01,
+                        status: datosProducto.status || 'NEEDS_REPLENISHMENT',
+                        link: datosProducto.link || '',
+                        desconsiderado: datosProducto.desconsiderado ?? false
+                    };
+
+                    const { data, error } = await supabase
+                        .from('products')
+                        .insert(nuevoProducto)
+                        .select();
+
+                    if (error) {
+                        // Si falla por constraint de duplicado, intentar actualizar
+                        if (error.code === '23505' || error.message.includes('duplicate') || error.message.includes('unique')) {
+                            console.log(`⚠️ Error de duplicado detectado al insertar ${skuLimpio}, intentando actualizar...`);
+
+                            const { data: updateData, error: updateError } = await supabase
+                                .from('products')
+                                .update(datosProducto)
+                                .eq('sku', skuLimpio)
+                                .select();
+
+                            if (updateError) throw updateError;
+                            resultado.duplicados.push(updateData[0]);
+                        } else {
+                            throw error;
+                        }
+                    } else {
+                        resultado.nuevos.push(data[0]);
+                        resultado.productosNuevos.push(data[0]);
+                    }
+                }
             }
 
         } catch (error) {

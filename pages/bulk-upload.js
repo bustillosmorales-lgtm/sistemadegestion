@@ -18,6 +18,8 @@ export default function BulkUploadPage() {
     const [columnMapping, setColumnMapping] = useState({});
     const [validationResult, setValidationResult] = useState(null);
     const [fileInfo, setFileInfo] = useState(null);
+    const [showPurgeOption, setShowPurgeOption] = useState(false);
+    const [purgeConfirmed, setPurgeConfirmed] = useState(false);
 
     // Control de acceso
     useEffect(() => {
@@ -86,6 +88,52 @@ export default function BulkUploadPage() {
     };
 
     // Función parseCSV removida - ahora usa IntelligentFileParser
+
+    const handlePurgeDatabase = async () => {
+        if (!purgeConfirmed) {
+            setError('⚠️ Debes confirmar la depuración antes de continuar');
+            return;
+        }
+
+        const confirmMessage = `🚨 ADVERTENCIA: Estás a punto de ELIMINAR TODOS los datos de ${selectedTable}.\n\n` +
+                              `Esta acción NO se puede deshacer.\n\n` +
+                              `¿Estás ABSOLUTAMENTE SEGURO de continuar?`;
+
+        if (!confirm(confirmMessage)) {
+            setPurgeConfirmed(false);
+            return;
+        }
+
+        setIsUploading(true);
+        setError('⚙️ Depurando base de datos...');
+
+        try {
+            const response = await fetch('/api/purge-database', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tableType: selectedTable,
+                    user: user
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error al depurar base de datos');
+            }
+
+            const result = await response.json();
+            alert(`✅ Base de datos depurada exitosamente.\n\nRegistros eliminados: ${result.deletedCount}`);
+            setPurgeConfirmed(false);
+            setShowPurgeOption(false);
+            setError('');
+        } catch (err) {
+            console.error('Error depurando base de datos:', err);
+            setError('Error al depurar: ' + err.message);
+        } finally {
+            setIsUploading(false);
+        }
+    };
 
     const handleUpload = async () => {
         if (!uploadData || uploadData.length === 0) {
@@ -312,9 +360,13 @@ export default function BulkUploadPage() {
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                 🗃️ Tipo de Datos a Cargar
                             </label>
-                            <select 
+                            <select
                                 value={selectedTable}
-                                onChange={(e) => setSelectedTable(e.target.value)}
+                                onChange={(e) => {
+                                    setSelectedTable(e.target.value);
+                                    setShowPurgeOption(false);
+                                    setPurgeConfirmed(false);
+                                }}
                                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             >
                                 <option value="ventas">📈 Ventas</option>
@@ -323,6 +375,62 @@ export default function BulkUploadPage() {
                                 <option value="productos">📦 Productos</option>
                             </select>
                         </div>
+
+                        {/* Opción de depurar base de datos (solo para ventas, compras y contenedores) */}
+                        {selectedTable !== 'productos' && (
+                            <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
+                                <div className="flex items-start gap-3">
+                                    <input
+                                        type="checkbox"
+                                        id="show-purge"
+                                        checked={showPurgeOption}
+                                        onChange={(e) => {
+                                            setShowPurgeOption(e.target.checked);
+                                            if (!e.target.checked) setPurgeConfirmed(false);
+                                        }}
+                                        className="mt-1"
+                                    />
+                                    <div className="flex-1">
+                                        <label htmlFor="show-purge" className="font-semibold text-red-800 cursor-pointer">
+                                            🗑️ Depurar base de datos antes de cargar
+                                        </label>
+                                        <p className="text-sm text-red-700 mt-1">
+                                            Elimina TODOS los datos existentes de {selectedTable} antes de cargar los nuevos datos.
+                                            Útil para cargar todo desde cero.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {showPurgeOption && (
+                                    <div className="mt-4 pl-6 border-l-4 border-red-400">
+                                        <div className="flex items-start gap-3 mb-3">
+                                            <input
+                                                type="checkbox"
+                                                id="confirm-purge"
+                                                checked={purgeConfirmed}
+                                                onChange={(e) => setPurgeConfirmed(e.target.checked)}
+                                                className="mt-1"
+                                            />
+                                            <label htmlFor="confirm-purge" className="text-sm font-medium text-red-900 cursor-pointer">
+                                                ⚠️ CONFIRMO que deseo eliminar TODOS los datos de {selectedTable}
+                                            </label>
+                                        </div>
+
+                                        <button
+                                            onClick={handlePurgeDatabase}
+                                            disabled={!purgeConfirmed || isUploading}
+                                            className="w-full px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            {isUploading ? '⚙️ Depurando...' : '🗑️ Depurar Base de Datos'}
+                                        </button>
+
+                                        <p className="text-xs text-red-600 mt-2 font-medium">
+                                            ⚠️ Esta acción NO se puede deshacer. Todos los registros de {selectedTable} serán eliminados permanentemente.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         <div className="flex gap-4">
                             <button 

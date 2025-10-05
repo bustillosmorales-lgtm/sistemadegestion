@@ -2,7 +2,6 @@
 // NETLIFY FORCE BUILD: 2025-09-23
 import { supabase } from '../../lib/supabaseClient';
 import { getCalculationFromCache, calculateExactQuoteInfo } from '../../lib/exactCalculations';
-import { getActiveOrdersSummaryBatch, calculateReplenishmentStatus } from '../../lib/purchaseOrdersHelper';
 
 // Función para obtener venta diaria real (misma que quote modal)
 async function getVentaDiariaDetails(sku, ventaDiaria, ventaDiariaCalculada) {
@@ -259,12 +258,11 @@ export default async function handler(req, res) {
     console.log('📊 Skipping sku_analysis_cache (stale data) - using conservative calculation');
 
     // Batch query: Get stock en transito for all SKUs
-    // Incluye desde que se confirma la cotización hasta que llega el contenedor
     const { data: stockEnTransitoData } = await supabase
       .from('compras')
       .select('sku, cantidad')
       .in('sku', skuList)
-      .in('status_compra', ['confirmado', 'en_transito']);
+      .eq('status_compra', 'en_transito');
 
     // No ventaDiariaMap - we'll calculate conservatively for each SKU
 
@@ -280,11 +278,6 @@ export default async function handler(req, res) {
 
     console.log(`📊 Using exact calculations for ${skuList.length} SKUs (product-quote-info logic)`);
     console.log(`🚛 Stock en tránsito found for ${Object.keys(stockEnTransitoMap).length} SKUs`);
-
-    // Obtener órdenes activas para todos los SKUs
-    console.log(`📦 Obteniendo órdenes activas para ${skuList.length} SKUs...`);
-    const ordersSummaryMap = await getActiveOrdersSummaryBatch(skuList);
-    console.log(`✅ Órdenes obtenidas para ${ordersSummaryMap.size} SKUs`);
 
     // First get real venta diaria data for ALL SKUs in batch
     console.log(`🧮 Getting real venta diaria for ${skuList.length} SKUs from sku_analysis_cache...`);
@@ -443,20 +436,6 @@ export default async function handler(req, res) {
         }
       }
 
-      // Obtener info de órdenes para este SKU
-      const ordersSummary = ordersSummaryMap.get(product.sku) || {
-        hasOrders: false,
-        totalOrders: 0,
-        cantidadEnProceso: 0,
-        orders: []
-      };
-
-      // Calcular estado de reposición considerando órdenes
-      const replenishmentStatus = calculateReplenishmentStatus(
-        cantidadSugerida, // cantidad total necesaria
-        ordersSummary.cantidadEnProceso // cantidad en proceso
-      );
-
       // For products without prices, don't suggest replenishment
       const valorTotal = precioVenta * cantidadSugerida;
 
@@ -471,16 +450,6 @@ export default async function handler(req, res) {
         datosInsuficientes: false, // Datos suficientes para cálculo
         enTransito: stockEnTransitoMap[product.sku] || 0,
         cantidadSugerida: cantidadSugerida,
-        // NUEVOS CAMPOS - Sistema de múltiples órdenes
-        cantidadTotalNecesaria: replenishmentStatus.cantidadTotalNecesaria,
-        cantidadEnProceso: replenishmentStatus.cantidadEnProceso,
-        cantidadPendiente: replenishmentStatus.cantidadPendiente,
-        replenishmentStatus: replenishmentStatus.status,
-        replenishmentAlert: replenishmentStatus.alert,
-        needsAdditionalAction: replenishmentStatus.needsAction,
-        activeOrders: ordersSummary.orders,
-        totalActiveOrders: ordersSummary.totalOrders,
-        // FIN NUEVOS CAMPOS
         stockObjetivo: Math.round(ventaDiaria * stockSaludableMinDias),
         stockProyectadoLlegada: stockActual + (stockEnTransitoMap[product.sku] || 0) - Math.round(ventaDiaria * leadTimeDias),
         consumoDuranteLeadTime: Math.round(ventaDiaria * leadTimeDias),

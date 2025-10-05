@@ -30,7 +30,12 @@
     "cache-schedule": "node scripts/dashboard-cache-manager.js schedule",
     "refresh-venta-diaria": "node scripts/refresh-venta-diaria-mv.js",
     "populate-dashboard-cache": "node scripts/populate-dashboard-cache.js",
-    "daily-maintenance": "node scripts/daily-maintenance.js"
+    "daily-maintenance": "node scripts/daily-maintenance.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:unit": "jest __tests__/unit",
+    "test:integration": "jest __tests__/integration"
   },
   "dependencies": {
     "@babel/runtime": "^7.28.4",
@@ -40,6 +45,7 @@
     "cors": "^2.8.5",
     "crypto-js": "^4.2.0",
     "dotenv": "^17.2.2",
+    "formidable": "^3.5.4",
     "jsonwebtoken": "^9.0.2",
     "next": "^14.2.3",
     "postcss": "^8.4.0",
@@ -55,8 +61,11 @@
     "@babel/preset-react": "^7.27.1",
     "@netlify/plugin-nextjs": "^5.12.1",
     "@next/bundle-analyzer": "^15.5.4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
     "babel-loader": "^10.0.0",
     "javascript-obfuscator": "^4.1.1",
+    "jest": "^30.2.0",
     "terser-webpack-plugin": "^5.3.14",
     "webpack-obfuscator": "^3.5.1"
   }
