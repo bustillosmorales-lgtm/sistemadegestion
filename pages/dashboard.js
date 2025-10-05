@@ -387,11 +387,6 @@ export default function DashboardV3() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <Link href="/dashboard-clasico">
-                  <button className="bg-gradient-to-r from-gray-600 to-gray-700 text-white px-3 py-2 rounded hover:from-gray-700 hover:to-gray-800 text-sm font-semibold" title="Volver al Dashboard Clásico">
-                    ⬅️ Dashboard Clásico
-                  </button>
-                </Link>
                 {user.role === 'admin' && (
                   <Link href="/users">
                     <button className="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 text-sm" title="Gestión de Usuarios">
