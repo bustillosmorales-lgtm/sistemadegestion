@@ -54,21 +54,10 @@ export default async function handler(req, res) {
       });
     }
 
-    // 4. Calculate real-time venta diaria using analysis module
-    console.log('🔄 Calculating real-time venta diaria for dashboard cache...');
-
-    // Import analysis module for real-time calculations
-    const analysisModule = await import('./analysis.js');
-    const ventaDiariaResults = await analysisModule.calculateVentaDiariaBatch(products || []);
-
+    // 4. Use fallback venta diaria (simple cache doesn't calculate)
     const ventaDiariaMap = {};
     for (const product of products || []) {
-      const result = ventaDiariaResults.get(product.sku);
-      if (result && result.ventaDiaria > 0) {
-        ventaDiariaMap[product.sku] = result.ventaDiaria;
-      } else {
-        ventaDiariaMap[product.sku] = 0.1; // Fallback
-      }
+      ventaDiariaMap[product.sku] = 0.1; // Default fallback
     }
 
     // 5. Process and insert into cache
