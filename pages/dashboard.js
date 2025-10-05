@@ -1,5 +1,5 @@
 // pages/dashboard-v3.js - Dashboard ligero basado en Excel
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import useSWR from 'swr';
@@ -219,7 +219,32 @@ export default function DashboardV3() {
   const [uploadResult, setUploadResult] = useState(null);
   const [downloadingStatus, setDownloadingStatus] = useState(null);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [isRefreshingCache, setIsRefreshingCache] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Forzar refresh del cache al cargar el dashboard
+  useEffect(() => {
+    async function refreshCache() {
+      if (!isAuthenticated || isRefreshingCache) return;
+
+      setIsRefreshingCache(true);
+      try {
+        console.log('🔄 Refrescando cache de análisis...');
+        const response = await fetch('/api/analysis-cached?nocache=true');
+        const data = await response.json();
+        console.log('✅ Cache refrescado:', data.metadata);
+
+        // Después de refrescar el cache, recargar las estadísticas
+        mutate();
+      } catch (error) {
+        console.error('❌ Error refrescando cache:', error);
+      } finally {
+        setIsRefreshingCache(false);
+      }
+    }
+
+    refreshCache();
+  }, [isAuthenticated]); // Solo ejecutar cuando cambia isAuthenticated
 
   // Redireccionar si no está autenticado
   if (!isLoading && !isAuthenticated) {
@@ -227,12 +252,17 @@ export default function DashboardV3() {
     return null;
   }
 
-  if (isLoading || !stats) {
+  if (isLoading || !stats || isRefreshingCache) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Cargando dashboard...</p>
+          <p className="text-gray-600">
+            {isRefreshingCache ? 'Actualizando análisis de productos...' : 'Cargando dashboard...'}
+          </p>
+          {isRefreshingCache && (
+            <p className="text-sm text-gray-500 mt-2">Esto puede tomar 1-2 minutos</p>
+          )}
         </div>
       </div>
     );
@@ -493,7 +523,7 @@ export default function DashboardV3() {
               color="purple"
             />
             <StatCard
-              title="Stock Saludable"
+              title="Otros SKU"
               value={stats.summary?.noActionNeeded || 0}
               icon="✅"
               color="green"
@@ -742,7 +772,7 @@ export default function DashboardV3() {
             <div className="mb-8">
               <h2 className="text-2xl font-bold mb-4 flex items-center">
                 <span className="text-green-600 mr-2">✅</span>
-                Stock Saludable ({completedStatuses.reduce((sum, [s]) => sum + (stats.statusBreakdown?.[s] || 0), 0)})
+                Otros SKU ({completedStatuses.reduce((sum, [s]) => sum + (stats.statusBreakdown?.[s] || 0), 0)})
               </h2>
               <div className="space-y-4">
                 {completedStatuses.map(([status, config]) => (

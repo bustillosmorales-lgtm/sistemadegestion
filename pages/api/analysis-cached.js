@@ -1,49 +1,12 @@
 // pages/api/analysis-cached.js - API súper rápida usando cache de dashboard
 // NETLIFY FORCE BUILD: 2025-09-23
 import { supabase } from '../../lib/supabaseClient';
-import { getCalculationFromCache, calculateExactQuoteInfo } from '../../lib/exactCalculations';
 import { getActiveOrdersSummaryBatch, calculateReplenishmentStatus } from '../../lib/purchaseOrdersHelper';
 
-// Función para obtener venta diaria real (misma que quote modal)
+// Función para obtener venta diaria - usa el valor ya calculado desde la vista materializada
 async function getVentaDiariaDetails(sku, ventaDiaria, ventaDiariaCalculada) {
-  console.log(`🔄 Obteniendo venta diaria real para SKU ${sku}...`);
-
-  try {
-    // Importar la función del análisis principal
-    const analysisModule = await import('./analysis.js');
-    console.log(`📦 Módulo analysis importado para SKU ${sku}`);
-
-    // Obtener el producto completo para el cálculo
-    const { data: product } = await supabase
-      .from('products')
-      .select('*')
-      .eq('sku', sku)
-      .single();
-
-    if (product) {
-      console.log(`👤 Producto obtenido para SKU ${sku}, llamando calculateVentaDiariaBatch...`);
-      // Llamar al cálculo batch para obtener fechas reales
-      const ventaDiariaResults = await analysisModule.calculateVentaDiariaBatch([product]);
-      const result = ventaDiariaResults.get(sku);
-
-      if (result && result.fechasAnalisis) {
-        console.log(`✅ Venta diaria real obtenida para SKU ${sku}: ${result.ventaDiaria.toFixed(2)}`);
-        return {
-          realTimeVentaDiaria: parseFloat(result.ventaDiaria.toFixed(2)),
-          esCalculoReal: true
-        };
-      } else {
-        console.log(`❌ No se obtuvo venta diaria para SKU ${sku}:`, result);
-      }
-    } else {
-      console.log(`❌ No se encontró producto para SKU ${sku}`);
-    }
-  } catch (error) {
-    console.error(`Error obteniendo venta diaria real para ${sku}:`, error);
-  }
-
-  // Fallback a cache si falla el cálculo real
-  console.log(`🔄 Usando cache fallback para SKU ${sku}`);
+  // Simplemente retornar el valor que ya tenemos desde sku_venta_diaria_mv
+  // Este valor ya es el cálculo en tiempo real más preciso
   return {
     realTimeVentaDiaria: parseFloat(ventaDiaria),
     esCalculoReal: ventaDiariaCalculada

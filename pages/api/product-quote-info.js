@@ -1,47 +1,31 @@
 // pages/api/product-quote-info.js - Lightweight endpoint for quote modal
 import { supabase } from '../../lib/supabaseClient';
-import { saveCalculationToCache } from '../../lib/exactCalculations';
 
-// Función para obtener fechas reales del análisis
+// Función para obtener fechas reales desde la vista materializada
 async function getVentaDiariaDetails(sku, ventaDiaria, ventaDiariaCalculada) {
-  console.log(`🔄 Obteniendo fechas reales para SKU ${sku}...`);
+  console.log(`🔄 Obteniendo datos desde vista materializada para SKU ${sku}...`);
 
   try {
-    // Importar la función del análisis principal
-    const analysisModule = await import('./analysis.js');
-    console.log(`📦 Módulo analysis importado para SKU ${sku}`);
-
-    // Obtener el producto completo para el cálculo
-    const { data: product } = await supabase
-      .from('products')
+    // Obtener desde la vista materializada que ya tiene las fechas calculadas
+    const { data: ventaData } = await supabase
+      .from('sku_venta_diaria_mv')
       .select('*')
       .eq('sku', sku)
       .single();
 
-    if (product) {
-      console.log(`👤 Producto obtenido para SKU ${sku}, llamando calculateVentaDiariaBatch...`);
-      // Llamar al cálculo batch para obtener fechas reales
-      const ventaDiariaResults = await analysisModule.calculateVentaDiariaBatch([product]);
-      const result = ventaDiariaResults.get(sku);
-
-      if (result && result.fechasAnalisis) {
-        console.log(`✅ Fechas reales obtenidas para SKU ${sku}: ${result.fechasAnalisis.fechaInicio} - ${result.fechasAnalisis.fechaFin}`);
-        return {
-          fechaInicial: result.fechasAnalisis.fechaInicio,
-          fechaFinal: result.fechasAnalisis.fechaFin,
-          unidadesVendidas: result.fechasAnalisis.unidadesVendidas,
-          ventaDiariaCalculada: result.ventaDiaria.toFixed(2),
-          esCalculoReal: true,
-          mensaje: 'Fechas reales del análisis de venta diaria'
-        };
-      } else {
-        console.log(`❌ No se obtuvieron fechas para SKU ${sku}:`, result);
-      }
-    } else {
-      console.log(`❌ No se encontró producto para SKU ${sku}`);
+    if (ventaData) {
+      console.log(`✅ Fechas obtenidas desde vista materializada para SKU ${sku}`);
+      return {
+        fechaInicial: ventaData.fecha_inicio,
+        fechaFinal: ventaData.fecha_fin,
+        unidadesVendidas: ventaData.unidades_vendidas,
+        ventaDiariaCalculada: ventaData.venta_diaria_promedio.toFixed(2),
+        esCalculoReal: true,
+        mensaje: 'Fechas desde vista materializada'
+      };
     }
   } catch (error) {
-    console.error(`Error obteniendo fechas reales para ${sku}:`, error);
+    console.error(`Error obteniendo desde vista materializada para ${sku}:`, error);
   }
 
   // Fallback a fechas hardcodeadas si falla
@@ -221,10 +205,8 @@ export default async function handler(req, res) {
       config_used: config
     };
 
-    // Save to cache (fire and forget - don't wait for response)
-    saveCalculationToCache(calculationData).catch(error => {
-      console.error(`Error saving calculation to cache for ${sku}:`, error);
-    });
+    // Note: Cache saving removed - no longer needed
+    // The calculation is done in real-time for accuracy
 
     // 6. Create response
     const result = {
