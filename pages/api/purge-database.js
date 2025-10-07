@@ -28,7 +28,7 @@ export default async function handler(req, res) {
         tableName = 'compras';
         break;
       case 'containers':
-        tableName = 'contenedores';
+        tableName = 'containers';
         break;
       default:
         return res.status(400).json({ error: 'Tipo de tabla inválido' });

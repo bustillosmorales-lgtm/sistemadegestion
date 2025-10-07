@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Limpiar Productos "Requieren Atención"</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1400px;
+      margin: 20px auto;
+      padding: 20px;
+    }
+    h1 { color: #333; }
+    .actions {
+      margin: 20px 0;
+      padding: 15px;
+      background: #f0f0f0;
+      border-radius: 5px;
+    }
+    button {
+      background: #0070f3;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      cursor: pointer;
+      border-radius: 5px;
+      margin: 5px;
+      font-size: 14px;
+    }
+    button:hover { background: #0051cc; }
+    button.danger { background: #e00; }
+    button.danger:hover { background: #c00; }
+    button.warning { background: #ff9800; }
+    button.warning:hover { background: #e68900; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 15px;
+      margin: 20px 0;
+    }
+    .card {
+      border: 2px solid #ddd;
+      border-radius: 5px;
+      padding: 15px;
+    }
+    .card h3 {
+      margin-top: 0;
+      color: #0070f3;
+    }
+    .count {
+      font-size: 32px;
+      font-weight: bold;
+      color: #e00;
+    }
+    .product-list {
+      max-height: 200px;
+      overflow-y: auto;
+      font-size: 12px;
+      margin-top: 10px;
+      background: #f9f9f9;
+      padding: 10px;
+      border-radius: 3px;
+    }
+    .product-item {
+      padding: 5px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      background: #e7f3ff;
+      border-left: 4px solid #0070f3;
+      border-radius: 3px;
+      display: none;
+    }
+    .result.success {
+      background: #e7ffe7;
+      border-color: #0c0;
+    }
+    .result.error {
+      background: #ffe7e7;
+      border-color: #e00;
+    }
+    select {
+      padding: 8px;
+      border-radius: 5px;
+      border: 1px solid #ddd;
+      margin: 5px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧹 Limpiar Productos "Requieren Atención"</h1>
+  <p>Prepara el sistema para el test con datos reales mañana</p>
+
+  <div class="actions">
+    <h3>Opciones de Limpieza:</h3>
+
+    <div style="margin: 15px 0;">
+      <h4>1️⃣ Limpieza Total (Recomendado para reset completo)</h4>
+      <button onclick="resetAll('NO_REPLENISHMENT_NEEDED')" class="danger">
+        Resetear TODO → NO_REPLENISHMENT_NEEDED
+      </button>
+      <button onclick="resetAll('NEEDS_REPLENISHMENT')" class="warning">
+        Resetear TODO → NEEDS_REPLENISHMENT
+      </button>
+    </div>
+
+    <div style="margin: 15px 0;">
+      <h4>2️⃣ Limpieza por Status Individual</h4>
+      <select id="fromStatus">
+        <option value="QUOTE_REQUESTED">QUOTE_REQUESTED (4)</option>
+        <option value="QUOTED">QUOTED (11)</option>
+        <option value="ANALYZING">ANALYZING (16)</option>
+        <option value="PURCHASE_APPROVED">PURCHASE_APPROVED (3)</option>
+      </select>
+      →
+      <select id="toStatus">
+        <option value="NO_REPLENISHMENT_NEEDED">NO_REPLENISHMENT_NEEDED</option>
+        <option value="NEEDS_REPLENISHMENT">NEEDS_REPLENISHMENT</option>
+      </select>
+      <button onclick="resetByStatus()">Actualizar</button>
+    </div>
+
+    <div style="margin: 15px 0;">
+      <h4>3️⃣ Ver Detalles</h4>
+      <button onclick="loadProducts()">Cargar Lista de Productos</button>
+    </div>
+  </div>
+
+  <div id="productsGrid" class="grid"></div>
+
+  <div id="result" class="result"></div>
+
+  <script>
+    let productsData = null;
+
+    async function loadProducts() {
+      const grid = document.getElementById('productsGrid');
+      grid.innerHTML = '⏳ Cargando...';
+
+      try {
+        const response = await fetch('/api/clean-attention-products');
+        const data = await response.json();
+        productsData = data;
+
+        if (data.success) {
+          let html = '';
+
+          const statuses = ['QUOTE_REQUESTED', 'QUOTED', 'ANALYZING', 'PURCHASE_APPROVED'];
+          const labels = {
+            'QUOTE_REQUESTED': '📋 Quote Requested',
+            'QUOTED': '💰 Quoted',
+            'ANALYZING': '🔍 Analyzing',
+            'PURCHASE_APPROVED': '✅ Purchase Approved'
+          };
+
+          statuses.forEach(status => {
+            const statusData = data.byStatus[status];
+            html += `
+              <div class="card">
+                <h3>${labels[status]}</h3>
+                <div class="count">${statusData.count}</div>
+                <div class="product-list">
+            `;
+
+            if (statusData.products.length > 0) {
+              statusData.products.forEach(p => {
+                html += `
+                  <div class="product-item">
+                    <strong>${p.sku}</strong><br>
+                    ${p.descripcion || 'Sin descripción'}
+                  </div>
+                `;
+              });
+            } else {
+              html += '<p style="color: #999;">No hay productos</p>';
+            }
+
+            html += '</div></div>';
+          });
+
+          grid.innerHTML = html;
+        }
+      } catch (error) {
+        grid.innerHTML = `❌ Error: ${error.message}`;
+      }
+    }
+
+    async function resetAll(newStatus) {
+      const resultDiv = document.getElementById('result');
+      resultDiv.style.display = 'block';
+      resultDiv.className = 'result';
+      resultDiv.innerHTML = `⏳ Reseteando todos los productos a ${newStatus}...`;
+
+      try {
+        const response = await fetch('/api/clean-attention-products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'reset_all',
+            newStatus: newStatus
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          resultDiv.className = 'result success';
+          resultDiv.innerHTML = `
+            ✅ ${data.message}<br>
+            📊 Productos actualizados: ${data.updated}<br>
+            🎯 Nuevo status: ${data.newStatus}<br><br>
+            <strong>¡Sistema limpio para el test de mañana!</strong>
+          `;
+
+          // Recargar lista
+          setTimeout(() => loadProducts(), 1000);
+        } else {
+          throw new Error(data.error);
+        }
+      } catch (error) {
+        resultDiv.className = 'result error';
+        resultDiv.innerHTML = `❌ Error: ${error.message}`;
+      }
+    }
+
+    async function resetByStatus() {
+      const fromStatus = document.getElementById('fromStatus').value;
+      const toStatus = document.getElementById('toStatus').value;
+      const resultDiv = document.getElementById('result');
+
+      resultDiv.style.display = 'block';
+      resultDiv.className = 'result';
+      resultDiv.innerHTML = `⏳ Actualizando productos de ${fromStatus} a ${toStatus}...`;
+
+      try {
+        const response = await fetch('/api/clean-attention-products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'reset_by_status',
+            fromStatus: fromStatus,
+            toStatus: toStatus
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          resultDiv.className = 'result success';
+          resultDiv.innerHTML = `
+            ✅ ${data.message}<br>
+            📊 Productos actualizados: ${data.updated}
+          `;
+
+          // Recargar lista
+          setTimeout(() => loadProducts(), 1000);
+        } else {
+          throw new Error(data.error);
+        }
+      } catch (error) {
+        resultDiv.className = 'result error';
+        resultDiv.innerHTML = `❌ Error: ${error.message}`;
+      }
+    }
+
+    // Cargar automáticamente al abrir
+    loadProducts();
+  </script>
+</body>
+</html>

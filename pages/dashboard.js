@@ -309,12 +309,28 @@ export default function DashboardV3() {
 
   // Función para descargar Excel
   const downloadExcel = async (endpoint, filename) => {
+    console.log('📥 Iniciando descarga:', { endpoint, filename });
+
     try {
+      console.log('🔄 Realizando petición fetch a:', endpoint);
       const response = await fetch(endpoint);
+
+      console.log('📡 Respuesta recibida:', {
+        status: response.status,
+        statusText: response.statusText,
+        contentType: response.headers.get('content-type')
+      });
+
       if (!response.ok) {
-        throw new Error('Error al generar el archivo');
+        const errorText = await response.text();
+        console.error('❌ Error del servidor:', errorText);
+        throw new Error(`Error ${response.status}: ${response.statusText}\n${errorText.substring(0, 200)}`);
       }
+
+      console.log('✅ Generando blob...');
       const blob = await response.blob();
+      console.log('📦 Blob generado:', { size: blob.size, type: blob.type });
+
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -323,8 +339,11 @@ export default function DashboardV3() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+
+      console.log('✅ Descarga completada:', filename);
     } catch (error) {
-      alert('Error descargando el archivo: ' + error.message);
+      console.error('❌ Error completo en downloadExcel:', error);
+      alert('Error descargando el archivo:\n\n' + error.message + '\n\nRevisa la consola (F12) para más detalles.');
     }
   };
 
@@ -345,7 +364,10 @@ export default function DashboardV3() {
 
   // Función para descargar bases de datos
   const handleDownloadDatabase = async (dbType) => {
+    console.log('💾 Descargando base de datos:', dbType);
     setShowDownloadMenu(false);
+    setDownloadingStatus(dbType); // Mostrar indicador de carga
+
     try {
       const endpoints = {
         ventas: '/api/export-ventas',
@@ -356,9 +378,13 @@ export default function DashboardV3() {
       const endpoint = endpoints[dbType];
       const filename = `${dbType}_${new Date().toISOString().split('T')[0]}.xlsx`;
 
+      console.log('📥 Llamando a downloadExcel con:', { endpoint, filename });
       await downloadExcel(endpoint, filename);
     } catch (error) {
-      alert('Error descargando base de datos: ' + error.message);
+      console.error('❌ Error en handleDownloadDatabase:', error);
+      alert('Error descargando base de datos:\n\n' + error.message + '\n\nRevisa la consola (F12) para más detalles.');
+    } finally {
+      setDownloadingStatus(null); // Ocultar indicador de carga
     }
   };
 
@@ -837,7 +863,7 @@ export default function DashboardV3() {
                       </thead>
                       <tbody>
                         {stats.reminderProducts.slice(0, 20).map((product, index) => (
-                          <tr key={product.sku} className={index % 2 === 0 ? 'bg-blue-50' : 'bg-white'}>
+                          <tr key={`reminder-${index}-${product.sku}`} className={index % 2 === 0 ? 'bg-blue-50' : 'bg-white'}>
                             <td className="px-4 py-2 text-sm text-gray-900 border-b font-mono">{product.sku}</td>
                             <td className="px-4 py-2 text-sm text-gray-700 border-b">{product.descripcion}</td>
                             <td className="px-4 py-2 text-sm text-blue-700 border-b font-semibold">{product.remind_me_date}</td>
@@ -903,7 +929,7 @@ export default function DashboardV3() {
                       </thead>
                       <tbody>
                         {stats.disregardedProducts.slice(0, 20).map((product, index) => (
-                          <tr key={product.sku} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                          <tr key={`disregarded-${index}-${product.sku}`} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
                             <td className="px-4 py-2 text-sm text-gray-900 border-b font-mono">{product.sku}</td>
                             <td className="px-4 py-2 text-sm text-gray-700 border-b">{product.descripcion}</td>
                             <td className="px-4 py-2 text-sm text-gray-700 border-b text-center">{product.stock_actual || 0}</td>

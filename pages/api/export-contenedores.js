@@ -2,15 +2,22 @@
 import { supabase } from '../../lib/supabaseClient';
 import XLSX from 'xlsx';
 
+export const config = {
+  api: {
+    responseLimit: false,
+  },
+  maxDuration: 60,
+};
+
 export default async function handler(req, res) {
   try {
     console.log('🚢 Exportando base de datos de contenedores...');
 
     // Obtener todos los contenedores
     const { data: contenedores, error } = await supabase
-      .from('contenedores')
+      .from('containers')
       .select('*')
-      .order('fecha_salida', { ascending: false });
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error obteniendo contenedores:', error);
@@ -22,21 +29,20 @@ export default async function handler(req, res) {
     // Preparar datos para Excel
     const excelData = (contenedores || []).map(c => ({
       'ID': c.id,
-      'Número Contenedor': c.numero_contenedor || '',
-      'Fecha Salida': c.fecha_salida || '',
-      'Fecha Llegada Estimada': c.fecha_llegada_estimada || '',
-      'Fecha Llegada Real': c.fecha_llegada_real || '',
-      'Puerto Origen': c.puerto_origen || '',
-      'Puerto Destino': c.puerto_destino || '',
-      'Naviera': c.naviera || '',
-      'BL Number': c.bl_number || '',
+      'Container Number': c.container_number || '',
+      'Container Type': c.container_type || '',
+      'Max CBM': c.max_cbm || 0,
+      'Departure Port': c.departure_port || '',
+      'Arrival Port': c.arrival_port || '',
+      'Estimated Departure': c.estimated_departure || '',
+      'Estimated Arrival': c.estimated_arrival || '',
+      'Actual Departure': c.actual_departure || '',
+      'Actual Arrival Date': c.actual_arrival_date || '',
+      'Shipping Company': c.shipping_company || '',
       'Status': c.status || '',
-      'CBM Total': c.cbm_total || 0,
-      'Peso Total (kg)': c.peso_total_kg || 0,
-      'Costo Flete (USD)': c.costo_flete_usd || 0,
-      'Costo Despacho (CLP)': c.costo_despacho_clp || 0,
-      'Costo Total (CLP)': c.costo_total_clp || 0,
-      'Observaciones': c.observaciones || ''
+      'Notes': c.notes || '',
+      'Created At': c.created_at || '',
+      'Updated At': c.updated_at || ''
     }));
 
     // Crear libro de Excel
@@ -46,21 +52,20 @@ export default async function handler(req, res) {
     // Auto-ajustar anchos de columnas
     const colWidths = [
       { wch: 10 }, // ID
-      { wch: 20 }, // Número Contenedor
-      { wch: 12 }, // Fecha Salida
-      { wch: 18 }, // Fecha Llegada Estimada
-      { wch: 18 }, // Fecha Llegada Real
-      { wch: 20 }, // Puerto Origen
-      { wch: 20 }, // Puerto Destino
-      { wch: 20 }, // Naviera
-      { wch: 20 }, // BL Number
+      { wch: 20 }, // Container Number
+      { wch: 15 }, // Container Type
+      { wch: 10 }, // Max CBM
+      { wch: 20 }, // Departure Port
+      { wch: 20 }, // Arrival Port
+      { wch: 18 }, // Estimated Departure
+      { wch: 18 }, // Estimated Arrival
+      { wch: 18 }, // Actual Departure
+      { wch: 18 }, // Actual Arrival Date
+      { wch: 25 }, // Shipping Company
       { wch: 15 }, // Status
-      { wch: 12 }, // CBM Total
-      { wch: 15 }, // Peso Total
-      { wch: 18 }, // Costo Flete
-      { wch: 18 }, // Costo Despacho
-      { wch: 18 }, // Costo Total
-      { wch: 40 }  // Observaciones
+      { wch: 40 }, // Notes
+      { wch: 20 }, // Created At
+      { wch: 20 }  // Updated At
     ];
     ws['!cols'] = colWidths;
 

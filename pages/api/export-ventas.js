@@ -2,6 +2,13 @@
 import { supabase } from '../../lib/supabaseClient';
 import XLSX from 'xlsx';
 
+export const config = {
+  api: {
+    responseLimit: false,
+  },
+  maxDuration: 60,
+};
+
 export default async function handler(req, res) {
   try {
     console.log('📊 Exportando base de datos de ventas...');
@@ -16,7 +23,7 @@ export default async function handler(req, res) {
       const { data: ventasBatch, error } = await supabase
         .from('ventas')
         .select('*')
-        .order('fecha', { ascending: false })
+        .order('fecha_venta', { ascending: false })
         .range(offset, offset + batchSize - 1);
 
       if (error) {
@@ -44,14 +51,14 @@ export default async function handler(req, res) {
     // Preparar datos para Excel
     const excelData = allVentas.map(v => ({
       'ID': v.id,
-      'Fecha': v.fecha,
+      'Número Venta': v.numero_venta || '',
+      'Fecha Venta': v.fecha_venta,
       'SKU': v.sku,
+      'Descripción': v.descripcion_producto || '',
       'Cantidad': v.cantidad,
-      'Precio Unitario': v.precio_unitario,
-      'Total': v.total,
+      'Precio Venta CLP': v.precio_venta_clp || 0,
       'Cliente': v.cliente || '',
-      'Canal': v.canal || '',
-      'Observaciones': v.observaciones || ''
+      'Canal': v.canal || ''
     }));
 
     // Crear libro de Excel

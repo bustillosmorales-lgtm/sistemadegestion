@@ -2,6 +2,13 @@
 import { supabase } from '../../lib/supabaseClient';
 import XLSX from 'xlsx';
 
+export const config = {
+  api: {
+    responseLimit: false,
+  },
+  maxDuration: 60,
+};
+
 export default async function handler(req, res) {
   try {
     console.log('🛒 Exportando base de datos de compras...');
@@ -16,7 +23,7 @@ export default async function handler(req, res) {
       const { data: comprasBatch, error } = await supabase
         .from('compras')
         .select('*')
-        .order('fecha_pedido', { ascending: false })
+        .order('fecha_compra', { ascending: false })
         .range(offset, offset + batchSize - 1);
 
       if (error) {
@@ -44,19 +51,14 @@ export default async function handler(req, res) {
     // Preparar datos para Excel
     const excelData = allCompras.map(c => ({
       'ID': c.id,
-      'Fecha Pedido': c.fecha_pedido,
+      'Fecha Compra': c.fecha_compra,
       'SKU': c.sku,
       'Cantidad': c.cantidad,
-      'Precio FOB (RMB)': c.precio_fob_rmb,
-      'Total FOB (RMB)': c.total_fob_rmb,
-      'Proveedor': c.proveedor || '',
+      'Precio FOB (RMB)': c.precio_fob_rmb || 0,
       'Status': c.status_compra || '',
-      'Contenedor': c.contenedor_id || '',
-      'Fecha Fabricación': c.fecha_fabricacion || '',
-      'Fecha Envío': c.fecha_envio || '',
+      'Container Number': c.container_number || '',
       'Fecha Llegada Estimada': c.fecha_llegada_estimada || '',
-      'Fecha Llegada Real': c.fecha_llegada_real || '',
-      'Observaciones': c.observaciones || ''
+      'Fecha Llegada Real': c.fecha_llegada_real || ''
     }));
 
     // Crear libro de Excel

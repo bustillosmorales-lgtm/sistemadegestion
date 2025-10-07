@@ -30,7 +30,17 @@ export default function BulkUploadPage() {
 
     const handleFileUpload = async (event) => {
         const file = event.target.files[0];
-        if (!file) return;
+        if (!file) {
+            console.log('⚠️ No se seleccionó ningún archivo');
+            return;
+        }
+
+        console.log('📁 Archivo seleccionado:', {
+            name: file.name,
+            size: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+            type: file.type,
+            lastModified: new Date(file.lastModified).toLocaleString()
+        });
 
         setIsProcessing(true);
         setError('');
@@ -40,12 +50,14 @@ export default function BulkUploadPage() {
 
         try {
             // Información básica del archivo
-            setFileInfo({
+            const fileInfo = {
                 name: file.name,
                 size: (file.size / 1024).toFixed(1) + ' KB',
                 type: file.type || 'Desconocido',
                 lastModified: new Date(file.lastModified).toLocaleDateString()
-            });
+            };
+            setFileInfo(fileInfo);
+            console.log('📋 Información del archivo:', fileInfo);
 
             console.log('🔍 Iniciando procesamiento de archivo:', file.name, 'Tamaño:', (file.size / 1024 / 1024).toFixed(2) + ' MB');
 
@@ -53,35 +65,50 @@ export default function BulkUploadPage() {
             const parser = new IntelligentFileParser();
             console.log('📊 Parsing archivo Excel...');
             const parsedData = await parser.parseFile(file);
-            console.log('✅ Archivo parseado exitosamente. Filas:', parsedData?.data?.length || 0);
+            console.log('✅ Archivo parseado exitosamente:', {
+                filas: parsedData?.data?.length || 0,
+                columnas: parsedData?.headers?.length || 0,
+                tipoDetectado: parsedData?.detectedFormat?.probableType || 'desconocido'
+            });
             
             // Validar datos
+            console.log('🔍 Validando datos para tabla:', selectedTable);
             const validation = parser.validateData(parsedData, selectedTable);
-            
+            console.log('✅ Validación completada:', {
+                esValido: validation.isValid,
+                errores: validation.errors?.length || 0,
+                advertencias: validation.warnings?.length || 0
+            });
+
             // Auto-detectar tipo de datos si no coincide con selección
-            if (parsedData.detectedFormat.probableType !== 'unknown' && 
+            if (parsedData.detectedFormat.probableType !== 'unknown' &&
                 parsedData.detectedFormat.probableType !== selectedTable) {
-                
+
+                console.log(`⚠️ Tipo detectado (${parsedData.detectedFormat.probableType}) difiere del seleccionado (${selectedTable})`);
+
                 const shouldChange = confirm(
                     `El archivo parece contener datos de "${parsedData.detectedFormat.probableType}" ` +
                     `pero seleccionaste "${selectedTable}". ¿Cambiar automáticamente?`
                 );
-                
+
                 if (shouldChange) {
+                    console.log('✅ Usuario cambió tipo a:', parsedData.detectedFormat.probableType);
                     setSelectedTable(parsedData.detectedFormat.probableType);
                 }
             }
-            
+
             setParsedFileData(parsedData);
             setColumnMapping(parsedData.columnMapping);
             setValidationResult(validation);
-            
+
             // Preparar datos para el formato anterior (compatibilidad)
             setUploadData(parsedData.data);
-            
+            console.log('✅ Datos listos para cargar:', parsedData.data.length, 'registros');
+
         } catch (err) {
-            console.error('Error procesando archivo:', err);
-            setError(`Error procesando archivo: ${err.message}`);
+            console.error('❌ Error completo procesando archivo:', err);
+            console.error('Stack trace:', err.stack);
+            setError(`Error procesando archivo: ${err.message}\n\nRevisa la consola (F12) para más detalles.`);
         } finally {
             setIsProcessing(false);
         }
@@ -107,6 +134,8 @@ export default function BulkUploadPage() {
         setIsUploading(true);
         setError('⚙️ Depurando base de datos...');
 
+        console.log('🗑️ Iniciando depuración:', { tabla: selectedTable, usuario: user?.username });
+
         try {
             const response = await fetch('/api/purge-database', {
                 method: 'POST',
@@ -117,19 +146,24 @@ export default function BulkUploadPage() {
                 })
             });
 
+            console.log('📡 Respuesta de purge-database:', { status: response.status, ok: response.ok });
+
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || 'Error al depurar base de datos');
+                console.error('❌ Error del servidor:', errorData);
+                throw new Error(errorData.details || errorData.error || 'Error al depurar base de datos');
             }
 
             const result = await response.json();
-            alert(`✅ Base de datos depurada exitosamente.\n\nRegistros eliminados: ${result.deletedCount}`);
+            console.log('✅ Depuración exitosa:', result);
+            alert(`✅ Base de datos depurada exitosamente.\n\nRegistros eliminados: ${result.deletedCount}\nTabla: ${result.tableName}`);
             setPurgeConfirmed(false);
             setShowPurgeOption(false);
             setError('');
         } catch (err) {
-            console.error('Error depurando base de datos:', err);
-            setError('Error al depurar: ' + err.message);
+            console.error('❌ Error completo depurando base de datos:', err);
+            console.error('Stack trace:', err.stack);
+            setError('Error al depurar: ' + err.message + '\n\nRevisa la consola (F12) para más detalles.');
         } finally {
             setIsUploading(false);
         }

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test APIs de Descarga</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .loading {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test de APIs de Descarga</h1>
+    <p>Esta página prueba las APIs de descarga del sistema</p>
+
+    <div>
+        <h2>Bases de Datos</h2>
+        <button onclick="testDownload('/api/export-ventas')">📊 Descargar Ventas</button>
+        <button onclick="testDownload('/api/export-compras')">🛒 Descargar Compras</button>
+        <button onclick="testDownload('/api/export-contenedores')">🚢 Descargar Contenedores</button>
+    </div>
+
+    <div>
+        <h2>Estados de Productos</h2>
+        <button onclick="testDownload('/api/export-by-status?status=NEEDS_REPLENISHMENT&action=request_quote')">📥 Necesita Reposición</button>
+        <button onclick="testDownload('/api/export-by-status?status=QUOTE_REQUESTED&action=quote')">📋 Cotizar</button>
+        <button onclick="testDownload('/api/export-by-status?status=QUOTED&action=analyze')">🔍 Analizar</button>
+    </div>
+
+    <div id="status"></div>
+    <div id="logs"></div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        const logsDiv = document.getElementById('logs');
+        let logs = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}`;
+            logs.push(logEntry);
+            console.log(logEntry);
+
+            logsDiv.innerHTML = '<h3>Logs:</h3><pre>' + logs.join('\n') + '</pre>';
+        }
+
+        async function testDownload(endpoint) {
+            log(`🔄 Iniciando descarga de: ${endpoint}`);
+            statusDiv.innerHTML = '<div class="status loading">⏳ Descargando...</div>';
+
+            const startTime = Date.now();
+
+            try {
+                log(`📡 Haciendo fetch a: ${endpoint}`);
+                const response = await fetch(endpoint);
+
+                log(`📡 Respuesta recibida: ${response.status} ${response.statusText}`);
+                log(`📋 Content-Type: ${response.headers.get('content-type')}`);
+                log(`📋 Content-Disposition: ${response.headers.get('content-disposition')}`);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    log(`❌ Error del servidor: ${errorText.substring(0, 200)}`, 'error');
+                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                }
+
+                const blob = await response.blob();
+                const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+
+                log(`✅ Blob generado: ${(blob.size / 1024).toFixed(2)} KB`);
+                log(`⏱️ Tiempo total: ${elapsed}s`);
+
+                // Extraer nombre del archivo de Content-Disposition
+                const disposition = response.headers.get('content-disposition');
+                let filename = 'download.xlsx';
+                if (disposition && disposition.includes('filename=')) {
+                    const filenameMatch = disposition.match(/filename="?([^"]+)"?/);
+                    if (filenameMatch) {
+                        filename = filenameMatch[1];
+                    }
+                }
+
+                // Descargar el archivo
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                log(`✅ Descarga completada: ${filename}`);
+                statusDiv.innerHTML = `<div class="status success">✅ Descarga completada: ${filename} (${(blob.size / 1024).toFixed(2)} KB en ${elapsed}s)</div>`;
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+                statusDiv.innerHTML = `<div class="status error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        log('🚀 Página de prueba cargada');
+        log('ℹ️ Haz clic en cualquier botón para probar la descarga');
+    </script>
+</body>
+</html>

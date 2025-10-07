@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Reset Completo del Sistema</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    h1 {
+      color: #e00;
+      border-bottom: 3px solid #e00;
+      padding-bottom: 10px;
+    }
+    .warning {
+      background: #fff3cd;
+      border-left: 5px solid #ffc107;
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 5px;
+    }
+    .card {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 15px 0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .card h3 {
+      margin-top: 0;
+      color: #333;
+    }
+    .count {
+      font-size: 24px;
+      font-weight: bold;
+      color: #e00;
+      margin: 10px 0;
+    }
+    button {
+      background: #0070f3;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      cursor: pointer;
+      border-radius: 5px;
+      margin: 5px;
+      font-size: 16px;
+      font-weight: 500;
+    }
+    button:hover {
+      background: #0051cc;
+    }
+    button.danger {
+      background: #e00;
+    }
+    button.danger:hover {
+      background: #c00;
+    }
+    .checkbox-group {
+      margin: 15px 0;
+    }
+    .checkbox-group label {
+      display: block;
+      padding: 10px;
+      background: #f9f9f9;
+      margin: 5px 0;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .checkbox-group input[type="checkbox"] {
+      margin-right: 10px;
+      transform: scale(1.2);
+    }
+    .product-list {
+      max-height: 200px;
+      overflow-y: auto;
+      font-size: 12px;
+      background: #f9f9f9;
+      padding: 10px;
+      border-radius: 5px;
+      margin-top: 10px;
+    }
+    .product-item {
+      padding: 5px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 20px;
+      border-radius: 5px;
+      display: none;
+    }
+    .result.success {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+    }
+    .result.error {
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧹 Reset Completo del Sistema</h1>
+
+  <div class="warning">
+    <strong>⚠️ ATENCIÓN:</strong> Esta herramienta limpiará TODOS los datos residuales del sistema,
+    dejándolo completamente limpio para tu test con datos reales mañana.
+  </div>
+
+  <button onclick="loadData()" style="margin-bottom: 20px;">
+    🔍 Cargar Estado Actual del Sistema
+  </button>
+
+  <div id="dataCards"></div>
+
+  <div id="resetOptions" style="display: none;">
+    <div class="card">
+      <h3>Selecciona qué limpiar:</h3>
+      <div class="checkbox-group">
+        <label>
+          <input type="checkbox" id="resetInTransit" checked>
+          <strong>Productos en Tránsito</strong> (PURCHASE_CONFIRMED, MANUFACTURED, SHIPPED)
+          <br><span style="color: #666; font-size: 12px; margin-left: 28px;">
+            Cambiarlos a NO_REPLENISHMENT_NEEDED
+          </span>
+        </label>
+
+        <label>
+          <input type="checkbox" id="resetReminders" checked>
+          <strong>Recordatorios Activos</strong>
+          <br><span style="color: #666; font-size: 12px; margin-left: 28px;">
+            Desactivar todos los recordatorios (is_active = false)
+          </span>
+        </label>
+
+        <label>
+          <input type="checkbox" id="resetActiveOrders" checked>
+          <strong>Productos con Órdenes Activas</strong>
+          <br><span style="color: #666; font-size: 12px; margin-left: 28px;">
+            Limpiar has_active_orders y cambiar a NO_REPLENISHMENT_NEEDED
+          </span>
+        </label>
+
+        <label>
+          <input type="checkbox" id="resetDisregarded" checked>
+          <strong>Productos Desconsiderados</strong>
+          <br><span style="color: #666; font-size: 12px; margin-left: 28px;">
+            Quitar flag desconsiderado y cambiar a NO_REPLENISHMENT_NEEDED
+          </span>
+        </label>
+      </div>
+
+      <button onclick="executeReset()" class="danger" style="margin-top: 20px; font-size: 18px;">
+        🚀 EJECUTAR RESET COMPLETO
+      </button>
+    </div>
+  </div>
+
+  <div id="result" class="result"></div>
+
+  <script>
+    let systemData = null;
+
+    async function loadData() {
+      const cardsDiv = document.getElementById('dataCards');
+      cardsDiv.innerHTML = '⏳ Cargando datos del sistema...';
+
+      try {
+        const response = await fetch('/api/full-system-reset');
+        const data = await response.json();
+        systemData = data;
+
+        if (data.success) {
+          let html = '';
+
+          // Productos en tránsito
+          html += `
+            <div class="card">
+              <h3>🚛 Productos en Tránsito</h3>
+              <div class="count">${data.report.inTransit.count}</div>
+              <div class="product-list">
+          `;
+          if (data.report.inTransit.products.length > 0) {
+            data.report.inTransit.products.forEach(p => {
+              html += `
+                <div class="product-item">
+                  <strong>${p.sku}</strong> - ${p.status}<br>
+                  ${p.descripcion || 'Sin descripción'}
+                </div>
+              `;
+            });
+          } else {
+            html += '<p style="color: #999;">✅ No hay productos en tránsito</p>';
+          }
+          html += '</div></div>';
+
+          // Recordatorios
+          html += `
+            <div class="card">
+              <h3>⏰ Recordatorios Activos</h3>
+              <div class="count">${data.report.reminders.count}</div>
+              <div class="product-list">
+          `;
+          if (data.report.reminders.reminders.length > 0) {
+            data.report.reminders.reminders.forEach(r => {
+              html += `
+                <div class="product-item">
+                  <strong>${r.sku}</strong> - ${r.product_description}<br>
+                  Fecha: ${r.reminder_date} | ${r.notes || 'Sin notas'}
+                </div>
+              `;
+            });
+          } else {
+            html += '<p style="color: #999;">✅ No hay recordatorios activos</p>';
+          }
+          html += '</div></div>';
+
+          // Órdenes activas
+          html += `
+            <div class="card">
+              <h3>📋 Productos con Órdenes Activas</h3>
+              <div class="count">${data.report.activeOrders.count}</div>
+              <div class="product-list">
+          `;
+          if (data.report.activeOrders.products.length > 0) {
+            data.report.activeOrders.products.slice(0, 10).forEach(p => {
+              html += `
+                <div class="product-item">
+                  <strong>${p.sku}</strong> - ${p.primary_status || 'N/A'}<br>
+                  ${p.descripcion || 'Sin descripción'}
+                </div>
+              `;
+            });
+            if (data.report.activeOrders.products.length > 10) {
+              html += `<p style="color: #666; font-size: 11px;">... y ${data.report.activeOrders.products.length - 10} más</p>`;
+            }
+          } else {
+            html += '<p style="color: #999;">✅ No hay productos con órdenes activas</p>';
+          }
+          html += '</div></div>';
+
+          // Desconsiderados
+          html += `
+            <div class="card">
+              <h3>🚫 Productos Desconsiderados</h3>
+              <div class="count">${data.report.disregarded.count}</div>
+              <div class="product-list">
+          `;
+          if (data.report.disregarded.products.length > 0) {
+            data.report.disregarded.products.forEach(p => {
+              html += `
+                <div class="product-item">
+                  <strong>${p.sku}</strong><br>
+                  ${p.descripcion || 'Sin descripción'}
+                </div>
+              `;
+            });
+          } else {
+            html += '<p style="color: #999;">✅ No hay productos desconsiderados</p>';
+          }
+          html += '</div></div>';
+
+          cardsDiv.innerHTML = html;
+
+          // Mostrar opciones de reset
+          document.getElementById('resetOptions').style.display = 'block';
+        }
+      } catch (error) {
+        cardsDiv.innerHTML = `❌ Error: ${error.message}`;
+      }
+    }
+
+    async function executeReset() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.style.display = 'block';
+      resultDiv.className = 'result';
+      resultDiv.innerHTML = '⏳ Ejecutando reset completo del sistema...';
+
+      const resetInTransit = document.getElementById('resetInTransit').checked;
+      const resetReminders = document.getElementById('resetReminders').checked;
+      const resetActiveOrders = document.getElementById('resetActiveOrders').checked;
+      const resetDisregarded = document.getElementById('resetDisregarded').checked;
+
+      try {
+        const response = await fetch('/api/full-system-reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            resetInTransit,
+            resetReminders,
+            resetActiveOrders,
+            resetDisregarded
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          resultDiv.className = 'result success';
+          let html = '<h2>✅ Reset Completado Exitosamente</h2>';
+
+          html += '<h3>Resultados:</h3><ul>';
+
+          if (resetInTransit) {
+            html += `<li><strong>Productos en Tránsito:</strong> ${data.report.inTransit.updated.length} limpiados</li>`;
+          }
+
+          if (resetReminders) {
+            html += `<li><strong>Recordatorios:</strong> ${data.report.reminders.deleted.length} desactivados</li>`;
+          }
+
+          if (resetActiveOrders) {
+            html += `<li><strong>Órdenes Activas:</strong> ${data.report.activeOrders.updated.length} limpiadas</li>`;
+          }
+
+          if (resetDisregarded) {
+            html += `<li><strong>Desconsiderados:</strong> ${data.report.disregarded.updated.length} limpiados</li>`;
+          }
+
+          html += '</ul>';
+          html += '<p style="margin-top: 20px; font-size: 18px;"><strong>🎉 Sistema completamente limpio y listo para el test de mañana!</strong></p>';
+
+          resultDiv.innerHTML = html;
+
+          // Recargar datos
+          setTimeout(() => loadData(), 2000);
+        } else {
+          throw new Error(data.error);
+        }
+      } catch (error) {
+        resultDiv.className = 'result error';
+        resultDiv.innerHTML = `❌ Error: ${error.message}`;
+      }
+    }
+  </script>
+</body>
+</html>
