@@ -100,45 +100,47 @@ async function procesarVentas(ventasData) {
         productosNuevos: []
     };
 
+    console.log(`🚀 Procesando ${ventasData.length} ventas en modo batch optimizado`);
+
+    // PASO 1: Validar y normalizar todos los datos primero
+    const ventasValidadas = [];
+    const skusUnicos = new Set();
+
     for (const venta of ventasData) {
         try {
             // RECUPERAR SKU si está mal mapeado
             let skuFinal = venta.sku;
             let cantidadFinal = venta.cantidad;
-            
+
             // Verificar si el SKU parece válido
-            if (!skuFinal || skuFinal.toString().trim() === '' || 
+            if (!skuFinal || skuFinal.toString().trim() === '' ||
                 (skuFinal.toString().length <= 2 && !isNaN(skuFinal))) {
-                
-                console.log(`⚠️ SKU problemático en venta: "${skuFinal}", buscando en datos originales...`);
-                
+
                 if (venta._original) {
                     const skuField = Object.entries(venta._original).find(([key, value]) => {
                         const keyLower = key.toLowerCase();
                         return keyLower.includes('sku') && value && value.toString().trim() !== '';
                     });
-                    
+
                     if (skuField) {
                         skuFinal = skuField[1];
-                        console.log(`📋 SKU de venta recuperado: ${skuField[0]} = "${skuFinal}"`);
                     }
                 }
             }
-            
+
             // Verificar cantidad si no está mapeada
             if (!cantidadFinal && venta._original) {
                 const cantidadField = Object.entries(venta._original).find(([key, value]) => {
                     const keyLower = key.toLowerCase();
-                    return (keyLower.includes('cantidad') || keyLower.includes('qty') || 
+                    return (keyLower.includes('cantidad') || keyLower.includes('qty') ||
                             keyLower.includes('quantity')) && value && value.toString().trim() !== '';
                 });
-                
+
                 if (cantidadField) {
                     cantidadFinal = parseInt(cantidadField[1]);
-                    console.log(`📊 Cantidad de venta recuperada: ${cantidadField[0]} = "${cantidadFinal}"`);
                 }
             }
-            
+
             // Validar campos requeridos
             if (!skuFinal || !cantidadFinal) {
                 resultado.errores.push({
@@ -147,47 +149,16 @@ async function procesarVentas(ventasData) {
                 });
                 continue;
             }
-            
-            // Generar numero_venta automático si no existe
-            if (!venta.numero_venta) {
-                const timestamp = Date.now().toString().slice(-8);
-                const random = Math.floor(Math.random() * 100).toString().padStart(2, '0');
-                venta.numero_venta = `V${timestamp}${random}`;
-            }
 
-            // La tabla ventas no tiene numero_venta, usar combinación sku+fecha para detectar duplicados
-            const { data: existing } = await supabase
-                .from('ventas')
-                .select('*')
-                .eq('sku', skuFinal)
-                .eq('fecha_venta', venta.fecha_venta)
-                .single();
-
-            if (existing) {
-                resultado.duplicados.push(`${skuFinal}-${venta.fecha_venta}`);
-                continue;
-            }
-
-            // Verificar y crear producto si no existe ANTES de insertar venta
-            await verificarYCrearProducto(skuFinal, venta.descripcion_producto || venta.descripcion, resultado);
-
-            // Insertar nueva venta (solo campos que existen en la tabla)
-            const nuevaVenta = {
-                sku: skuFinal.toString(),
+            const ventaValidada = {
+                sku: skuFinal.toString().trim(),
                 cantidad: parseInt(cantidadFinal),
-                fecha_venta: venta.fecha_venta || new Date().toISOString().split('T')[0] + ' 00:00:00'
+                fecha_venta: venta.fecha_venta || new Date().toISOString().split('T')[0] + ' 00:00:00',
+                descripcion: venta.descripcion_producto || venta.descripcion
             };
 
-            console.log(`💾 Insertando venta para SKU: ${skuFinal}`);
-
-            const { data, error } = await supabase
-                .from('ventas')
-                .insert(nuevaVenta)
-                .select();
-
-            if (error) throw error;
-            
-            resultado.nuevos.push(data[0]);
+            ventasValidadas.push(ventaValidada);
+            skusUnicos.add(ventaValidada.sku);
 
         } catch (error) {
             resultado.errores.push({
@@ -197,6 +168,88 @@ async function procesarVentas(ventasData) {
         }
     }
 
+    if (ventasValidadas.length === 0) {
+        return resultado;
+    }
+
+    console.log(`✅ Validadas ${ventasValidadas.length} ventas, ${skusUnicos.size} SKUs únicos`);
+
+    // PASO 2: Crear todos los productos que no existen en un solo batch
+    await crearProductosFaltantesBatch(Array.from(skusUnicos), ventasValidadas, resultado);
+
+    // PASO 3: Obtener ventas existentes para detectar duplicados (batch query)
+    const { data: ventasExistentes } = await supabase
+        .from('ventas')
+        .select('sku, fecha_venta')
+        .in('sku', Array.from(skusUnicos));
+
+    const ventasExistentesSet = new Set(
+        (ventasExistentes || []).map(v => `${v.sku}-${v.fecha_venta}`)
+    );
+
+    // PASO 4: Filtrar duplicados
+    const ventasParaInsertar = ventasValidadas.filter(venta => {
+        const key = `${venta.sku}-${venta.fecha_venta}`;
+        if (ventasExistentesSet.has(key)) {
+            resultado.duplicados.push(key);
+            return false;
+        }
+        return true;
+    });
+
+    console.log(`📊 ${ventasParaInsertar.length} ventas nuevas para insertar, ${resultado.duplicados.length} duplicados`);
+
+    // PASO 5: Insertar en batches de 500 (PostgreSQL soporta hasta 65535 parámetros)
+    const BATCH_SIZE = 500;
+
+    for (let i = 0; i < ventasParaInsertar.length; i += BATCH_SIZE) {
+        const batch = ventasParaInsertar.slice(i, i + BATCH_SIZE);
+        const ventasBatch = batch.map(v => ({
+            sku: v.sku,
+            cantidad: v.cantidad,
+            fecha_venta: v.fecha_venta
+        }));
+
+        try {
+            console.log(`💾 Insertando batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(ventasParaInsertar.length/BATCH_SIZE)} (${batch.length} registros)`);
+
+            const { data, error } = await supabase
+                .from('ventas')
+                .insert(ventasBatch)
+                .select();
+
+            if (error) {
+                console.error(`❌ Error en batch: ${error.message}`);
+                // Si falla el batch completo, procesar individualmente
+                for (const venta of batch) {
+                    try {
+                        const { data: single, error: singleError } = await supabase
+                            .from('ventas')
+                            .insert({
+                                sku: venta.sku,
+                                cantidad: venta.cantidad,
+                                fecha_venta: venta.fecha_venta
+                            })
+                            .select();
+
+                        if (singleError) {
+                            resultado.errores.push({ registro: venta, error: singleError.message });
+                        } else {
+                            resultado.nuevos.push(single[0]);
+                        }
+                    } catch (e) {
+                        resultado.errores.push({ registro: venta, error: e.message });
+                    }
+                }
+            } else {
+                resultado.nuevos.push(...(data || []));
+            }
+        } catch (error) {
+            console.error(`❌ Error procesando batch: ${error.message}`);
+        }
+    }
+
+    console.log(`✅ Proceso completado: ${resultado.nuevos.length} nuevos, ${resultado.duplicados.length} duplicados, ${resultado.errores.length} errores`);
     return resultado;
 }
 
@@ -205,66 +258,68 @@ async function procesarCompras(comprasData) {
         nuevos: [],
         duplicados: [],
         errores: [],
-        productosNuevos: []
+        productosNuevos: [],
+        contenedoresNuevos: []
     };
+
+    console.log(`🚀 Procesando ${comprasData.length} compras en modo batch optimizado`);
+
+    // PASO 1: Validar y normalizar todos los datos
+    const comprasValidadas = [];
+    const skusUnicos = new Set();
+    const containersUnicos = new Set();
 
     for (const compra of comprasData) {
         try {
-            // RECUPERAR SKU, CANTIDAD y CONTAINER_NUMBER si están mal mapeados
+            // RECUPERAR SKU, CANTIDAD y CONTAINER_NUMBER
             let skuFinal = compra.sku;
             let cantidadFinal = compra.cantidad;
             let containerFinal = compra.container_number;
-            
-            // Verificar si el SKU parece válido
-            if (!skuFinal || skuFinal.toString().trim() === '' || 
+
+            // Verificar SKU
+            if (!skuFinal || skuFinal.toString().trim() === '' ||
                 (skuFinal.toString().length <= 2 && !isNaN(skuFinal)) ||
                 (skuFinal.toString().length > 3 && /^\d+$/.test(skuFinal) && parseInt(skuFinal) < 10000)) {
-                
-                console.log(`⚠️ SKU problemático en compra: "${skuFinal}", buscando en datos originales...`);
-                
+
                 if (compra._original) {
-                    // Primero buscar campos que explícitamente contienen "sku"
                     const skuField = Object.entries(compra._original).find(([key, value]) => {
                         const keyLower = key.toLowerCase();
                         return keyLower.includes('sku') && value && value.toString().trim() !== '';
                     });
-                    
+
                     if (skuField) {
                         skuFinal = skuField[1];
-                        console.log(`📋 SKU de compra recuperado: ${skuField[0]} = "${skuFinal}"`);
                     }
                 }
             }
-            
-            // Verificar cantidad si no está mapeada
+
+            // Verificar cantidad
             if (!cantidadFinal && compra._original) {
                 const cantidadField = Object.entries(compra._original).find(([key, value]) => {
                     const keyLower = key.toLowerCase();
-                    return (keyLower.includes('cantidad') || keyLower.includes('qty') || 
+                    return (keyLower.includes('cantidad') || keyLower.includes('qty') ||
                             keyLower.includes('quantity')) && value && value.toString().trim() !== '';
                 });
-                
+
                 if (cantidadField) {
                     cantidadFinal = parseInt(cantidadField[1]);
-                    console.log(`📊 Cantidad de compra recuperada: ${cantidadField[0]} = "${cantidadFinal}"`);
                 }
             }
-            
-            // Verificar container_number si no está mapeado
+
+            // Verificar container_number
             if (!containerFinal && compra._original) {
                 const containerField = Object.entries(compra._original).find(([key, value]) => {
                     const keyLower = key.toLowerCase();
-                    return (keyLower.includes('container') || keyLower.includes('contenedor') || 
-                            keyLower.includes('cont') || keyLower.includes('ctr')) && 
+                    return (keyLower.includes('container') || keyLower.includes('contenedor') ||
+                            keyLower.includes('cont') || keyLower.includes('ctr')) &&
                             value && value.toString().trim() !== '';
                 });
-                
+
                 if (containerField) {
                     containerFinal = containerField[1].toString().trim();
-                    console.log(`🚢 Container number recuperado: ${containerField[0]} = "${containerFinal}"`);
                 }
             }
-            
+
             // Validar campos requeridos
             if (!skuFinal || !cantidadFinal) {
                 resultado.errores.push({
@@ -273,54 +328,24 @@ async function procesarCompras(comprasData) {
                 });
                 continue;
             }
-            
-            // Generar numero_compra automático si no existe
-            if (!compra.numero_compra) {
-                const timestamp = Date.now().toString().slice(-8);
-                const random = Math.floor(Math.random() * 100).toString().padStart(2, '0');
-                compra.numero_compra = `C${timestamp}${random}`;
-            }
 
-            // La tabla compras no tiene numero_compra, usar combinación sku+fecha para detectar duplicados
-            const { data: existing } = await supabase
-                .from('compras')
-                .select('*')
-                .eq('sku', skuFinal)
-                .eq('fecha_compra', compra.fecha_compra)
-                .maybeSingle();
-
-            if (existing) {
-                resultado.duplicados.push(`${skuFinal}-${compra.fecha_compra}`);
-                continue;
-            }
-
-            // Verificar y crear producto si no existe
-            await verificarYCrearProducto(skuFinal, compra.descripcion_producto, resultado);
-
-            // Si se especifica container_number, verificar que existe o crearlo
-            if (containerFinal) {
-                await verificarYCrearContenedor(containerFinal, compra, resultado);
-            }
-
-            // Insertar nueva compra (solo campos que existen en la tabla)
-            const nuevaCompra = {
-                sku: skuFinal,
+            const compraValidada = {
+                sku: skuFinal.toString().trim(),
                 cantidad: parseInt(cantidadFinal),
                 fecha_compra: compra.fecha_compra || new Date().toISOString().split('T')[0] + ' 00:00:00',
                 fecha_llegada_estimada: compra.fecha_llegada_estimada || null,
                 fecha_llegada_real: compra.fecha_llegada_real || null,
                 status_compra: compra.status_compra || 'en_transito',
-                container_number: containerFinal || null  // ← ARREGLADO: Usar container recuperado
+                container_number: containerFinal || null,
+                descripcion: compra.descripcion_producto,
+                _original: compra
             };
 
-            const { data, error } = await supabase
-                .from('compras')
-                .insert(nuevaCompra)
-                .select();
-
-            if (error) throw error;
-            
-            resultado.nuevos.push(data[0]);
+            comprasValidadas.push(compraValidada);
+            skusUnicos.add(compraValidada.sku);
+            if (containerFinal) {
+                containersUnicos.add(containerFinal);
+            }
 
         } catch (error) {
             resultado.errores.push({
@@ -330,6 +355,101 @@ async function procesarCompras(comprasData) {
         }
     }
 
+    if (comprasValidadas.length === 0) {
+        return resultado;
+    }
+
+    console.log(`✅ Validadas ${comprasValidadas.length} compras, ${skusUnicos.size} SKUs únicos, ${containersUnicos.size} containers`);
+
+    // PASO 2: Crear productos faltantes en batch
+    await crearProductosFaltantesBatch(Array.from(skusUnicos), comprasValidadas, resultado);
+
+    // PASO 3: Crear containers faltantes en batch
+    if (containersUnicos.size > 0) {
+        await crearContainersFaltantesBatch(Array.from(containersUnicos), comprasValidadas, resultado);
+    }
+
+    // PASO 4: Obtener compras existentes para detectar duplicados
+    const { data: comprasExistentes } = await supabase
+        .from('compras')
+        .select('sku, fecha_compra')
+        .in('sku', Array.from(skusUnicos));
+
+    const comprasExistentesSet = new Set(
+        (comprasExistentes || []).map(c => `${c.sku}-${c.fecha_compra}`)
+    );
+
+    // PASO 5: Filtrar duplicados
+    const comprasParaInsertar = comprasValidadas.filter(compra => {
+        const key = `${compra.sku}-${compra.fecha_compra}`;
+        if (comprasExistentesSet.has(key)) {
+            resultado.duplicados.push(key);
+            return false;
+        }
+        return true;
+    });
+
+    console.log(`📊 ${comprasParaInsertar.length} compras nuevas para insertar, ${resultado.duplicados.length} duplicados`);
+
+    // PASO 6: Insertar en batches de 500
+    const BATCH_SIZE = 500;
+
+    for (let i = 0; i < comprasParaInsertar.length; i += BATCH_SIZE) {
+        const batch = comprasParaInsertar.slice(i, i + BATCH_SIZE);
+        const comprasBatch = batch.map(c => ({
+            sku: c.sku,
+            cantidad: c.cantidad,
+            fecha_compra: c.fecha_compra,
+            fecha_llegada_estimada: c.fecha_llegada_estimada,
+            fecha_llegada_real: c.fecha_llegada_real,
+            status_compra: c.status_compra,
+            container_number: c.container_number
+        }));
+
+        try {
+            console.log(`💾 Insertando batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(comprasParaInsertar.length/BATCH_SIZE)} (${batch.length} registros)`);
+
+            const { data, error } = await supabase
+                .from('compras')
+                .insert(comprasBatch)
+                .select();
+
+            if (error) {
+                console.error(`❌ Error en batch: ${error.message}`);
+                // Si falla el batch, procesar individualmente
+                for (const compra of batch) {
+                    try {
+                        const { data: single, error: singleError } = await supabase
+                            .from('compras')
+                            .insert({
+                                sku: compra.sku,
+                                cantidad: compra.cantidad,
+                                fecha_compra: compra.fecha_compra,
+                                fecha_llegada_estimada: compra.fecha_llegada_estimada,
+                                fecha_llegada_real: compra.fecha_llegada_real,
+                                status_compra: compra.status_compra,
+                                container_number: compra.container_number
+                            })
+                            .select();
+
+                        if (singleError) {
+                            resultado.errores.push({ registro: compra, error: singleError.message });
+                        } else {
+                            resultado.nuevos.push(single[0]);
+                        }
+                    } catch (e) {
+                        resultado.errores.push({ registro: compra, error: e.message });
+                    }
+                }
+            } else {
+                resultado.nuevos.push(...(data || []));
+            }
+        } catch (error) {
+            console.error(`❌ Error procesando batch: ${error.message}`);
+        }
+    }
+
+    console.log(`✅ Proceso completado: ${resultado.nuevos.length} nuevos, ${resultado.duplicados.length} duplicados, ${resultado.errores.length} errores`);
     return resultado;
 }
 
@@ -419,6 +539,180 @@ async function procesarContainers(containersData) {
     }
 
     return resultado;
+}
+
+// Función para crear productos faltantes en batch (OPTIMIZADA)
+async function crearProductosFaltantesBatch(skus, ventasData, resultado) {
+    try {
+        console.log(`🔍 Verificando ${skus.length} SKUs únicos...`);
+
+        // Obtener todos los productos existentes en una sola query
+        const { data: productosExistentes, error: selectError } = await supabase
+            .from('products')
+            .select('sku')
+            .in('sku', skus);
+
+        if (selectError) {
+            throw new Error(`Error verificando productos: ${selectError.message}`);
+        }
+
+        const skusExistentes = new Set((productosExistentes || []).map(p => p.sku));
+        const skusFaltantes = skus.filter(sku => !skusExistentes.has(sku));
+
+        console.log(`📦 ${skusExistentes.size} productos existen, ${skusFaltantes.length} productos nuevos a crear`);
+
+        if (skusFaltantes.length === 0) {
+            return;
+        }
+
+        // Preparar productos para insertar en batch
+        const productosParaInsertar = skusFaltantes.map(sku => {
+            // Buscar descripción desde las ventas
+            const ventaConDesc = ventasData.find(v => v.sku === sku && v.descripcion);
+
+            return {
+                sku: sku.toString().trim(),
+                descripcion: ventaConDesc?.descripcion || `Producto ${sku} (Auto-creado)`,
+                costo_fob_rmb: 1.0,
+                cbm: 0.01,
+                stock_actual: 0,
+                status: 'NEEDS_REPLENISHMENT',
+                link: '',
+                desconsiderado: false
+            };
+        });
+
+        // Insertar en batches de 500
+        const BATCH_SIZE = 500;
+        for (let i = 0; i < productosParaInsertar.length; i += BATCH_SIZE) {
+            const batch = productosParaInsertar.slice(i, i + BATCH_SIZE);
+
+            console.log(`📦 Creando batch de productos ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(productosParaInsertar.length/BATCH_SIZE)} (${batch.length} productos)`);
+
+            const { data, error } = await supabase
+                .from('products')
+                .insert(batch)
+                .select();
+
+            if (error) {
+                console.error(`⚠️ Error insertando batch de productos: ${error.message}`);
+                // Intentar individualmente si falla el batch
+                for (const producto of batch) {
+                    try {
+                        const { data: single, error: singleError } = await supabase
+                            .from('products')
+                            .insert(producto)
+                            .select();
+
+                        if (!singleError && single) {
+                            resultado.productosNuevos.push(single[0]);
+                        } else if (singleError && !singleError.message.includes('duplicate')) {
+                            console.error(`❌ Error creando producto ${producto.sku}: ${singleError.message}`);
+                        }
+                    } catch (e) {
+                        // Ignorar duplicados silenciosamente
+                    }
+                }
+            } else {
+                resultado.productosNuevos.push(...(data || []));
+            }
+        }
+
+        console.log(`✅ ${resultado.productosNuevos.length} productos nuevos creados`);
+    } catch (error) {
+        console.error(`❌ Error en crearProductosFaltantesBatch: ${error.message}`);
+        throw error;
+    }
+}
+
+// Función para crear containers faltantes en batch (OPTIMIZADA)
+async function crearContainersFaltantesBatch(containers, comprasData, resultado) {
+    try {
+        console.log(`🔍 Verificando ${containers.length} containers únicos...`);
+
+        // Obtener todos los containers existentes en una sola query
+        const { data: containersExistentes, error: selectError } = await supabase
+            .from('containers')
+            .select('container_number')
+            .in('container_number', containers);
+
+        if (selectError) {
+            throw new Error(`Error verificando containers: ${selectError.message}`);
+        }
+
+        const containersExistentesSet = new Set((containersExistentes || []).map(c => c.container_number));
+        const containersFaltantes = containers.filter(c => !containersExistentesSet.has(c));
+
+        console.log(`🚢 ${containersExistentesSet.size} containers existen, ${containersFaltantes.length} containers nuevos a crear`);
+
+        if (containersFaltantes.length === 0) {
+            return;
+        }
+
+        // Preparar containers para insertar en batch
+        const containersParaInsertar = containersFaltantes.map(containerNumber => {
+            // Buscar datos del container desde las compras
+            const compraConContainer = comprasData.find(c => c.container_number === containerNumber);
+            const datosCompra = compraConContainer?._original || {};
+
+            return {
+                container_number: containerNumber.toString(),
+                container_type: datosCompra.container_type || 'STD',
+                max_cbm: parseFloat(datosCompra.max_cbm) || 68,
+                departure_port: datosCompra.departure_port || '',
+                arrival_port: datosCompra.arrival_port || '',
+                estimated_departure: datosCompra.estimated_departure || null,
+                estimated_arrival: compraConContainer?.fecha_llegada_estimada || datosCompra.estimated_arrival || null,
+                actual_arrival_date: (compraConContainer?.status_compra === 'llegado' && compraConContainer?.fecha_llegada_real) ? compraConContainer.fecha_llegada_real : null,
+                shipping_company: datosCompra.shipping_company || '',
+                notes: datosCompra.notes || `Auto-creado desde carga masiva`,
+                status: (compraConContainer?.status_compra === 'llegado') ? 'DELIVERED' : 'CREATED',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+        });
+
+        // Insertar en batches de 200 (containers tienen más campos)
+        const BATCH_SIZE = 200;
+        for (let i = 0; i < containersParaInsertar.length; i += BATCH_SIZE) {
+            const batch = containersParaInsertar.slice(i, i + BATCH_SIZE);
+
+            console.log(`🚢 Creando batch de containers ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(containersParaInsertar.length/BATCH_SIZE)} (${batch.length} containers)`);
+
+            const { data, error } = await supabase
+                .from('containers')
+                .insert(batch)
+                .select();
+
+            if (error) {
+                console.error(`⚠️ Error insertando batch de containers: ${error.message}`);
+                // Intentar individualmente si falla el batch
+                for (const container of batch) {
+                    try {
+                        const { data: single, error: singleError } = await supabase
+                            .from('containers')
+                            .insert(container)
+                            .select();
+
+                        if (!singleError && single) {
+                            resultado.contenedoresNuevos.push(single[0]);
+                        } else if (singleError && !singleError.message.includes('duplicate')) {
+                            console.error(`❌ Error creando container ${container.container_number}: ${singleError.message}`);
+                        }
+                    } catch (e) {
+                        // Ignorar duplicados silenciosamente
+                    }
+                }
+            } else {
+                resultado.contenedoresNuevos.push(...(data || []));
+            }
+        }
+
+        console.log(`✅ ${resultado.contenedoresNuevos.length} containers nuevos creados`);
+    } catch (error) {
+        console.error(`❌ Error en crearContainersFaltantesBatch: ${error.message}`);
+        throw error;
+    }
 }
 
 // Función para verificar y crear producto automáticamente
@@ -885,11 +1179,16 @@ async function verificarYCrearContenedor(container_number, datosCompra, resultad
     }
 }
 
-// Configuración para permitir archivos grandes
+// Configuración para permitir archivos grandes y más tiempo de procesamiento
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '10mb',
+      sizeLimit: '4.5mb', // Límite de Vercel por request
     },
+    responseLimit: '4.5mb',
+    externalResolver: true,
   },
+  // Vercel Hobby: 10s, Pro: 60s, Enterprise: 900s
+  // Este valor se sobrescribe con vercel.json
+  maxDuration: 60, // 60 segundos para Vercel Pro
 }

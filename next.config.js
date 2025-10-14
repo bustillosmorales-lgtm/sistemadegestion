@@ -21,6 +21,10 @@ const nextConfig = {
   images: {
     unoptimized: true
   },
+  // Aumentar timeout para APIs de carga masiva
+  serverRuntimeConfig: {
+    apiTimeout: 300000, // 5 minutos en milisegundos
+  },
   compiler: {
     emotion: false,
     reactRemoveProperties: process.env.NODE_ENV === 'production', // Remover propiedades en producción

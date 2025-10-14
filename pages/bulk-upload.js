@@ -179,11 +179,14 @@ export default function BulkUploadPage() {
         setError('');
 
         // Para archivos grandes, procesar en lotes para evitar timeouts
-        const batchSize = 200; // Procesar 200 filas por vez
+        // Vercel tiene límite de 4.5 MB por request, ajustamos batch size dinámicamente
+        const avgRowSize = JSON.stringify(uploadData[0] || {}).length;
+        const maxBatchSize = Math.floor((4 * 1024 * 1024) / avgRowSize); // 4 MB para seguridad
+        const batchSize = Math.min(maxBatchSize, 200); // Máximo 200 filas o lo que permita 4MB
         const totalRows = uploadData.length;
         const totalBatches = Math.ceil(totalRows / batchSize);
-        
-        console.log(`📊 Procesando ${totalRows} filas en ${totalBatches} lotes de ${batchSize} filas cada uno`);
+
+        console.log(`📊 Procesando ${totalRows} filas en ${totalBatches} lotes de ${batchSize} filas cada uno (tamaño fila: ${avgRowSize} bytes)`);
 
         let allResults = {
             nuevos: [],
@@ -242,6 +245,10 @@ export default function BulkUploadPage() {
                 tamañoData: JSON.stringify(batchData).length
             });
 
+            // Crear AbortController con timeout de 60 segundos (Vercel Pro)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 segundos para Vercel Pro
+
             const response = await fetch('/api/bulk-upload', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -249,8 +256,11 @@ export default function BulkUploadPage() {
                     tableType: selectedTable,
                     data: batchData,
                     user: user
-                })
+                }),
+                signal: controller.signal
             });
+
+            clearTimeout(timeoutId);
 
             console.log(`📡 Respuesta lote ${batchNumber} recibida:`, {
                 status: response.status,
