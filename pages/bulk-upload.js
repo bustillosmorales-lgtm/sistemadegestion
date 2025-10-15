@@ -183,10 +183,10 @@ export default function BulkUploadPage() {
         // Estrategia: chunks más pequeños para completar en <10s
         const avgRowSize = JSON.stringify(uploadData[0] || {}).length;
 
-        // Netlify: usar chunks muy pequeños para procesar en <10s
-        const NETLIFY_CHUNK_SIZE = 1 * 1024 * 1024; // 1 MB por chunk
+        // Netlify: usar chunks muy pequeños para procesar en <25s
+        const NETLIFY_CHUNK_SIZE = 512 * 1024; // 512 KB por chunk
         const maxBatchSize = Math.floor(NETLIFY_CHUNK_SIZE / avgRowSize);
-        const batchSize = Math.min(maxBatchSize, 50); // Máximo 50 filas para procesar en <10s
+        const batchSize = Math.min(maxBatchSize, 25); // Máximo 25 filas para procesar rápido
 
         const totalRows = uploadData.length;
         const totalBatches = Math.ceil(totalRows / batchSize);
@@ -251,10 +251,10 @@ export default function BulkUploadPage() {
                 tamañoData: JSON.stringify(batchData).length
             });
 
-            // Crear AbortController con timeout de 10 segundos (Netlify Free)
-            // Netlify Pro: 26 segundos, pero usamos 10s para compatibilidad
+            // Crear AbortController con timeout de 25 segundos
+            // Dar más tiempo para que el servidor procese los batches
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos para Netlify Free
+            const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 segundos
 
             const response = await fetch('/api/bulk-upload', {
                 method: 'POST',
