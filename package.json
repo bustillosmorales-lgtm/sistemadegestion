@@ -31,6 +31,7 @@
     "refresh-venta-diaria": "node scripts/refresh-venta-diaria-mv.js",
     "populate-dashboard-cache": "node scripts/populate-dashboard-cache.js",
     "daily-maintenance": "node scripts/daily-maintenance.js",
+    "generate-secrets": "node scripts/generate-env-secrets.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
