@@ -7,20 +7,3 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
-
-# Configuración de Functions para carga masiva optimizada
-[functions]
-  # Timeout para todas las funciones (10s Free, 26s Pro)
-  # Con chunks pequeños, 10s es suficiente
-  function_timeout = 10
-
-  # Memoria asignada (1769 MB es el máximo en Free)
-  memory = 1769
-
-  # Habilitar HTTP/2 para mejor performance
-  node_bundler = "esbuild"
-
-# Configuración específica para bulk-upload
-[[functions."api/bulk-upload"]]
-  # Máximo timeout disponible
-  timeout = 10
