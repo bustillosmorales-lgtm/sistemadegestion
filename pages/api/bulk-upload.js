@@ -209,8 +209,8 @@ async function procesarVentas(ventasData) {
 
     console.log(`📊 ${ventasParaInsertar.length} ventas nuevas para insertar, ${resultado.duplicados.length} duplicados`);
 
-    // PASO 5: Insertar en batches de 500 (PostgreSQL soporta hasta 65535 parámetros)
-    const BATCH_SIZE = 500;
+    // PASO 5: Insertar en batches de 100 (optimizado para Netlify timeout)
+    const BATCH_SIZE = 100;
 
     for (let i = 0; i < ventasParaInsertar.length; i += BATCH_SIZE) {
         const batch = ventasParaInsertar.slice(i, i + BATCH_SIZE);
@@ -401,8 +401,8 @@ async function procesarCompras(comprasData) {
 
     console.log(`📊 ${comprasParaInsertar.length} compras nuevas para insertar, ${resultado.duplicados.length} duplicados`);
 
-    // PASO 6: Insertar en batches de 500
-    const BATCH_SIZE = 500;
+    // PASO 6: Insertar en batches de 100 (optimizado para Netlify timeout)
+    const BATCH_SIZE = 100;
 
     for (let i = 0; i < comprasParaInsertar.length; i += BATCH_SIZE) {
         const batch = comprasParaInsertar.slice(i, i + BATCH_SIZE);
@@ -592,8 +592,8 @@ async function crearProductosFaltantesBatch(skus, ventasData, resultado) {
             };
         });
 
-        // Insertar en batches de 500
-        const BATCH_SIZE = 500;
+        // Insertar en batches de 100 (optimizado para Netlify timeout)
+        const BATCH_SIZE = 100;
         for (let i = 0; i < productosParaInsertar.length; i += BATCH_SIZE) {
             const batch = productosParaInsertar.slice(i, i + BATCH_SIZE);
 
@@ -1066,8 +1066,8 @@ async function procesarPacks(packsData) {
 
     console.log(`📊 ${packsParaInsertar.length} registros nuevos para insertar, ${resultado.duplicados.length} duplicados`);
 
-    // PASO 4: Insertar en batches de 500
-    const BATCH_SIZE = 500;
+    // PASO 4: Insertar en batches de 100 (optimizado para Netlify timeout)
+    const BATCH_SIZE = 100;
 
     for (let i = 0; i < packsParaInsertar.length; i += BATCH_SIZE) {
         const batch = packsParaInsertar.slice(i, i + BATCH_SIZE);

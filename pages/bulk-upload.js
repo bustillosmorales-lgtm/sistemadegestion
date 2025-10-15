@@ -183,10 +183,10 @@ export default function BulkUploadPage() {
         // Estrategia: chunks más pequeños para completar en <10s
         const avgRowSize = JSON.stringify(uploadData[0] || {}).length;
 
-        // Netlify: usar chunks de ~2 MB para asegurar que se procesen en <10s
-        const NETLIFY_CHUNK_SIZE = 2 * 1024 * 1024; // 2 MB por chunk
+        // Netlify: usar chunks muy pequeños para procesar en <10s
+        const NETLIFY_CHUNK_SIZE = 1 * 1024 * 1024; // 1 MB por chunk
         const maxBatchSize = Math.floor(NETLIFY_CHUNK_SIZE / avgRowSize);
-        const batchSize = Math.min(maxBatchSize, 100); // Máximo 100 filas para procesar rápido
+        const batchSize = Math.min(maxBatchSize, 50); // Máximo 50 filas para procesar en <10s
 
         const totalRows = uploadData.length;
         const totalBatches = Math.ceil(totalRows / batchSize);
