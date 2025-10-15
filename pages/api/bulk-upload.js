@@ -3,12 +3,19 @@ import { supabase } from '../../lib/supabaseClient';
 import * as XLSX from 'xlsx';
 
 export default async function handler(req, res) {
-    // Manejar descarga de template de productos existentes
+    // Manejar descarga de templates
     if (req.method === 'GET') {
         try {
-            return await descargarTemplateProductos(res);
+            const { tableType } = req.query;
+
+            if (tableType === 'packs') {
+                return await descargarTemplatePacks(res);
+            } else {
+                // Por defecto, descargar template de productos
+                return await descargarTemplateProductos(res);
+            }
         } catch (error) {
-            return res.status(500).json({ error: 'Error generando template de productos: ' + error.message });
+            return res.status(500).json({ error: 'Error generando template: ' + error.message });
         }
     }
 
@@ -45,7 +52,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Faltan parámetros: tableType y data (array) requeridos.' });
     }
 
-    const allowedTables = ['ventas', 'compras', 'containers', 'productos'];
+    const allowedTables = ['ventas', 'compras', 'containers', 'productos', 'packs'];
     if (!allowedTables.includes(tableType)) {
         return res.status(400).json({ error: `Tipo de tabla no permitido. Usar: ${allowedTables.join(', ')}` });
     }
@@ -71,6 +78,9 @@ export default async function handler(req, res) {
                 break;
             case 'productos':
                 processedData = await procesarProductos(uploadData);
+                break;
+            case 'packs':
+                processedData = await procesarPacks(uploadData);
                 break;
         }
 
@@ -877,6 +887,228 @@ async function descargarTemplateProductos(res) {
     } catch (error) {
         throw new Error(`Error generando template de productos: ${error.message}`);
     }
+}
+
+// Función para descargar template de packs
+async function descargarTemplatePacks(res) {
+    try {
+        // Crear workbook
+        const workbook = XLSX.utils.book_new();
+
+        // Datos de ejemplo para el template
+        const excelData = [
+            {
+                IDPack: 'PACK0001',
+                IDProducto: '649762431365-NEG',
+                Cantidad: 2
+            },
+            {
+                IDPack: 'PACK0003',
+                IDProducto: '649762431365-NEG',
+                Cantidad: 1
+            },
+            {
+                IDPack: 'PACK0003',
+                IDProducto: '649762431365-AZU',
+                Cantidad: 1
+            },
+            {
+                IDPack: 'PACK0005',
+                IDProducto: '649762435196',
+                Cantidad: 1
+            },
+            {
+                IDPack: 'PACK0005',
+                IDProducto: '649762431365-NEG',
+                Cantidad: 2
+            }
+        ];
+
+        // Crear worksheet
+        const worksheet = XLSX.utils.json_to_sheet(excelData);
+
+        // Configurar ancho de columnas
+        const columnWidths = [
+            { wch: 15 }, // IDPack
+            { wch: 25 }, // IDProducto
+            { wch: 10 }  // Cantidad
+        ];
+        worksheet['!cols'] = columnWidths;
+
+        // Agregar worksheet al workbook
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Packs');
+
+        // Generar buffer del archivo Excel
+        const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+        // Configurar headers para descarga
+        res.setHeader('Content-Disposition', `attachment; filename="template_packs_${new Date().toISOString().split('T')[0]}.xlsx"`);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        // Enviar archivo
+        return res.send(excelBuffer);
+
+    } catch (error) {
+        throw new Error(`Error generando template de packs: ${error.message}`);
+    }
+}
+
+// Función para procesar packs
+async function procesarPacks(packsData) {
+    const resultado = {
+        nuevos: [],
+        duplicados: [],
+        errores: [],
+        productosNuevos: []
+    };
+
+    console.log(`🚀 Procesando ${packsData.length} registros de packs en modo batch optimizado`);
+
+    // PASO 1: Validar y normalizar datos
+    const packsValidados = [];
+    const packsUnicos = new Set();
+
+    for (const pack of packsData) {
+        try {
+            // Recuperar campos si están mal mapeados
+            let packSku = pack.IDPack || pack.pack_sku || pack.Pack || pack.id_pack;
+            let productoSku = pack.IDProducto || pack.producto_sku || pack.Producto || pack.sku;
+            let cantidad = pack.Cantidad || pack.cantidad || pack.Qty;
+
+            // Buscar en datos originales si no están mapeados
+            if ((!packSku || !productoSku || !cantidad) && pack._original) {
+                const entries = Object.entries(pack._original);
+
+                if (!packSku) {
+                    const packField = entries.find(([key]) =>
+                        key.toLowerCase().includes('pack') || key.toLowerCase().includes('idpack')
+                    );
+                    if (packField) packSku = packField[1];
+                }
+
+                if (!productoSku) {
+                    const prodField = entries.find(([key]) =>
+                        key.toLowerCase().includes('producto') ||
+                        key.toLowerCase().includes('idproducto') ||
+                        key.toLowerCase().includes('sku')
+                    );
+                    if (prodField) productoSku = prodField[1];
+                }
+
+                if (!cantidad) {
+                    const cantField = entries.find(([key]) =>
+                        key.toLowerCase().includes('cantidad') || key.toLowerCase().includes('qty')
+                    );
+                    if (cantField) cantidad = cantField[1];
+                }
+            }
+
+            // Validar campos requeridos
+            if (!packSku || !productoSku || !cantidad) {
+                resultado.errores.push({
+                    registro: pack,
+                    error: 'Campos requeridos: pack_sku (IDPack), producto_sku (IDProducto), cantidad'
+                });
+                continue;
+            }
+
+            const packValidado = {
+                pack_sku: packSku.toString().trim(),
+                producto_sku: productoSku.toString().trim(),
+                cantidad: parseInt(cantidad)
+            };
+
+            // Validar cantidad positiva
+            if (packValidado.cantidad <= 0) {
+                resultado.errores.push({
+                    registro: pack,
+                    error: 'La cantidad debe ser mayor a 0'
+                });
+                continue;
+            }
+
+            packsValidados.push(packValidado);
+            packsUnicos.add(packValidado.pack_sku);
+
+        } catch (error) {
+            resultado.errores.push({
+                registro: pack,
+                error: error.message
+            });
+        }
+    }
+
+    if (packsValidados.length === 0) {
+        return resultado;
+    }
+
+    console.log(`✅ Validados ${packsValidados.length} registros de packs, ${packsUnicos.size} packs únicos`);
+
+    // PASO 2: Verificar duplicados en BD
+    const { data: packsExistentes } = await supabase
+        .from('packs')
+        .select('pack_sku, producto_sku')
+        .in('pack_sku', Array.from(packsUnicos));
+
+    const packsExistentesSet = new Set(
+        (packsExistentes || []).map(p => `${p.pack_sku}|${p.producto_sku}`)
+    );
+
+    // PASO 3: Filtrar duplicados
+    const packsParaInsertar = packsValidados.filter(pack => {
+        const key = `${pack.pack_sku}|${pack.producto_sku}`;
+        if (packsExistentesSet.has(key)) {
+            resultado.duplicados.push(key);
+            return false;
+        }
+        return true;
+    });
+
+    console.log(`📊 ${packsParaInsertar.length} registros nuevos para insertar, ${resultado.duplicados.length} duplicados`);
+
+    // PASO 4: Insertar en batches de 500
+    const BATCH_SIZE = 500;
+
+    for (let i = 0; i < packsParaInsertar.length; i += BATCH_SIZE) {
+        const batch = packsParaInsertar.slice(i, i + BATCH_SIZE);
+
+        try {
+            console.log(`💾 Insertando batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(packsParaInsertar.length/BATCH_SIZE)} (${batch.length} registros)`);
+
+            const { data, error } = await supabase
+                .from('packs')
+                .insert(batch)
+                .select();
+
+            if (error) {
+                console.error(`❌ Error en batch: ${error.message}`);
+                // Si falla el batch, procesar individualmente
+                for (const pack of batch) {
+                    try {
+                        const { data: single, error: singleError } = await supabase
+                            .from('packs')
+                            .insert(pack)
+                            .select();
+
+                        if (singleError) {
+                            resultado.errores.push({ registro: pack, error: singleError.message });
+                        } else {
+                            resultado.nuevos.push(single[0]);
+                        }
+                    } catch (e) {
+                        resultado.errores.push({ registro: pack, error: e.message });
+                    }
+                }
+            } else {
+                resultado.nuevos.push(...(data || []));
+            }
+        } catch (error) {
+            console.error(`❌ Error procesando batch: ${error.message}`);
+        }
+    }
+
+    console.log(`✅ Proceso completado: ${resultado.nuevos.length} nuevos, ${resultado.duplicados.length} duplicados, ${resultado.errores.length} errores`);
+    return resultado;
 }
 
 // Función para procesar productos con lógica upsert (update o insert)

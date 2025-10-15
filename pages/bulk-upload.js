@@ -312,7 +312,7 @@ export default function BulkUploadPage() {
                     method: 'GET',
                     headers: { 'Content-Type': 'application/json' }
                 });
-                
+
                 if (response.ok) {
                     const blob = await response.blob();
                     const url = window.URL.createObjectURL(blob);
@@ -326,6 +326,31 @@ export default function BulkUploadPage() {
                 }
             } catch (error) {
                 setError('Error descargando template de productos: ' + error.message);
+            }
+            return;
+        }
+
+        if (selectedTable === 'packs') {
+            // Para packs, descargar template con ejemplos
+            try {
+                const response = await fetch('/api/bulk-upload?tableType=packs', {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `template_packs_${new Date().toISOString().split('T')[0]}.xlsx`;
+                    link.click();
+                    window.URL.revokeObjectURL(url);
+                } else {
+                    throw new Error('Error descargando template de packs');
+                }
+            } catch (error) {
+                setError('Error descargando template de packs: ' + error.message);
             }
             return;
         }
@@ -380,7 +405,7 @@ export default function BulkUploadPage() {
                             <div>📊 Nuevos: <strong>{uploadResult.resumen.nuevos}</strong></div>
                             <div>🔄 {selectedTable === 'productos' ? 'Actualizados' : 'Duplicados'}: <strong>{uploadResult.resumen.duplicados}</strong></div>
                             <div>❌ Errores: <strong>{uploadResult.resumen.errores}</strong></div>
-                            {selectedTable !== 'productos' && (
+                            {selectedTable !== 'productos' && selectedTable !== 'packs' && (
                                 <div>📦 Productos Nuevos: <strong>{uploadResult.resumen.productosNuevos}</strong></div>
                             )}
                             {uploadResult.resumen.contenedoresNuevos > 0 && (
@@ -424,11 +449,12 @@ export default function BulkUploadPage() {
                                 <option value="compras">🛒 Compras</option>
                                 <option value="containers">🚢 Contenedores</option>
                                 <option value="productos">📦 Productos</option>
+                                <option value="packs">🎁 Packs</option>
                             </select>
                         </div>
 
                         {/* Opción de depurar base de datos (solo para ventas, compras y contenedores) */}
-                        {selectedTable !== 'productos' && (
+                        {selectedTable !== 'productos' && selectedTable !== 'packs' && (
                             <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
                                 <div className="flex items-start gap-3">
                                     <input
@@ -492,8 +518,10 @@ export default function BulkUploadPage() {
                             </button>
                             
                             <div className="text-sm text-gray-600 self-center">
-                                {selectedTable === 'productos' 
-                                    ? 'Descarga Excel con productos existentes para editar/agregar' 
+                                {selectedTable === 'productos'
+                                    ? 'Descarga Excel con productos existentes para editar/agregar'
+                                    : selectedTable === 'packs'
+                                    ? 'Descarga el template con estructura: IDPack, IDProducto, Cantidad'
                                     : 'Descarga el template para ver el formato requerido'
                                 }
                             </div>
@@ -671,6 +699,15 @@ export default function BulkUploadPage() {
                             <li>• <strong>Campos disponibles:</strong> SKU, descripción, categoría, stock, costo_fob_rmb, CBM, link, status, desconsiderado</li>
                             <li>• <strong>Solo SKU es obligatorio:</strong> Los demás campos son opcionales</li>
                             <li>• <strong>Conversión automática:</strong> Números, booleanos y fechas se convierten automáticamente</li>
+                        </ul>
+                    ) : selectedTable === 'packs' ? (
+                        <ul className="text-blue-700 text-sm space-y-1">
+                            <li>• <strong>Campos requeridos:</strong> IDPack (SKU del pack), IDProducto (SKU del producto), Cantidad (unidades del producto en el pack)</li>
+                            <li>• <strong>Ejemplo:</strong> PACK0003 puede contener 1x 649762431365-NEG + 1x 649762431365-AZU</li>
+                            <li>• <strong>Duplicados:</strong> Si ya existe la combinación pack_sku + producto_sku, se ignora automáticamente</li>
+                            <li>• <strong>Descomposición automática:</strong> Al vender un pack, las ventas se descomponen en los productos individuales</li>
+                            <li>• <strong>No requiere depuración:</strong> Los packs se actualizan de forma incremental y segura</li>
+                            <li>• <strong>Integración:</strong> Usa la vista ventas_descompuestas o la función obtener_ventas_diarias_con_packs() para consultas</li>
                         </ul>
                     ) : (
                         <ul className="text-blue-700 text-sm space-y-1">
