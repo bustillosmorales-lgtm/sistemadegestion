@@ -179,14 +179,20 @@ export default function BulkUploadPage() {
         setError('');
 
         // Para archivos grandes, procesar en lotes para evitar timeouts
-        // Vercel tiene límite de 4.5 MB por request, ajustamos batch size dinámicamente
+        // Netlify: límite 6 MB por request, 10s timeout (Free) / 26s (Pro)
+        // Estrategia: chunks más pequeños para completar en <10s
         const avgRowSize = JSON.stringify(uploadData[0] || {}).length;
-        const maxBatchSize = Math.floor((4 * 1024 * 1024) / avgRowSize); // 4 MB para seguridad
-        const batchSize = Math.min(maxBatchSize, 200); // Máximo 200 filas o lo que permita 4MB
+
+        // Netlify: usar chunks de ~2 MB para asegurar que se procesen en <10s
+        const NETLIFY_CHUNK_SIZE = 2 * 1024 * 1024; // 2 MB por chunk
+        const maxBatchSize = Math.floor(NETLIFY_CHUNK_SIZE / avgRowSize);
+        const batchSize = Math.min(maxBatchSize, 100); // Máximo 100 filas para procesar rápido
+
         const totalRows = uploadData.length;
         const totalBatches = Math.ceil(totalRows / batchSize);
 
-        console.log(`📊 Procesando ${totalRows} filas en ${totalBatches} lotes de ${batchSize} filas cada uno (tamaño fila: ${avgRowSize} bytes)`);
+        console.log(`📊 [Netlify Mode] Procesando ${totalRows} filas en ${totalBatches} chunks de ${batchSize} filas`);
+        console.log(`📏 Tamaño estimado por chunk: ${(avgRowSize * batchSize / 1024 / 1024).toFixed(2)} MB`);
 
         let allResults = {
             nuevos: [],
@@ -245,9 +251,10 @@ export default function BulkUploadPage() {
                 tamañoData: JSON.stringify(batchData).length
             });
 
-            // Crear AbortController con timeout de 60 segundos (Vercel Pro)
+            // Crear AbortController con timeout de 10 segundos (Netlify Free)
+            // Netlify Pro: 26 segundos, pero usamos 10s para compatibilidad
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 segundos para Vercel Pro
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos para Netlify Free
 
             const response = await fetch('/api/bulk-upload', {
                 method: 'POST',

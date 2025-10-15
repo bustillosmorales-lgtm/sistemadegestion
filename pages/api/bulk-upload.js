@@ -1179,16 +1179,16 @@ async function verificarYCrearContenedor(container_number, datosCompra, resultad
     }
 }
 
-// Configuración para permitir archivos grandes y más tiempo de procesamiento
+// Configuración para Netlify Functions
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '4.5mb', // Límite de Vercel por request
+      sizeLimit: '6mb', // Netlify permite hasta 6 MB
     },
-    responseLimit: '4.5mb',
+    responseLimit: '6mb',
     externalResolver: true,
   },
-  // Vercel Hobby: 10s, Pro: 60s, Enterprise: 900s
-  // Este valor se sobrescribe con vercel.json
-  maxDuration: 60, // 60 segundos para Vercel Pro
+  // Netlify Free: 10s timeout, Pro: 26s
+  // Procesamos chunks pequeños para completar en <10s
+  maxDuration: 10, // 10 segundos para Netlify Free
 }
