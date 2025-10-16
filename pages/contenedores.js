@@ -43,6 +43,7 @@ export default function Contenedores() {
 
   const [containerFilter, setContainerFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [locationFilter, setLocationFilter] = useState(''); // NUEVO: filtro bodega/transito
 
   useEffect(() => {
     if (!isLoading && (!isAuthenticated || !user)) {
@@ -87,9 +88,13 @@ export default function Contenedores() {
     return enrichedContainers.filter(container => {
         const containerMatch = container.container_number.toLowerCase().includes(containerFilter.toLowerCase());
         const statusMatch = statusFilter ? container.status === statusFilter : true;
-        return containerMatch && statusMatch;
+        // NUEVO: filtro por ubicación (bodega/transito)
+        const locationMatch = locationFilter === '' ? true :
+                             locationFilter === 'bodega' ? !!container.fecha_efectiva_llegada :
+                             locationFilter === 'transito' ? !container.fecha_efectiva_llegada : true;
+        return containerMatch && statusMatch && locationMatch;
     });
-  }, [enrichedContainers, containerFilter, statusFilter]);
+  }, [enrichedContainers, containerFilter, statusFilter, locationFilter]);
 
   const handleCreateContainer = async (e) => {
     e.preventDefault();
@@ -545,23 +550,33 @@ export default function Contenedores() {
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
-            <input 
-              type="text" 
-              placeholder="Buscar por número de contenedor..." 
-              value={containerFilter} 
-              onChange={e => setContainerFilter(e.target.value)} 
-              className="w-full border rounded-md p-2 text-sm" 
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+            <input
+              type="text"
+              placeholder="Buscar por número de contenedor..."
+              value={containerFilter}
+              onChange={e => setContainerFilter(e.target.value)}
+              className="w-full border rounded-md p-2 text-sm"
             />
-            <select 
-              value={statusFilter} 
-              onChange={e => setStatusFilter(e.target.value)} 
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
               className="w-full border rounded-md p-2 text-sm bg-white"
             >
               <option value="">Todos los estados</option>
-              {Object.entries(statusConfig).map(([key, { text }]) => 
+              {Object.entries(statusConfig).map(([key, { text }]) =>
                 <option key={key} value={key}>{text}</option>
               )}
+            </select>
+            {/* NUEVO: Filtro de ubicación */}
+            <select
+              value={locationFilter}
+              onChange={e => setLocationFilter(e.target.value)}
+              className="w-full border rounded-md p-2 text-sm bg-white"
+            >
+              <option value="">Todas las ubicaciones</option>
+              <option value="bodega">📦 En Bodega</option>
+              <option value="transito">🚢 En Tránsito</option>
             </select>
           </div>
         </div>
@@ -599,9 +614,21 @@ export default function Contenedores() {
                           <span>Capacidad: {container.max_cbm} CBM</span>
                           <span>Naviera: {container.shipping_company || 'N/A'}</span>
                         </div>
-                        <span className={`text-xs font-bold text-white px-2 py-1 rounded-full ${statusInfo.color} mt-2 inline-block`}>
-                          {statusInfo.text}
-                        </span>
+                        <div className="flex gap-2 mt-2">
+                          <span className={`text-xs font-bold text-white px-2 py-1 rounded-full ${statusInfo.color} inline-block`}>
+                            {statusInfo.text}
+                          </span>
+                          {/* NUEVO: Badge bodega/tránsito */}
+                          {container.fecha_efectiva_llegada ? (
+                            <span className="text-xs font-bold text-white px-2 py-1 rounded-full bg-green-600 inline-block">
+                              📦 EN BODEGA
+                            </span>
+                          ) : (
+                            <span className="text-xs font-bold text-white px-2 py-1 rounded-full bg-blue-600 inline-block">
+                              🚢 EN TRÁNSITO
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="text-right space-y-2">
                         <div>
@@ -655,7 +682,7 @@ export default function Contenedores() {
                     </div>
 
                     {/* Estadísticas rápidas */}
-                    <div className="grid md:grid-cols-4 gap-4 text-center mb-4">
+                    <div className="grid md:grid-cols-5 gap-4 text-center mb-4">
                       <div>
                         <div className="text-lg font-bold text-blue-600">{container.total_products}</div>
                         <div className="text-xs text-gray-500">Productos</div>
@@ -672,7 +699,25 @@ export default function Contenedores() {
                         <div className="text-lg font-bold text-purple-600">{formatDate(container.estimated_arrival)}</div>
                         <div className="text-xs text-gray-500">Llegada Est.</div>
                       </div>
+                      {/* NUEVO: Mostrar fecha efectiva de llegada */}
+                      <div>
+                        <div className={`text-lg font-bold ${container.fecha_efectiva_llegada ? 'text-green-600' : 'text-orange-600'}`}>
+                          {container.fecha_efectiva_llegada ? formatDate(container.fecha_efectiva_llegada) : '—'}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {container.fecha_efectiva_llegada ? '✅ En Bodega' : '⏳ En Tránsito'}
+                        </div>
+                      </div>
                     </div>
+
+                    {/* NUEVO: Mostrar fecha efectiva prominente si está en bodega */}
+                    {container.fecha_efectiva_llegada && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="text-green-700 font-semibold">📦 Mercancía en bodega desde el {formatDate(container.fecha_efectiva_llegada)}</span>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Lista de productos asignados */}
                     {container.assigned_products.length > 0 && (

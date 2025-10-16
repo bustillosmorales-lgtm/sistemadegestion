@@ -513,19 +513,26 @@ async function procesarContainers(containersData) {
             }
 
             // Insertar nuevo container (más flexible)
-            // Solo establecer actual_arrival_date si realmente tiene la fecha Y el status indica que llegó
-            const actualArrivalDate = container.actual_arrival_date && container.actual_arrival_date !== '' 
-                ? container.actual_arrival_date 
+            // NUEVO: fecha_efectiva_llegada determina si está en bodega o en tránsito
+            const fechaEfectivaLlegada = container.fecha_efectiva_llegada && container.fecha_efectiva_llegada !== ''
+                ? container.fecha_efectiva_llegada
                 : null;
-            
-            // Determinar status basado en si tiene fecha real de llegada
+
+            // Fallback: usar actual_arrival_date si fecha_efectiva no está presente
+            const actualArrivalDate = container.actual_arrival_date && container.actual_arrival_date !== ''
+                ? container.actual_arrival_date
+                : fechaEfectivaLlegada;
+
+            // NUEVO: Determinar status basado en fecha_efectiva_llegada
             let containerStatus = container.status || 'CREATED';
-            if (actualArrivalDate) {
-                containerStatus = 'DELIVERED';
+            if (fechaEfectivaLlegada) {
+                containerStatus = 'DELIVERED'; // EN BODEGA
+            } else if (actualArrivalDate) {
+                containerStatus = 'DELIVERED'; // Compatibilidad con datos antiguos
             } else if (container.estimated_departure || container.shipping_company) {
-                containerStatus = 'IN_TRANSIT';
+                containerStatus = 'IN_TRANSIT'; // EN TRÁNSITO
             }
-            
+
             const nuevoContainer = {
                 container_number: container.container_number.toString(),
                 container_type: container.container_type || 'STD',
@@ -536,6 +543,7 @@ async function procesarContainers(containersData) {
                 estimated_arrival: container.estimated_arrival || null,
                 actual_departure: container.actual_departure || null,
                 actual_arrival_date: actualArrivalDate,
+                fecha_efectiva_llegada: fechaEfectivaLlegada, // NUEVO CAMPO
                 shipping_company: container.shipping_company || '',
                 notes: container.notes || '',
                 status: containerStatus,
