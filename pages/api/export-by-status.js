@@ -177,49 +177,57 @@ export default async function handler(req, res) {
     let products = [];
     let useCache = false;
 
-    try {
-      // Obtener TODOS los productos de este status - usar paginación si es necesario
-      let allCachedData = [];
-      let pageSize = 1000;
-      let currentPage = 0;
-      let hasMore = true;
+    // IMPORTANTE: Para NEEDS_REPLENISHMENT siempre usar query directa
+    // El cache puede estar desactualizado o no incluir todos los productos
+    const forceDirectQuery = (status === 'NEEDS_REPLENISHMENT');
 
-      while (hasMore) {
-        const { data: cachedData, error: cacheError, count } = await supabase
-          .from('dashboard_analysis_cache')
-          .select('*', { count: 'exact' })
-          .eq('status', status)
-          .gt('expires_at', new Date().toISOString())
-          .order('impacto_economico->valorTotal', { ascending: false, nullsLast: true })
-          .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
+    if (!forceDirectQuery) {
+      try {
+        // Obtener TODOS los productos de este status - usar paginación si es necesario
+        let allCachedData = [];
+        let pageSize = 1000;
+        let currentPage = 0;
+        let hasMore = true;
 
-        if (cacheError) {
-          console.log('Cache error:', cacheError.message);
-          break;
-        }
+        while (hasMore) {
+          const { data: cachedData, error: cacheError, count } = await supabase
+            .from('dashboard_analysis_cache')
+            .select('*', { count: 'exact' })
+            .eq('status', status)
+            .gt('expires_at', new Date().toISOString())
+            .order('impacto_economico->valorTotal', { ascending: false, nullsLast: true })
+            .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
 
-        if (cachedData && cachedData.length > 0) {
-          allCachedData = allCachedData.concat(cachedData);
-          console.log(`📥 Página ${currentPage + 1}: ${cachedData.length} productos (total acumulado: ${allCachedData.length})`);
-
-          // Si obtuvimos menos de pageSize, ya no hay más
-          if (cachedData.length < pageSize) {
-            hasMore = false;
-          } else {
-            currentPage++;
+          if (cacheError) {
+            console.log('Cache error:', cacheError.message);
+            break;
           }
-        } else {
-          hasMore = false;
-        }
-      }
 
-      if (allCachedData.length > 0) {
-        products = allCachedData;
-        useCache = true;
-        console.log(`✅ Using cache: ${products.length} productos totales del status ${status}`);
+          if (cachedData && cachedData.length > 0) {
+            allCachedData = allCachedData.concat(cachedData);
+            console.log(`📥 Página ${currentPage + 1}: ${cachedData.length} productos (total acumulado: ${allCachedData.length})`);
+
+            // Si obtuvimos menos de pageSize, ya no hay más
+            if (cachedData.length < pageSize) {
+              hasMore = false;
+            } else {
+              currentPage++;
+            }
+          } else {
+            hasMore = false;
+          }
+        }
+
+        if (allCachedData.length > 0) {
+          products = allCachedData;
+          useCache = true;
+          console.log(`✅ Using cache: ${products.length} productos totales del status ${status}`);
+        }
+      } catch (error) {
+        console.log('Cache not available, using direct query');
       }
-    } catch (error) {
-      console.log('Cache not available, using direct query');
+    } else {
+      console.log(`🔄 NEEDS_REPLENISHMENT: Forzando query directa (no usar cache)`);
     }
 
     // Si no hay cache, query directo con paginación
