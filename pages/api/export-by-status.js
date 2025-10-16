@@ -629,15 +629,10 @@ function formatByAction(action, products, detailsMap, transitMap, config, useCac
         '📝 Desconsiderar': '',
 
         '🔒 Status Actual': p.status,
-        _cantidadSugerida: cantidadSugerida // Campo temporal para filtrado
       };
-    })
-    .filter(row => row._cantidadSugerida > 0) // FILTRAR: Solo productos que realmente necesitan reposición
-    .map(row => {
-      // Eliminar campo temporal
-      const { _cantidadSugerida, ...cleanRow } = row;
-      return cleanRow;
     }),
+    // NOTA: No filtrar por cantidadSugerida > 0 porque el usuario quiere ver TODOS los productos
+    // del status NEEDS_REPLENISHMENT, incluso los que tienen cantidad = 0
 
     // Cotizar
     quote: (products) => products.map(p => {
