@@ -21,7 +21,7 @@ export default function Contenedores() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading, logout } = useUser();
   const { data: containers, error: containersError } = useSWR('/api/containers', fetcher);
-  const { data: productsData, error: productsError } = useSWR('/api/analysis', fetcher);
+  const { data: productsData, error: productsError } = useSWR('/api/analysis-cached', fetcher);
   
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
