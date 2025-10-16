@@ -330,6 +330,21 @@ async function procesarCompras(comprasData) {
                 }
             }
 
+            // Verificar CBM
+            let cbmFinal = compra.cbm;
+            if (!cbmFinal && compra._original) {
+                const cbmField = Object.entries(compra._original).find(([key, value]) => {
+                    const keyLower = key.toLowerCase();
+                    return (keyLower.includes('cbm') || keyLower.includes('m3') ||
+                            keyLower.includes('metros') || keyLower.includes('cubic')) &&
+                            value && value.toString().trim() !== '';
+                });
+
+                if (cbmField) {
+                    cbmFinal = parseFloat(cbmField[1]);
+                }
+            }
+
             // Validar campos requeridos
             if (!skuFinal || !cantidadFinal) {
                 resultado.errores.push({
@@ -347,6 +362,7 @@ async function procesarCompras(comprasData) {
                 fecha_llegada_real: compra.fecha_llegada_real || null,
                 status_compra: compra.status_compra || 'en_transito',
                 container_number: containerFinal || null,
+                cbm: cbmFinal ? parseFloat(cbmFinal) : null,
                 descripcion: compra.descripcion_producto,
                 _original: compra
             };
@@ -413,7 +429,8 @@ async function procesarCompras(comprasData) {
             fecha_llegada_estimada: c.fecha_llegada_estimada,
             fecha_llegada_real: c.fecha_llegada_real,
             status_compra: c.status_compra,
-            container_number: c.container_number
+            container_number: c.container_number,
+            cbm: c.cbm
         }));
 
         try {
@@ -438,7 +455,8 @@ async function procesarCompras(comprasData) {
                                 fecha_llegada_estimada: compra.fecha_llegada_estimada,
                                 fecha_llegada_real: compra.fecha_llegada_real,
                                 status_compra: compra.status_compra,
-                                container_number: compra.container_number
+                                container_number: compra.container_number,
+                                cbm: compra.cbm
                             })
                             .select();
 

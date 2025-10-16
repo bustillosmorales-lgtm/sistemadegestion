@@ -20,9 +20,10 @@ export default async function handler(req, res) {
         console.log('📊 Calculando utilización de contenedores...');
 
         // 1. Obtener todas las compras con container_number
+        // NUEVO: Ahora incluimos CBM directamente desde compras
         const { data: compras, error: comprasError } = await supabase
             .from('compras')
-            .select('sku, cantidad, container_number')
+            .select('sku, cantidad, container_number, cbm, descripcion')
             .not('container_number', 'is', null);
 
         if (comprasError) {
@@ -32,36 +33,12 @@ export default async function handler(req, res) {
 
         console.log(`✅ Obtenidas ${compras?.length || 0} compras con contenedor`);
 
-        // 2. Obtener información de productos (CBM)
-        const skusUnicos = [...new Set(compras?.map(c => c.sku) || [])];
-
-        const { data: productos, error: productosError } = await supabase
-            .from('products')
-            .select('sku, cbm, descripcion')
-            .in('sku', skusUnicos);
-
-        if (productosError) {
-            console.error('Error obteniendo productos:', productosError);
-            return res.status(500).json({ error: productosError.message });
-        }
-
-        console.log(`✅ Obtenidos ${productos?.length || 0} productos`);
-
-        // 3. Crear mapa de productos para acceso rápido
-        const productosMap = {};
-        productos?.forEach(p => {
-            productosMap[p.sku] = {
-                cbm: parseFloat(p.cbm) || 0,
-                descripcion: p.descripcion || ''
-            };
-        });
-
-        // 4. Agrupar compras por contenedor
+        // 2. Agrupar compras por contenedor
+        // NUEVO: Ya no necesitamos consultar la tabla products
         const contenedoresUtilizacion = {};
 
         compras?.forEach(compra => {
             const containerNumber = compra.container_number;
-            const producto = productosMap[compra.sku];
 
             if (!contenedoresUtilizacion[containerNumber]) {
                 contenedoresUtilizacion[containerNumber] = {
@@ -73,8 +50,8 @@ export default async function handler(req, res) {
                 };
             }
 
-            // Agregar producto al contenedor
-            const cbmProducto = producto?.cbm || 0;
+            // NUEVO: CBM viene directamente de la tabla compras
+            const cbmProducto = parseFloat(compra.cbm) || 0;
             const cbmTotal = cbmProducto * compra.cantidad;
 
             contenedoresUtilizacion[containerNumber].productos.push({
@@ -82,7 +59,7 @@ export default async function handler(req, res) {
                 cantidad: compra.cantidad,
                 cbm_unitario: cbmProducto,
                 cbm_total: cbmTotal,
-                descripcion: producto?.descripcion || 'Sin descripción'
+                descripcion: compra.descripcion || 'Sin descripción'
             });
 
             contenedoresUtilizacion[containerNumber].total_productos += 1;
