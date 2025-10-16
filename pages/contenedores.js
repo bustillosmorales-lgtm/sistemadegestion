@@ -21,8 +21,8 @@ export default function Contenedores() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading, logout } = useUser();
   const { data: containers, error: containersError } = useSWR('/api/containers', fetcher);
-  const { data: productsData, error: productsError } = useSWR('/api/analysis-cached', fetcher);
-  
+  const { data: utilizationData, error: utilizationError } = useSWR('/api/containers-utilization', fetcher);
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingContainer, setEditingContainer] = useState(null);
@@ -40,7 +40,7 @@ export default function Contenedores() {
   const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isProcessingArrival, setIsProcessingArrival] = useState(null);
-  
+
   const [containerFilter, setContainerFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
@@ -50,33 +50,38 @@ export default function Contenedores() {
     }
   }, [isAuthenticated, user, isLoading, router]);
 
-  const products = productsData?.results || [];
-  
-  // Enriquecer contenedores con información de productos
+  // Mapa de utilización por contenedor (desde compras)
+  const utilizationMap = utilizationData?.contenedores || {};
+
+  // Enriquecer contenedores con información de compras
   const enrichedContainers = useMemo(() => {
     if (!containers) return [];
-    
+
     return containers.map(container => {
-      // Encontrar productos asignados a este contenedor
-      const assignedProducts = products.filter(product => 
-        product.shipping_details?.containerNumber === container.container_number
-      );
-      
-      // Calcular totales
-      const totalProducts = assignedProducts.length;
-      const totalCBM = assignedProducts.reduce((sum, product) => sum + (product.cbm || 0), 0);
-      const utilizationPercent = container.max_cbm > 0 ? (totalCBM / container.max_cbm) * 100 : 0;
-      
+      // Obtener datos de utilización desde compras
+      const utilization = utilizationMap[container.container_number] || {
+        productos: [],
+        total_productos: 0,
+        total_cantidad: 0,
+        total_cbm: 0
+      };
+
+      // Calcular porcentaje de utilización
+      const utilizationPercent = container.max_cbm > 0
+        ? (utilization.total_cbm / container.max_cbm) * 100
+        : 0;
+
       return {
         ...container,
-        assigned_products: assignedProducts,
-        total_products: totalProducts,
-        total_cbm_used: totalCBM,
+        assigned_products: utilization.productos,
+        total_products: utilization.total_productos,
+        total_cantidad: utilization.total_cantidad,
+        total_cbm_used: utilization.total_cbm,
         utilization_percent: utilizationPercent,
-        remaining_cbm: container.max_cbm - totalCBM
+        remaining_cbm: container.max_cbm - utilization.total_cbm
       };
     });
-  }, [containers, products]);
+  }, [containers, utilizationMap]);
 
   const filteredContainers = useMemo(() => {
     return enrichedContainers.filter(container => {
