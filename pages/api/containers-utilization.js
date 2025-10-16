@@ -23,7 +23,7 @@ export default async function handler(req, res) {
         // NUEVO: Ahora incluimos CBM directamente desde compras
         const { data: compras, error: comprasError } = await supabase
             .from('compras')
-            .select('sku, cantidad, container_number, cbm, descripcion')
+            .select('sku, cantidad, container_number, cbm')
             .not('container_number', 'is', null);
 
         if (comprasError) {
@@ -33,8 +33,26 @@ export default async function handler(req, res) {
 
         console.log(`✅ Obtenidas ${compras?.length || 0} compras con contenedor`);
 
-        // 2. Agrupar compras por contenedor
-        // NUEVO: Ya no necesitamos consultar la tabla products
+        // 2. Obtener SKUs únicos para buscar descripciones en products
+        const skusUnicos = [...new Set(compras?.map(c => c.sku) || [])];
+
+        const { data: productos, error: productosError } = await supabase
+            .from('products')
+            .select('sku, descripcion')
+            .in('sku', skusUnicos);
+
+        if (productosError) {
+            console.error('Error obteniendo productos:', productosError);
+            // No fallar, continuar sin descripciones
+        }
+
+        // Crear mapa de descripciones
+        const descripcionesMap = {};
+        productos?.forEach(p => {
+            descripcionesMap[p.sku] = p.descripcion || 'Sin descripción';
+        });
+
+        // 3. Agrupar compras por contenedor
         const contenedoresUtilizacion = {};
 
         compras?.forEach(compra => {
@@ -59,7 +77,7 @@ export default async function handler(req, res) {
                 cantidad: compra.cantidad,
                 cbm_unitario: cbmProducto,
                 cbm_total: cbmTotal,
-                descripcion: compra.descripcion || 'Sin descripción'
+                descripcion: descripcionesMap[compra.sku] || 'Sin descripción'
             });
 
             contenedoresUtilizacion[containerNumber].total_productos += 1;
