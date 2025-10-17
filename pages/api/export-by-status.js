@@ -255,7 +255,8 @@ export default async function handler(req, res) {
         let query = supabase
           .from('products')
           .select('*')
-          .eq('status', status);
+          .eq('status', status)
+          .eq('desconsiderado', false); // ✅ Filtrar productos desconsiderados
 
         const { data: directData, error: directError } = await query
           .order('sku')
