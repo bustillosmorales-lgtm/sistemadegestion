@@ -10,6 +10,8 @@ export default async function handler(req, res) {
 
             if (tableType === 'packs') {
                 return await descargarTemplatePacks(res);
+            } else if (tableType === 'containers') {
+                return await descargarTemplateContainers(res);
             } else {
                 // Por defecto, descargar template de productos
                 return await descargarTemplateProductos(res);
@@ -936,6 +938,114 @@ async function descargarTemplatePacks(res) {
 
     } catch (error) {
         throw new Error(`Error generando template de packs: ${error.message}`);
+    }
+}
+
+// Función para descargar template de contenedores
+async function descargarTemplateContainers(res) {
+    try {
+        // Obtener todos los contenedores existentes
+        const { data: contenedores, error } = await supabase
+            .from('containers')
+            .select('*')
+            .order('container_number');
+
+        if (error) {
+            throw new Error(`Error obteniendo contenedores: ${error.message}`);
+        }
+
+        // Crear workbook
+        const workbook = XLSX.utils.book_new();
+
+        // Preparar datos para Excel con todas las columnas necesarias
+        const excelData = (contenedores || []).map(container => ({
+            container_number: container.container_number || '',
+            container_type: container.container_type || 'STD',
+            max_cbm: container.max_cbm || 68,
+            departure_port: container.departure_port || '',
+            arrival_port: container.arrival_port || '',
+            estimated_departure: container.estimated_departure || '',
+            estimated_arrival: container.estimated_arrival || '',
+            actual_departure: container.actual_departure || '',
+            actual_arrival_date: container.actual_arrival_date || '',
+            fecha_efectiva_llegada: container.fecha_efectiva_llegada || '', // COLUMNA CLAVE
+            shipping_company: container.shipping_company || '',
+            notes: container.notes || '',
+            status: container.status || ''
+        }));
+
+        // Si no hay contenedores, crear template con filas de ejemplo
+        if (excelData.length === 0) {
+            excelData.push(
+                {
+                    container_number: 'CONT-001',
+                    container_type: 'STD',
+                    max_cbm: 68,
+                    departure_port: 'Shanghai',
+                    arrival_port: 'Valparaíso',
+                    estimated_departure: '2025-01-15',
+                    estimated_arrival: '2025-02-15',
+                    actual_departure: '',
+                    actual_arrival_date: '',
+                    fecha_efectiva_llegada: '', // EN TRÁNSITO (sin fecha)
+                    shipping_company: 'Naviera Ejemplo',
+                    notes: 'Contenedor en tránsito',
+                    status: 'IN_TRANSIT'
+                },
+                {
+                    container_number: 'CONT-002',
+                    container_type: 'HQ',
+                    max_cbm: 76,
+                    departure_port: 'Shenzhen',
+                    arrival_port: 'San Antonio',
+                    estimated_departure: '2024-12-20',
+                    estimated_arrival: '2025-01-20',
+                    actual_departure: '2024-12-20',
+                    actual_arrival_date: '2025-01-18',
+                    fecha_efectiva_llegada: '2025-01-20', // EN BODEGA (con fecha)
+                    shipping_company: 'Maersk',
+                    notes: 'Mercancía disponible en bodega',
+                    status: 'DELIVERED'
+                }
+            );
+        }
+
+        // Crear worksheet
+        const worksheet = XLSX.utils.json_to_sheet(excelData);
+
+        // Configurar ancho de columnas
+        const columnWidths = [
+            { wch: 18 }, // container_number
+            { wch: 15 }, // container_type
+            { wch: 10 }, // max_cbm
+            { wch: 18 }, // departure_port
+            { wch: 18 }, // arrival_port
+            { wch: 18 }, // estimated_departure
+            { wch: 18 }, // estimated_arrival
+            { wch: 18 }, // actual_departure
+            { wch: 20 }, // actual_arrival_date
+            { wch: 22 }, // fecha_efectiva_llegada (IMPORTANTE)
+            { wch: 20 }, // shipping_company
+            { wch: 40 }, // notes
+            { wch: 15 }  // status
+        ];
+        worksheet['!cols'] = columnWidths;
+
+        // Agregar worksheet al workbook
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Contenedores');
+
+        // Generar buffer del archivo Excel
+        const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+        // Configurar headers para descarga
+        res.setHeader('Content-Disposition', `attachment; filename="contenedores_${new Date().toISOString().split('T')[0]}.xlsx"`);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        // Enviar archivo
+        return res.send(excelBuffer);
+
+    } catch (error) {
+        throw new Error(`Error generando template de contenedores: ${error.message}`);
     }
 }
 
