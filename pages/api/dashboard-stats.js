@@ -43,6 +43,7 @@ export default async function handler(req, res) {
         .from('products')
         .select('status, sku, descripcion, stock_actual')
         .not('status', 'is', null)
+        .or('desconsiderado.eq.false,desconsiderado.is.null') // Excluir desconsiderados
         .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
 
       if (statusError) {
