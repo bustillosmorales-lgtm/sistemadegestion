@@ -1,0 +1,52 @@
+[
+  {
+    "IDPack": "PACK0001",
+    "IDProducto": "649762431365-NEG",
+    "Cantidad": 2
+  },
+  {
+    "IDPack": "PACK0002",
+    "IDProducto": "649762431365-AZU",
+    "Cantidad": 2
+  },
+  {
+    "IDPack": "PACK0003",
+    "IDProducto": "649762431365-NEG",
+    "Cantidad": 1
+  },
+  {
+    "IDPack": "PACK0003",
+    "IDProducto": "649762431365-AZU",
+    "Cantidad": 1
+  },
+  {
+    "IDPack": "PACK0004",
+    "IDProducto": "649762431365-NEG",
+    "Cantidad": 2
+  },
+  {
+    "IDPack": "PACK0004",
+    "IDProducto": "649762431365-AZU",
+    "Cantidad": 1
+  },
+  {
+    "IDPack": "PACK0005",
+    "IDProducto": "649762431365-NEG",
+    "Cantidad": 3
+  },
+  {
+    "IDPack": "PACK0006",
+    "IDProducto": "649762431365-AZU",
+    "Cantidad": 3
+  },
+  {
+    "IDPack": "PACK0007",
+    "IDProducto": 649762435196,
+    "Cantidad": 1
+  },
+  {
+    "IDPack": "PACK0007",
+    "IDProducto": 649762435202,
+    "Cantidad": 1
+  }
+]

@@ -109,11 +109,12 @@ export default async function handler(req, res) {
 
     console.log(`🔍 DEBUG: Productos con órdenes activas: ${partialOrdersCount}`);
 
-    // Obtener productos desconsiderados
+    // Obtener productos desconsiderados (límite aumentado para mostrar todos)
     const { data: disregardedData, error: disregardedError } = await supabase
       .from('products')
       .select('sku, descripcion, stock_actual')
-      .eq('desconsiderado', true);
+      .eq('desconsiderado', true)
+      .limit(5000); // Límite alto para mostrar todos los desconsiderados
 
     let disregardedCount = 0;
     const disregardedProducts = [];

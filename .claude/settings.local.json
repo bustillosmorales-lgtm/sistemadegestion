@@ -103,7 +103,15 @@
       "Bash(read)",
       "Bash(npm test)",
       "Bash(npx jest:*)",
-      "Bash(move:*)"
+      "Bash(move:*)",
+      "Bash(if [ -f .env ])",
+      "Bash(then echo \"Archivo .env existe\")",
+      "Bash(else echo \"Archivo .env NO existe\")",
+      "Bash(fi)",
+      "Bash(start notepad .env.vercel)",
+      "Read(//c/Users/franc/Downloads/packs/**)",
+      "Bash(del __tests__apibulk-upload.test.js __tests__apiexport-by-status.test.js __tests__apipurchase-orders.test.js)",
+      "Read(//c/Users/franc/Downloads/**)"
     ],
     "deny": [],
     "ask": []

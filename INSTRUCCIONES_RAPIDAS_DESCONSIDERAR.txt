@@ -1,0 +1,137 @@
+═══════════════════════════════════════════════════════════════
+📋 INSTRUCCIONES RÁPIDAS: Desconsiderar Productos desde Frontend
+═══════════════════════════════════════════════════════════════
+
+🎯 RESUMEN: Modifica tu Excel y súbelo en localhost:3012
+
+═══════════════════════════════════════════════════════════════
+PASO 1: MODIFICAR TU EXCEL
+═══════════════════════════════════════════════════════════════
+
+1. Abre tu Excel actual (el que tiene los 1180 SKUs)
+
+2. ELIMINA todas las columnas EXCEPTO:
+   - SKU
+
+3. AGREGA una nueva columna:
+   - ✅ Desconsiderar
+
+   ⚠️ Copia el emoji desde aquí si no lo tienes: ✅
+
+4. Llena la columna "✅ Desconsiderar" con "SI" en TODAS las filas:
+
+   Atajo rápido:
+   - Escribe "SI" en la primera celda (B2)
+   - Copia esa celda (Ctrl + C)
+   - Selecciona desde B2 hasta B1181
+   - Pega (Ctrl + V)
+
+5. Tu Excel debe quedar así:
+
+   ┌─────────────┬──────────────────┐
+   │ SKU         │ ✅ Desconsiderar │
+   ├─────────────┼──────────────────┤
+   │ 010918VE    │ SI               │
+   │ 01HR3309    │ SI               │
+   │ 0           │ SI               │
+   │ ...         │ SI               │
+   └─────────────┴──────────────────┘
+
+6. IMPORTANTE: Verifica que la hoja se llama "Datos"
+   - Si no, haz clic derecho en la pestaña → Cambiar nombre → "Datos"
+
+7. Guarda el archivo: Desconsiderar_1180.xlsx
+
+═══════════════════════════════════════════════════════════════
+PASO 2: SUBIR EN EL DASHBOARD
+═══════════════════════════════════════════════════════════════
+
+1. Abre navegador: http://localhost:3012/dashboard
+
+2. Busca el botón de upload
+   ⚠️ Puede estar en la parte superior del dashboard
+   ⚠️ Si dice "Importar Actualizaciones", úsalo (ahora con el Excel correcto funcionará)
+
+3. Click en el botón → Selecciona archivo → Desconsiderar_1180.xlsx
+
+4. Click "Abrir"
+
+═══════════════════════════════════════════════════════════════
+PASO 3: VER PROGRESO
+═══════════════════════════════════════════════════════════════
+
+Verás algo como:
+
+   ⏳ Procesando archivo en segundo plano...
+
+   Job ID: abc-123...
+
+   Progreso: ████████░░░░░░░░░░░░ 45%
+   Status: processing
+   Tiempo: 00:30
+
+Espera hasta ver:
+
+   ✅ ¡Importación completada exitosamente!
+
+   Total: 1180 | Exitosos: 1180 | Errores: 0
+
+   Action: mark_desconsiderado
+
+═══════════════════════════════════════════════════════════════
+PASO 4: VERIFICAR
+═══════════════════════════════════════════════════════════════
+
+1. Presiona: Ctrl + Shift + R (hard refresh)
+
+2. Verifica que "Necesita Reposición" ahora tiene MENOS productos
+
+═══════════════════════════════════════════════════════════════
+✅ CHECKLIST ANTES DE SUBIR
+═══════════════════════════════════════════════════════════════
+
+□ Mi Excel tiene SOLO 2 columnas: SKU y ✅ Desconsiderar
+□ La hoja se llama "Datos"
+□ Todas las filas tienen "SI" en ✅ Desconsiderar
+□ No hay filas vacías
+□ localhost:3012 está abierto en el navegador
+
+═══════════════════════════════════════════════════════════════
+🔧 SI ALGO SALE MAL
+═══════════════════════════════════════════════════════════════
+
+Error: "Unknown action type"
+→ La columna NO se llama "✅ Desconsiderar" exactamente
+→ Copia el emoji desde arriba: ✅
+
+Error: "No marcado para procesar"
+→ Las celdas no tienen "SI" (mayúsculas)
+
+Error: "SKU missing"
+→ Hay filas vacías, elimínalas
+
+Productos siguen apareciendo:
+→ Hard refresh: Ctrl + Shift + R
+
+═══════════════════════════════════════════════════════════════
+📊 TIEMPOS ESPERADOS
+═══════════════════════════════════════════════════════════════
+
+- Upload: < 3 segundos
+- Procesamiento 1180 productos: ~35 segundos
+- Total: ~40 segundos
+
+═══════════════════════════════════════════════════════════════
+🆘 ¿NECESITAS AYUDA?
+═══════════════════════════════════════════════════════════════
+
+Lee el archivo completo:
+- GUIA_DESCONSIDERAR_FRONTEND.md
+
+O usa SQL directo (más rápido):
+- SOLUCION_DESCONSIDERAR_1180_PRODUCTOS.md
+
+═══════════════════════════════════════════════════════════════
+Creado: 17 de octubre de 2025
+Worker: ✅ Corriendo (detectará el archivo automáticamente)
+═══════════════════════════════════════════════════════════════

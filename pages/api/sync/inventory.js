@@ -370,36 +370,59 @@ async function importProductsFromPlatform(req, res, platform) {
             for (const itemId of items.results || []) {
                 try {
                     const item = await client.getItem(itemId);
-                    
-                    // Crear/actualizar producto en nuestra base de datos
-                    const productData = {
-                        sku: item.seller_custom_field || itemId, // Usar SKU personalizado o ID
-                        descripcion: item.title,
-                        stock_actual: item.available_quantity,
-                        status: item.status === 'active' ? 'ACTIVE' : 'INACTIVE',
-                        link: item.permalink
-                    };
-                    
-                    const { data: product } = await supabase
+                    const sku = item.seller_custom_field || itemId;
+
+                    // Verificar si el producto existe en nuestra base de datos
+                    const { data: existingProduct, error: checkError } = await supabase
                         .from('products')
-                        .upsert(productData)
-                        .select()
-                        .single();
-                        
-                    // Crear mapeo
+                        .select('sku, descripcion')
+                        .eq('sku', sku)
+                        .maybeSingle();
+
+                    if (checkError) {
+                        throw new Error(`Error verificando producto ${sku}: ${checkError.message}`);
+                    }
+
+                    if (!existingProduct) {
+                        console.warn(`⚠️ Producto ${sku} no existe en la tabla productos. Omitiendo importación.`);
+                        console.warn(`   Debe crear este producto mediante carga masiva de productos primero.`);
+                        continue; // Saltar este producto
+                    }
+
+                    // Solo actualizar stock si el producto existe
+                    const { error: updateError } = await supabase
+                        .from('products')
+                        .update({
+                            stock_actual: item.available_quantity,
+                            status: item.status === 'active' ? 'ACTIVE' : 'INACTIVE',
+                            link: item.permalink
+                        })
+                        .eq('sku', sku);
+
+                    if (updateError) {
+                        throw new Error(`Error actualizando producto ${sku}: ${updateError.message}`);
+                    }
+
+                    // Crear/actualizar mapeo
                     await supabase
                         .from('platform_mappings')
                         .upsert({
                             platform: 'mercadolibre',
-                            internal_sku: productData.sku,
+                            internal_sku: sku,
                             external_id: itemId,
                             external_data: item,
                             active: true,
                             last_sync: new Date().toISOString()
                         });
-                    
-                    importedProducts.push(productData);
-                    
+
+                    importedProducts.push({
+                        sku: sku,
+                        descripcion: existingProduct.descripcion,
+                        stock_actual: item.available_quantity,
+                        status: item.status === 'active' ? 'ACTIVE' : 'INACTIVE',
+                        link: item.permalink
+                    });
+
                 } catch (error) {
                     console.error(`Error importando item ${itemId}:`, error);
                 }

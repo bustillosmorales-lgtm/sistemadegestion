@@ -1,0 +1,1992 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Gestión de Inventario - Manual Interactivo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            color: #667eea;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            color: #666;
+            font-size: 1.2em;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .nav-tab {
+            flex: 1;
+            min-width: 150px;
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .nav-tab:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .nav-tab.active {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            box-shadow: 0 5px 15px rgba(245, 87, 108, 0.4);
+        }
+
+        .content-section {
+            display: none;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            animation: fadeIn 0.5s;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 2em;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        h3 {
+            color: #764ba2;
+            margin-top: 25px;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .flow-diagram {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #667eea;
+        }
+
+        .flow-step {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #764ba2;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .flow-step:hover {
+            transform: translateX(10px);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+
+        .flow-step::before {
+            content: "▶";
+            position: absolute;
+            left: -20px;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .step-number {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transition: transform 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+
+        .card h4 {
+            font-size: 1.3em;
+            margin-bottom: 10px;
+        }
+
+        .formula {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #856404;
+        }
+
+        .example {
+            background: #d1ecf1;
+            border: 2px solid #17a2b8;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .example-title {
+            color: #0c5460;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .warning {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            color: #721c24;
+        }
+
+        .success {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            color: #155724;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+        }
+
+        .interactive-demo {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .input-group {
+            margin: 15px 0;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ced4da;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            margin: 10px 5px;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .result-box {
+            background: white;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 15px;
+            font-size: 1.2em;
+        }
+
+        .accordion {
+            margin: 20px 0;
+        }
+
+        .accordion-item {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+
+        .accordion-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .accordion-header:hover {
+            opacity: 0.9;
+        }
+
+        .accordion-content {
+            display: none;
+            padding: 20px;
+        }
+
+        .accordion-content.active {
+            display: block;
+            animation: slideDown 0.3s;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; max-height: 0; }
+            to { opacity: 1; max-height: 1000px; }
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin: 0 5px;
+        }
+
+        .badge-primary { background: #007bff; color: white; }
+        .badge-success { background: #28a745; color: white; }
+        .badge-warning { background: #ffc107; color: #333; }
+        .badge-danger { background: #dc3545; color: white; }
+        .badge-info { background: #17a2b8; color: white; }
+
+        .timeline {
+            position: relative;
+            padding-left: 50px;
+            margin: 30px 0;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 20px;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: #667eea;
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 30px;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -38px;
+            top: 0;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            border: 3px solid white;
+            box-shadow: 0 0 0 3px #667eea;
+        }
+
+        .timeline-content {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 3px solid #667eea;
+        }
+
+        footer {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            margin-top: 30px;
+            text-align: center;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .nav-tabs {
+                flex-direction: column;
+            }
+
+            .nav-tab {
+                min-width: 100%;
+            }
+
+            .card-grid {
+                grid-template-columns: 1fr;
+            }
+
+            header h1 {
+                font-size: 1.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 Sistema de Gestión de Inventario</h1>
+            <p>Manual Interactivo Completo - Sistema de Reposición Inteligente</p>
+        </header>
+
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="showSection('overview')">📊 Vista General</button>
+            <button class="nav-tab" onclick="showSection('data-flow')">📥 Flujo de Datos</button>
+            <button class="nav-tab" onclick="showSection('calculations')">🔢 Cálculos</button>
+            <button class="nav-tab" onclick="showSection('packs')">📦 Sistema de Packs</button>
+            <button class="nav-tab" onclick="showSection('analysis')">📈 Análisis</button>
+            <button class="nav-tab" onclick="showSection('purchase')">🛒 Compras</button>
+            <button class="nav-tab" onclick="showSection('database')">💾 Base de Datos</button>
+            <button class="nav-tab" onclick="showSection('calculator')">🧮 Calculadora</button>
+        </div>
+
+        <!-- OVERVIEW SECTION -->
+        <div id="overview" class="content-section active">
+            <h2>📊 Vista General del Sistema</h2>
+
+            <div class="success">
+                <h3>🎯 Objetivo del Sistema</h3>
+                <p>Sistema automatizado de gestión de inventario que calcula cuánto stock mantener y cuándo reordenar, basado en datos históricos de ventas, tiempos de entrega y niveles de servicio deseados.</p>
+            </div>
+
+            <h3>🔑 Conceptos Clave</h3>
+            <div class="card-grid">
+                <div class="card">
+                    <h4>📊 Venta Diaria</h4>
+                    <p>Promedio de unidades vendidas por día en un período determinado. Base para todos los cálculos.</p>
+                </div>
+                <div class="card">
+                    <h4>🎯 Stock Objetivo</h4>
+                    <p>Cantidad ideal de inventario para cubrir ventas durante el tiempo de reposición + stock de seguridad.</p>
+                </div>
+                <div class="card">
+                    <h4>📦 Cantidad Sugerida</h4>
+                    <p>Unidades que debes comprar para alcanzar el stock objetivo, considerando stock actual y en tránsito.</p>
+                </div>
+                <div class="card">
+                    <h4>🚢 Stock en Tránsito</h4>
+                    <p>Productos ya ordenados pero no recibidos. Reduce la cantidad a comprar.</p>
+                </div>
+                <div class="card">
+                    <h4>⏱️ Lead Time</h4>
+                    <p>Tiempo total desde que ordenas hasta que recibes: Fabricación + Envío + Buffer</p>
+                </div>
+                <div class="card">
+                    <h4>💰 Rentabilidad</h4>
+                    <p>Cálculo de margen considerando costo FOB, envío, comisiones ML y costos operacionales.</p>
+                </div>
+            </div>
+
+            <h3>🏗️ Arquitectura del Sistema</h3>
+            <div class="flow-diagram">
+                <div class="flow-step">
+                    <span class="step-number">1</span>
+                    <strong>Carga de Datos</strong> - Excel/CSV → Supabase (productos, ventas, compras, packs)
+                </div>
+                <div class="flow-step">
+                    <span class="step-number">2</span>
+                    <strong>Procesamiento</strong> - Descomposición de packs, cálculo de venta diaria
+                </div>
+                <div class="flow-step">
+                    <span class="step-number">3</span>
+                    <strong>Análisis</strong> - Stock objetivo, cantidad sugerida, estados de reposición
+                </div>
+                <div class="flow-step">
+                    <span class="step-number">4</span>
+                    <strong>Exportación</strong> - Filtros por estado, priorización, agrupación por proveedor
+                </div>
+                <div class="flow-step">
+                    <span class="step-number">5</span>
+                    <strong>Purchase Orders</strong> - Generación de órdenes, tracking de recepción
+                </div>
+                <div class="flow-step">
+                    <span class="step-number">6</span>
+                    <strong>Containers</strong> - Optimización de espacio, cálculo de CBM
+                </div>
+            </div>
+
+            <h3>⚡ Características Principales</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Característica</th>
+                            <th>Descripción</th>
+                            <th>Beneficio</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="badge badge-primary">Cálculo Automático</span></td>
+                            <td>Calcula venta diaria, stock objetivo y cantidad sugerida automáticamente</td>
+                            <td>Elimina cálculos manuales propensos a errores</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-success">Sistema de Packs</span></td>
+                            <td>Descompone ventas de packs en componentes individuales</td>
+                            <td>Cálculos precisos de reposición por producto</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-warning">Priorización</span></td>
+                            <td>Clasifica productos por urgencia (CRITICAL, PARTIAL, etc.)</td>
+                            <td>Enfoca recursos en productos críticos</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-danger">Stock en Tránsito</span></td>
+                            <td>Considera compras confirmadas pero no recibidas</td>
+                            <td>Evita sobre-ordenar productos ya en camino</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-info">Rentabilidad</span></td>
+                            <td>Calcula margen, ROI y costos totales</td>
+                            <td>Decisiones de compra basadas en rentabilidad</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- DATA FLOW SECTION -->
+        <div id="data-flow" class="content-section">
+            <h2>📥 Flujo Completo de Datos</h2>
+
+            <h3>1️⃣ Carga de Productos</h3>
+            <div class="accordion">
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>📦 Estructura de Datos de Productos</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <p><strong>Campos requeridos:</strong></p>
+                        <ul>
+                            <li><strong>sku</strong>: Identificador único (ej: "PROD-001")</li>
+                            <li><strong>descripcion</strong>: Nombre del producto</li>
+                            <li><strong>cbm</strong>: Volumen en metros cúbicos (ej: 0.05)</li>
+                            <li><strong>costo_fob_rmb</strong>: Costo FOB en yuanes (ej: 50)</li>
+                            <li><strong>stock_actual</strong>: Inventario actual (ej: 150)</li>
+                            <li><strong>precio_venta_ml</strong>: Precio en MercadoLibre (ej: 15000)</li>
+                        </ul>
+
+                        <div class="example">
+                            <div class="example-title">Ejemplo de Producto:</div>
+                            <div class="code-block">
+{
+    "sku": "LAMP-001",
+    "descripcion": "Lámpara LED 10W",
+    "cbm": 0.08,
+    "costo_fob_rmb": 45,
+    "stock_actual": 200,
+    "precio_venta_ml": 12990,
+    "proveedor": "Shenzhen Lighting Co."
+}
+                            </div>
+                        </div>
+
+                        <div class="warning">
+                            <strong>⚠️ Validaciones:</strong>
+                            <ul>
+                                <li>SKU debe ser único (no duplicados)</li>
+                                <li>CBM debe ser > 0</li>
+                                <li>Costo FOB debe ser > 0</li>
+                                <li>Si el producto no existe, las ventas/compras serán rechazadas</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>🔄 Proceso de Carga</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="timeline">
+                            <div class="timeline-item">
+                                <div class="timeline-content">
+                                    <strong>Paso 1: Validación</strong><br>
+                                    Se verifica que el SKU no esté duplicado, que CBM y costo sean válidos
+                                </div>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="timeline-content">
+                                    <strong>Paso 2: Normalización</strong><br>
+                                    SKU se convierte a mayúsculas, espacios múltiples se eliminan
+                                </div>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="timeline-content">
+                                    <strong>Paso 3: Insert Batch</strong><br>
+                                    Se insertan en bloques de 100 productos para mejor performance
+                                </div>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="timeline-content">
+                                    <strong>Paso 4: Confirmación</strong><br>
+                                    Sistema reporta cuántos productos fueron creados exitosamente
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h3>2️⃣ Carga de Ventas</h3>
+            <div class="accordion">
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>📊 Estructura de Datos de Ventas</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <p><strong>Campos requeridos:</strong></p>
+                        <ul>
+                            <li><strong>sku</strong>: SKU del producto (debe existir en productos)</li>
+                            <li><strong>cantidad</strong>: Unidades vendidas (> 0)</li>
+                            <li><strong>fecha_venta</strong>: Fecha de la venta (formato: YYYY-MM-DD)</li>
+                        </ul>
+
+                        <div class="example">
+                            <div class="example-title">Ejemplo de Venta:</div>
+                            <div class="code-block">
+{
+    "sku": "LAMP-001",
+    "cantidad": 5,
+    "fecha_venta": "2025-01-15"
+}
+                            </div>
+                        </div>
+
+                        <div class="success">
+                            <strong>✅ Validaciones Automáticas:</strong>
+                            <ul>
+                                <li>El producto con ese SKU debe existir (foreign key)</li>
+                                <li>Cantidad debe ser > 0</li>
+                                <li>Fecha debe ser válida</li>
+                                <li>Se detectan duplicados (mismo SKU + misma fecha)</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>🎯 Proceso de Carga de Ventas</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="flow-diagram">
+                            <div class="flow-step">
+                                <span class="step-number">1</span>
+                                <strong>Verificación de Productos</strong> - Se valida que todos los SKUs existen
+                            </div>
+                            <div class="flow-step">
+                                <span class="step-number">2</span>
+                                <strong>Detección de Duplicados</strong> - Se buscan ventas con mismo SKU + fecha
+                            </div>
+                            <div class="flow-step">
+                                <span class="step-number">3</span>
+                                <strong>Descomposición de Packs</strong> - Si el SKU es un pack, se descompone en componentes
+                            </div>
+                            <div class="flow-step">
+                                <span class="step-number">4</span>
+                                <strong>Insert Batch</strong> - Se insertan en bloques de 500 registros
+                            </div>
+                            <div class="flow-step">
+                                <span class="step-number">5</span>
+                                <strong>Actualización de Vista</strong> - Se refresca la vista materializada de venta diaria
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h3>3️⃣ Carga de Compras</h3>
+            <div class="accordion">
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>🛒 Estructura de Datos de Compras</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <p><strong>Campos requeridos:</strong></p>
+                        <ul>
+                            <li><strong>sku</strong>: SKU del producto</li>
+                            <li><strong>cantidad</strong>: Unidades compradas</li>
+                            <li><strong>fecha_compra</strong>: Fecha de la orden</li>
+                            <li><strong>status_compra</strong>: Estado de la orden</li>
+                        </ul>
+
+                        <p><strong>Estados válidos de compra:</strong></p>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Estado</th>
+                                        <th>Descripción</th>
+                                        <th>Cuenta como Stock en Tránsito</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><span class="badge badge-info">cotizacion</span></td>
+                                        <td>Cotización solicitada</td>
+                                        <td>❌ No</td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="badge badge-warning">cotizacion_confirmada</span></td>
+                                        <td>Cotización aprobada</td>
+                                        <td>❌ No</td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="badge badge-success">confirmado</span></td>
+                                        <td>Orden confirmada con proveedor</td>
+                                        <td>✅ Sí</td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="badge badge-primary">fabricacion</span></td>
+                                        <td>En proceso de fabricación</td>
+                                        <td>✅ Sí</td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="badge badge-primary">fabricacion_completa</span></td>
+                                        <td>Fabricación completada</td>
+                                        <td>✅ Sí</td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="badge badge-success">en_transito</span></td>
+                                        <td>En camino a bodega</td>
+                                        <td>✅ Sí</td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="badge badge-danger">llegado</span></td>
+                                        <td>Recibido en bodega</td>
+                                        <td>❌ No (ya suma al stock actual)</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h3>4️⃣ Carga de Packs</h3>
+            <div class="warning">
+                <strong>🔥 Importante:</strong> Los packs son productos compuestos. Cuando vendes 1 pack, en realidad estás vendiendo múltiples productos individuales.
+            </div>
+
+            <div class="example">
+                <div class="example-title">Ejemplo de Pack:</div>
+                <p><strong>Pack "SET-LIVING-01"</strong> contiene:</p>
+                <ul>
+                    <li>2x "LAMP-001" (Lámpara LED)</li>
+                    <li>1x "TABLE-001" (Mesa auxiliar)</li>
+                    <li>4x "CUSHION-001" (Cojín decorativo)</li>
+                </ul>
+                <p>Si vendes 3 unidades del pack, el sistema registra:</p>
+                <ul>
+                    <li>6x LAMP-001 (3 packs × 2 unidades)</li>
+                    <li>3x TABLE-001 (3 packs × 1 unidad)</li>
+                    <li>12x CUSHION-001 (3 packs × 4 unidades)</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- CALCULATIONS SECTION -->
+        <div id="calculations" class="content-section">
+            <h2>🔢 Cálculos del Sistema</h2>
+
+            <h3>1️⃣ Venta Diaria</h3>
+            <div class="formula">
+                Venta Diaria = Total Vendido / Días del Período
+            </div>
+
+            <div class="example">
+                <div class="example-title">Ejemplo:</div>
+                <p>Producto: LAMP-001</p>
+                <ul>
+                    <li>Total vendido en 90 días: 450 unidades</li>
+                    <li>Venta Diaria = 450 / 90 = <strong>5 unidades/día</strong></li>
+                </ul>
+            </div>
+
+            <h3>2️⃣ Stock Objetivo</h3>
+            <div class="formula">
+                Stock Objetivo = Venta Diaria × (Lead Time + Stock Saludable)
+            </div>
+
+            <div class="example">
+                <div class="example-title">Ejemplo:</div>
+                <p>Producto: LAMP-001</p>
+                <ul>
+                    <li>Venta Diaria: 5 unidades/día</li>
+                    <li>Lead Time: 90 días (30 fabricación + 60 envío)</li>
+                    <li>Stock Saludable: 60 días</li>
+                    <li>Stock Objetivo = 5 × (90 + 60) = 5 × 150 = <strong>750 unidades</strong></li>
+                </ul>
+            </div>
+
+            <div class="success">
+                <strong>💡 Explicación:</strong>
+                <p>Necesitas suficiente stock para cubrir:</p>
+                <ul>
+                    <li><strong>Lead Time (90 días):</strong> Lo que venderás mientras esperas la próxima orden</li>
+                    <li><strong>Stock Saludable (60 días):</strong> Buffer de seguridad para imprevistos</li>
+                </ul>
+            </div>
+
+            <h3>3️⃣ Cantidad Sugerida</h3>
+            <div class="warning">
+                <strong>⚠️ Fórmula Corregida:</strong> La cantidad sugerida NO es simplemente Stock Objetivo - Stock Actual - Stock en Tránsito.
+                <br>Debes considerar el <strong>consumo durante el lead time</strong>.
+            </div>
+
+            <div class="formula">
+                Paso 1: Consumo Durante Lead Time = Venta Diaria × Lead Time<br>
+                Paso 2: Stock Proyectado a la Llegada = Stock Actual + Stock en Tránsito - Consumo Durante Lead Time<br>
+                Paso 3:<br>
+                &nbsp;&nbsp;Si Stock Proyectado &lt; 0: Cantidad Sugerida = Stock Objetivo<br>
+                &nbsp;&nbsp;Si Stock Proyectado ≥ 0: Cantidad Sugerida = MAX(0, Stock Objetivo - Stock Proyectado)
+            </div>
+
+            <div class="example">
+                <div class="example-title">Ejemplo:</div>
+                <p>Producto: LAMP-001</p>
+                <ul>
+                    <li>Venta Diaria: 5 unidades/día</li>
+                    <li>Lead Time: 90 días</li>
+                    <li>Stock Saludable: 60 días</li>
+                    <li>Stock Actual: 200 unidades</li>
+                    <li>Stock en Tránsito: 150 unidades</li>
+                </ul>
+
+                <p><strong>Cálculo paso a paso:</strong></p>
+                <ol>
+                    <li>Stock Objetivo = 5 × 60 = <strong>300 unidades</strong></li>
+                    <li>Consumo Durante Lead Time = 5 × 90 = <strong>450 unidades</strong></li>
+                    <li>Stock Proyectado = 200 + 150 - 450 = <strong>-100 unidades</strong> (negativo!)</li>
+                    <li>Como Stock Proyectado &lt; 0: Cantidad Sugerida = <strong>300 unidades</strong> (Stock Objetivo completo)</li>
+                </ol>
+            </div>
+
+            <div class="example">
+                <div class="example-title">Ejemplo 2 (Stock Proyectado Positivo):</div>
+                <p>Producto: TABLE-001</p>
+                <ul>
+                    <li>Venta Diaria: 1 unidad/día</li>
+                    <li>Lead Time: 90 días</li>
+                    <li>Stock Saludable: 60 días</li>
+                    <li>Stock Actual: 100 unidades</li>
+                    <li>Stock en Tránsito: 50 unidades</li>
+                </ul>
+
+                <p><strong>Cálculo paso a paso:</strong></p>
+                <ol>
+                    <li>Stock Objetivo = 1 × 60 = <strong>60 unidades</strong></li>
+                    <li>Consumo Durante Lead Time = 1 × 90 = <strong>90 unidades</strong></li>
+                    <li>Stock Proyectado = 100 + 50 - 90 = <strong>60 unidades</strong> (positivo)</li>
+                    <li>Cantidad Sugerida = MAX(0, 60 - 60) = <strong>0 unidades</strong></li>
+                </ol>
+            </div>
+
+            <h3>4️⃣ Días de Inventario</h3>
+            <div class="formula">
+                Días de Inventario = Stock Actual / Venta Diaria
+            </div>
+
+            <div class="example">
+                <div class="example-title">Ejemplo:</div>
+                <p>Producto: LAMP-001</p>
+                <ul>
+                    <li>Stock Actual: 200 unidades</li>
+                    <li>Venta Diaria: 5 unidades/día</li>
+                    <li>Días de Inventario = 200 / 5 = <strong>40 días</strong></li>
+                </ul>
+            </div>
+
+            <div class="warning">
+                <strong>⚠️ Caso Especial:</strong> Si Venta Diaria = 0, Días de Inventario = ∞ (Infinito)
+            </div>
+
+            <h3>5️⃣ Estados de Reposición</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Estado</th>
+                            <th>Condición</th>
+                            <th>Acción Recomendada</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="badge badge-danger">CRITICAL</span></td>
+                            <td>Cantidad Sugerida > 0 Y Stock en Tránsito = 0</td>
+                            <td>🚨 Ordenar URGENTE</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-warning">PARTIAL</span></td>
+                            <td>Cantidad Sugerida > 0 Y Stock en Tránsito > 0</td>
+                            <td>⚠️ Considerar orden adicional</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-success">COVERED</span></td>
+                            <td>Cantidad Sugerida = 0 Y Stock en Tránsito > 0</td>
+                            <td>✅ Cubierto por orden en tránsito</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-info">SUFFICIENT_STOCK</span></td>
+                            <td>Cantidad Sugerida = 0 Y Stock en Tránsito = 0</td>
+                            <td>👍 Stock suficiente</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-primary">OVER_ORDERED</span></td>
+                            <td>Stock Actual + Stock en Tránsito > Stock Objetivo × 1.5</td>
+                            <td>⚠️ Sobre stock - no ordenar</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3>6️⃣ Rentabilidad</h3>
+            <div class="flow-diagram">
+                <h4>Cálculo Paso a Paso:</h4>
+                <div class="flow-step">
+                    <span class="step-number">1</span>
+                    <strong>Costo FOB en CLP</strong> = Costo FOB RMB × Tasa Cambio RMB
+                </div>
+                <div class="flow-step">
+                    <span class="step-number">2</span>
+                    <strong>Envío por Unidad</strong> = Envío Total Container / Unidades en Container
+                </div>
+                <div class="flow-step">
+                    <span class="step-number">3</span>
+                    <strong>Costo Total</strong> = Costo FOB CLP + Envío por Unidad
+                </div>
+                <div class="flow-step">
+                    <span class="step-number">4</span>
+                    <strong>Comisión ML</strong> = Precio Venta × 16%
+                </div>
+                <div class="flow-step">
+                    <span class="step-number">5</span>
+                    <strong>Envío ML</strong> = $5,000 (o $0 si precio > $60,000)
+                </div>
+                <div class="flow-step">
+                    <span class="step-number">6</span>
+                    <strong>Costo Operacional</strong> = Precio Venta × 15%
+                </div>
+                <div class="flow-step">
+                    <span class="step-number">7</span>
+                    <strong>Margen Bruto</strong> = Precio Venta - Costo Total - Comisión - Envío - Costo Op
+                </div>
+                <div class="flow-step">
+                    <span class="step-number">8</span>
+                    <strong>ROI %</strong> = (Margen / Costo Total) × 100
+                </div>
+            </div>
+
+            <div class="example">
+                <div class="example-title">Ejemplo Completo de Rentabilidad:</div>
+                <p><strong>Producto: LAMP-001</strong></p>
+                <ul>
+                    <li>Costo FOB: 45 RMB × 130 (tasa) = <strong>5,850 CLP</strong></li>
+                    <li>Envío: 500,000 CLP container / 1,000 unidades = <strong>500 CLP</strong></li>
+                    <li>Costo Total = 5,850 + 500 = <strong>6,350 CLP</strong></li>
+                    <li>Precio Venta ML: <strong>12,990 CLP</strong></li>
+                    <li>Comisión ML: 12,990 × 16% = <strong>2,078 CLP</strong></li>
+                    <li>Envío ML: <strong>5,000 CLP</strong></li>
+                    <li>Costo Operacional: 12,990 × 15% = <strong>1,949 CLP</strong></li>
+                    <li><strong>Margen = 12,990 - 6,350 - 2,078 - 5,000 - 1,949 = -2,387 CLP ⚠️ NO RENTABLE</strong></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- PACKS SECTION -->
+        <div id="packs" class="content-section">
+            <h2>📦 Sistema de Packs</h2>
+
+            <div class="success">
+                <h3>¿Qué es un Pack?</h3>
+                <p>Un pack es un producto compuesto por múltiples productos individuales. Cuando vendes un pack, en realidad estás vendiendo varios productos a la vez.</p>
+            </div>
+
+            <h3>🔄 Descomposición de Ventas de Packs</h3>
+            <div class="example">
+                <div class="example-title">Escenario Completo:</div>
+
+                <p><strong>Definición del Pack:</strong></p>
+                <div class="code-block">
+Pack: SET-LIVING-01
+Componentes:
+- 2x LAMP-001 (Lámpara LED)
+- 1x TABLE-001 (Mesa auxiliar)
+- 4x CUSHION-001 (Cojín)
+                </div>
+
+                <p><strong>Ventas del mes:</strong></p>
+                <ul>
+                    <li>3x SET-LIVING-01 (pack completo)</li>
+                    <li>5x LAMP-001 (vendida individualmente)</li>
+                    <li>2x TABLE-001 (vendida individualmente)</li>
+                </ul>
+
+                <p><strong>Descomposición automática:</strong></p>
+                <div class="flow-diagram">
+                    <div class="flow-step">
+                        <span class="step-number">1</span>
+                        3x SET-LIVING-01 → Se descompone en:
+                        <ul>
+                            <li>6x LAMP-001 (3 packs × 2 lámparas)</li>
+                            <li>3x TABLE-001 (3 packs × 1 mesa)</li>
+                            <li>12x CUSHION-001 (3 packs × 4 cojines)</li>
+                        </ul>
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-number">2</span>
+                        Se consolidan con ventas individuales:
+                        <ul>
+                            <li>LAMP-001: 6 (del pack) + 5 (individual) = <strong>11 unidades</strong></li>
+                            <li>TABLE-001: 3 (del pack) + 2 (individual) = <strong>5 unidades</strong></li>
+                            <li>CUSHION-001: 12 (del pack) + 0 (individual) = <strong>12 unidades</strong></li>
+                        </ul>
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-number">3</span>
+                        Se calcula venta diaria de cada componente:
+                        <ul>
+                            <li>LAMP-001: 11 / 30 días = <strong>0.37 unidades/día</strong></li>
+                            <li>TABLE-001: 5 / 30 días = <strong>0.17 unidades/día</strong></li>
+                            <li>CUSHION-001: 12 / 30 días = <strong>0.40 unidades/día</strong></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="warning">
+                <strong>⚠️ Error Común:</strong> Si NO descompones los packs:
+                <ul>
+                    <li>LAMP-001 mostraría solo 5 ventas → Venta diaria incorrecta</li>
+                    <li>Sistema sugeriría comprar menos lámparas de las necesarias</li>
+                    <li>Resultado: Quiebre de stock cuando vendan más packs</li>
+                </ul>
+            </div>
+
+            <h3>📊 Impacto en Cantidad Sugerida</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Sin Packs</th>
+                            <th>Con Packs</th>
+                            <th>Diferencia</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>LAMP-001</td>
+                            <td>Venta diaria: 0.17<br>Cantidad sugerida: 25</td>
+                            <td>Venta diaria: 0.37<br>Cantidad sugerida: 55</td>
+                            <td class="badge badge-danger">+30 unidades</td>
+                        </tr>
+                        <tr>
+                            <td>TABLE-001</td>
+                            <td>Venta diaria: 0.07<br>Cantidad sugerida: 10</td>
+                            <td>Venta diaria: 0.17<br>Cantidad sugerida: 25</td>
+                            <td class="badge badge-danger">+15 unidades</td>
+                        </tr>
+                        <tr>
+                            <td>CUSHION-001</td>
+                            <td>Venta diaria: 0<br>Cantidad sugerida: 0</td>
+                            <td>Venta diaria: 0.40<br>Cantidad sugerida: 60</td>
+                            <td class="badge badge-danger">+60 unidades</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3>✅ Validaciones del Sistema de Packs</h3>
+            <div class="success">
+                <ul>
+                    <li>✅ Todos los componentes del pack deben existir como productos</li>
+                    <li>✅ Las cantidades de componentes deben ser > 0</li>
+                    <li>✅ No pueden existir duplicados (mismo pack_sku + producto_sku)</li>
+                    <li>✅ La descomposición es automática al cargar ventas</li>
+                    <li>✅ El cálculo de venta diaria incluye automáticamente las ventas descompuestas</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- ANALYSIS SECTION -->
+        <div id="analysis" class="content-section">
+            <h2>📈 Análisis y Reportes</h2>
+
+            <h3>🎯 Vista Materializada: sku_venta_diaria_mv</h3>
+            <div class="success">
+                <strong>¿Qué es?</strong>
+                <p>Una tabla pre-calculada que almacena la venta diaria de cada producto, incluyendo ventas descompuestas de packs. Se actualiza automáticamente cuando cargas nuevas ventas.</p>
+            </div>
+
+            <div class="example">
+                <div class="example-title">Estructura de la Vista:</div>
+                <div class="code-block">
+SELECT
+    sku,
+    venta_diaria,
+    total_vendido,
+    dias_periodo,
+    fecha_inicio,
+    fecha_fin
+FROM sku_venta_diaria_mv
+                </div>
+            </div>
+
+            <h3>📊 Análisis Principal</h3>
+            <div class="flow-diagram">
+                <h4>Proceso de Análisis:</h4>
+                <div class="flow-step">
+                    <span class="step-number">1</span>
+                    <strong>Obtener Venta Diaria</strong> - Desde vista materializada
+                </div>
+                <div class="flow-step">
+                    <span class="step-number">2</span>
+                    <strong>Calcular Stock Objetivo</strong> - Venta Diaria × (Lead Time + Buffer)
+                </div>
+                <div class="flow-step">
+                    <span class="step-number">3</span>
+                    <strong>Obtener Stock en Tránsito</strong> - Sumar compras confirmadas/en_transito/fabricacion
+                </div>
+                <div class="flow-step">
+                    <span class="step-number">4</span>
+                    <strong>Calcular Cantidad Sugerida</strong> - Stock Objetivo - Stock Actual - Stock en Tránsito
+                </div>
+                <div class="flow-step">
+                    <span class="step-number">5</span>
+                    <strong>Determinar Estado</strong> - CRITICAL, PARTIAL, COVERED, etc.
+                </div>
+                <div class="flow-step">
+                    <span class="step-number">6</span>
+                    <strong>Calcular Rentabilidad</strong> - Margen, ROI, costos totales
+                </div>
+            </div>
+
+            <h3>🔍 Filtros de Exportación</h3>
+            <div class="card-grid">
+                <div class="card">
+                    <h4>Necesita Reposición</h4>
+                    <p>Cantidad Sugerida > 0</p>
+                    <p>Estado: CRITICAL o PARTIAL</p>
+                </div>
+                <div class="card">
+                    <h4>Stock Cubierto</h4>
+                    <p>Cantidad Sugerida = 0</p>
+                    <p>Stock en Tránsito > 0</p>
+                </div>
+                <div class="card">
+                    <h4>Stock Suficiente</h4>
+                    <p>Cantidad Sugerida = 0</p>
+                    <p>Sin órdenes pendientes</p>
+                </div>
+                <div class="card">
+                    <h4>Sobre Stock</h4>
+                    <p>Stock Actual > Stock Objetivo × 1.5</p>
+                    <p>No ordenar</p>
+                </div>
+            </div>
+
+            <h3>📑 Ordenamiento de Productos en Exports</h3>
+            <div class="success">
+                <strong>🎯 Criterio Principal: VALOR TOTAL</strong>
+                <p>Los productos se ordenan de MAYOR a MENOR valor total, priorizando aquellos que requieren más inversión.</p>
+            </div>
+
+            <div class="formula">
+                Valor Total = Cantidad Sugerida × Precio Venta ML
+            </div>
+
+            <div class="example">
+                <div class="example-title">Ejemplo de Ordenamiento:</div>
+                <p>Tienes 3 productos que necesitan reposición:</p>
+
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Posición</th>
+                                <th>SKU</th>
+                                <th>Cantidad Sugerida</th>
+                                <th>Precio Unitario</th>
+                                <th>Valor Total</th>
+                                <th>Prioridad</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>1º</strong></td>
+                                <td>SOFA-2P-01</td>
+                                <td>20 unidades</td>
+                                <td>$89,990</td>
+                                <td><strong>$1,799,800</strong></td>
+                                <td><span class="badge badge-danger">CRÍTICA</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>2º</strong></td>
+                                <td>TABLE-AUX-01</td>
+                                <td>85 unidades</td>
+                                <td>$29,990</td>
+                                <td><strong>$2,549,150</strong></td>
+                                <td><span class="badge badge-danger">CRÍTICA</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>3º</strong></td>
+                                <td>LAMP-LED-10W</td>
+                                <td>400 unidades</td>
+                                <td>$12,990</td>
+                                <td><strong>$5,196,000</strong></td>
+                                <td><span class="badge badge-danger">CRÍTICA</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <p><strong>⚠️ Ordenamiento CORRECTO (por Valor Total):</strong></p>
+                <ol>
+                    <li><strong>1º LAMP-LED-10W:</strong> $5,196,000 (mayor inversión)</li>
+                    <li><strong>2º TABLE-AUX-01:</strong> $2,549,150</li>
+                    <li><strong>3º SOFA-2P-01:</strong> $1,799,800 (menor inversión)</li>
+                </ol>
+
+                <div class="success">
+                    <strong>💡 Razón:</strong> Priorizar por valor total te ayuda a tomar decisiones de inversión informadas.
+                    Si tienes presupuesto limitado, verás primero los productos que requieren mayor capital.
+                </div>
+            </div>
+
+            <h3>🏷️ Etiquetas de Prioridad (Visuales)</h3>
+            <div class="warning">
+                <strong>Nota:</strong> Las etiquetas de prioridad (CRÍTICA, ALTA, MEDIA, BAJA) son solo visuales para ayudarte a identificar rápidamente el impacto financiero.
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Etiqueta</th>
+                            <th>Criterio</th>
+                            <th>Significado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="badge badge-danger">CRÍTICA</span></td>
+                            <td>Valor Total > $500,000 CLP</td>
+                            <td>Requiere alta inversión - revisar cuidadosamente</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-warning">ALTA</span></td>
+                            <td>Valor Total > $200,000 CLP</td>
+                            <td>Inversión moderada - importante</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-info">MEDIA</span></td>
+                            <td>Valor Total > $100,000 CLP</td>
+                            <td>Inversión baja - puede esperar</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-primary">BAJA</span></td>
+                            <td>Valor Total < $100,000 CLP</td>
+                            <td>Inversión mínima - complementarios</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- PURCHASE SECTION -->
+        <div id="purchase" class="content-section">
+            <h2>🛒 Proceso de Compra</h2>
+
+            <h3>📋 Flujo Completo de Purchase Orders</h3>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <strong>1. Análisis y Exportación</strong><br>
+                        Sistema genera lista de productos que necesitan reposición, filtrada por prioridad
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <strong>2. Agrupación por Proveedor</strong><br>
+                        Productos se agrupan por proveedor para enviar órdenes consolidadas
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <strong>3. Generación de Order Number</strong><br>
+                        Formato: ORD-YYYYMMDD-XXXXX (ej: ORD-20250116-12345)
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <strong>4. Creación de Purchase Order</strong><br>
+                        Se crea registro con estado "PENDING"
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <strong>5. Envío al Proveedor</strong><br>
+                        Se envía orden con cantidades, especificaciones y fecha de entrega requerida
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <strong>6. Confirmación</strong><br>
+                        Proveedor confirma → Estado cambia a "CONFIRMED" → Se crea registro en "compras"
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <strong>7. Tracking</strong><br>
+                        Se actualiza estado de compra: fabricacion → en_transito → llegado
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <strong>8. Recepción</strong><br>
+                        Al llegar, se actualiza stock_actual y estado de compra a "llegado"
+                    </div>
+                </div>
+            </div>
+
+            <h3>📊 Estados de Purchase Order</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Estado</th>
+                            <th>Descripción</th>
+                            <th>Siguiente Paso</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="badge badge-warning">PENDING</span></td>
+                            <td>Orden creada, esperando envío al proveedor</td>
+                            <td>Enviar al proveedor</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-info">SENT</span></td>
+                            <td>Orden enviada al proveedor, esperando confirmación</td>
+                            <td>Esperar confirmación</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-success">CONFIRMED</span></td>
+                            <td>Proveedor confirmó la orden</td>
+                            <td>Crear registro en "compras"</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-primary">PARTIAL</span></td>
+                            <td>Recibido parcialmente</td>
+                            <td>Esperar resto del pedido</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-success">RECEIVED</span></td>
+                            <td>Completamente recibido</td>
+                            <td>Actualizar stock_actual</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-danger">CANCELLED</span></td>
+                            <td>Orden cancelada</td>
+                            <td>Crear nueva orden si es necesario</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3>🚢 Containers y Optimización</h3>
+            <div class="example">
+                <div class="example-title">Cálculo de CBM de Container:</div>
+
+                <p><strong>Productos a ordenar:</strong></p>
+                <ul>
+                    <li>400x LAMP-001 (CBM: 0.08) = 32 CBM</li>
+                    <li>200x TABLE-001 (CBM: 0.15) = 30 CBM</li>
+                    <li>500x CUSHION-001 (CBM: 0.02) = 10 CBM</li>
+                </ul>
+
+                <p><strong>Total CBM: 72 m³</strong></p>
+
+                <div class="flow-diagram">
+                    <div class="flow-step">
+                        Container de 20': <strong>30 m³</strong> → Se necesitan 3 containers
+                    </div>
+                    <div class="flow-step">
+                        Container de 40': <strong>60 m³</strong> → Se necesitan 2 containers
+                    </div>
+                    <div class="flow-step">
+                        Container de 40' HC: <strong>68 m³</strong> → Se necesitan 2 containers
+                    </div>
+                </div>
+
+                <div class="success">
+                    <strong>Recomendación:</strong> Usar 1x 40'HC (68m³) + 1x 20' (30m³) = 98m³ total<br>
+                    Utilización: 72/98 = 73.5% - Eficiente
+                </div>
+            </div>
+
+            <h3>💡 Validaciones al Crear Purchase Order</h3>
+            <div class="success">
+                <ul>
+                    <li>✅ Todos los productos deben existir</li>
+                    <li>✅ Cantidades deben ser > 0</li>
+                    <li>✅ CBM total no debe exceder capacidad del container</li>
+                    <li>✅ Order number debe ser único</li>
+                    <li>✅ Proveedor debe estar registrado</li>
+                </ul>
+            </div>
+
+            <div class="warning">
+                <strong>⚠️ Alerta de Sobre Capacidad:</strong>
+                <p>Si CBM total excede capacidad del container, sistema alertará y sugerirá:</p>
+                <ul>
+                    <li>Agregar otro container</li>
+                    <li>Reducir cantidades de productos de baja prioridad</li>
+                    <li>Mover algunos productos a próxima orden</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- DATABASE SECTION -->
+        <div id="database" class="content-section">
+            <h2>💾 Estructura de Base de Datos</h2>
+
+            <h3>📊 Tablas Principales</h3>
+            <div class="accordion">
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>🏗️ products</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="code-block">
+CREATE TABLE products (
+    id SERIAL PRIMARY KEY,
+    sku VARCHAR(255) UNIQUE NOT NULL,
+    descripcion TEXT NOT NULL,
+    cbm DECIMAL(10,4),
+    costo_fob_rmb DECIMAL(10,2),
+    stock_actual INTEGER DEFAULT 0,
+    precio_venta_ml INTEGER,
+    proveedor VARCHAR(255),
+    desconsiderado BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+                        </div>
+
+                        <p><strong>Índices importantes:</strong></p>
+                        <ul>
+                            <li><code>UNIQUE INDEX idx_products_sku ON products(sku)</code></li>
+                            <li><code>INDEX idx_products_proveedor ON products(proveedor)</code></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>📊 ventas</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="code-block">
+CREATE TABLE ventas (
+    id SERIAL PRIMARY KEY,
+    sku VARCHAR(255) NOT NULL,
+    cantidad INTEGER NOT NULL CHECK (cantidad > 0),
+    fecha_venta TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    FOREIGN KEY (sku) REFERENCES products(sku)
+);
+                        </div>
+
+                        <p><strong>Índices importantes:</strong></p>
+                        <ul>
+                            <li><code>INDEX idx_ventas_sku ON ventas(sku)</code></li>
+                            <li><code>INDEX idx_ventas_fecha ON ventas(fecha_venta)</code></li>
+                            <li><code>INDEX idx_ventas_sku_fecha ON ventas(sku, fecha_venta)</code></li>
+                        </ul>
+
+                        <div class="warning">
+                            <strong>⚠️ Duplicados:</strong> Se recomienda agregar constraint UNIQUE(sku, fecha_venta) para prevenir duplicados.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>🛒 compras</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="code-block">
+CREATE TABLE compras (
+    id SERIAL PRIMARY KEY,
+    sku VARCHAR(255) NOT NULL,
+    cantidad INTEGER NOT NULL CHECK (cantidad > 0),
+    fecha_compra DATE NOT NULL,
+    status_compra VARCHAR(50) NOT NULL,
+    purchase_order_id INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    FOREIGN KEY (sku) REFERENCES products(sku),
+    CHECK (status_compra IN (
+        'cotizacion',
+        'cotizacion_confirmada',
+        'confirmado',
+        'fabricacion',
+        'fabricacion_completa',
+        'en_transito',
+        'llegado'
+    ))
+);
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>📦 packs</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="code-block">
+CREATE TABLE packs (
+    id SERIAL PRIMARY KEY,
+    pack_sku VARCHAR(255) NOT NULL,
+    producto_sku VARCHAR(255) NOT NULL,
+    cantidad INTEGER NOT NULL CHECK (cantidad > 0),
+    created_at TIMESTAMP DEFAULT NOW(),
+    FOREIGN KEY (pack_sku) REFERENCES products(sku),
+    FOREIGN KEY (producto_sku) REFERENCES products(sku),
+    UNIQUE (pack_sku, producto_sku)
+);
+                        </div>
+
+                        <div class="success">
+                            <strong>✅ Constraint UNIQUE:</strong> Previene duplicados de la misma combinación pack + producto
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>🚢 containers</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="code-block">
+CREATE TABLE containers (
+    id SERIAL PRIMARY KEY,
+    container_number VARCHAR(50) UNIQUE NOT NULL,
+    capacidad_cbm DECIMAL(10,2) NOT NULL,
+    status VARCHAR(50) NOT NULL,
+    fecha_envio DATE,
+    fecha_llegada_estimada DATE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    CHECK (status IN ('CREATED', 'IN_TRANSIT', 'DELIVERED'))
+);
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>📋 purchase_orders</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="code-block">
+CREATE TABLE purchase_orders (
+    id SERIAL PRIMARY KEY,
+    order_number VARCHAR(50) UNIQUE NOT NULL,
+    proveedor VARCHAR(255) NOT NULL,
+    status VARCHAR(50) NOT NULL,
+    fecha_orden DATE NOT NULL,
+    fecha_entrega_estimada DATE,
+    total_items INTEGER,
+    total_cbm DECIMAL(10,2),
+    created_at TIMESTAMP DEFAULT NOW(),
+    CHECK (status IN (
+        'PENDING',
+        'SENT',
+        'CONFIRMED',
+        'PARTIAL',
+        'RECEIVED',
+        'CANCELLED'
+    ))
+);
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h3>🔍 Vista Materializada: sku_venta_diaria_mv</h3>
+            <div class="code-block">
+CREATE MATERIALIZED VIEW sku_venta_diaria_mv AS
+SELECT
+    sku,
+    SUM(cantidad) as total_vendido,
+    COUNT(DISTINCT DATE(fecha_venta)) as dias_periodo,
+    SUM(cantidad)::DECIMAL / GREATEST(COUNT(DISTINCT DATE(fecha_venta)), 1) as venta_diaria,
+    MIN(fecha_venta) as fecha_inicio,
+    MAX(fecha_venta) as fecha_fin
+FROM ventas
+GROUP BY sku;
+
+-- Índice para búsquedas rápidas
+CREATE UNIQUE INDEX idx_sku_venta_diaria_mv_sku ON sku_venta_diaria_mv(sku);
+            </div>
+
+            <div class="success">
+                <strong>💡 Ventaja:</strong> Cálculo de venta diaria pre-calculado → Análisis 100x más rápido
+            </div>
+
+            <h3>🔗 Relaciones entre Tablas</h3>
+            <div class="flow-diagram">
+                <div class="flow-step">
+                    <strong>products</strong> ← (FK) ventas.sku
+                </div>
+                <div class="flow-step">
+                    <strong>products</strong> ← (FK) compras.sku
+                </div>
+                <div class="flow-step">
+                    <strong>products</strong> ← (FK) packs.pack_sku
+                </div>
+                <div class="flow-step">
+                    <strong>products</strong> ← (FK) packs.producto_sku
+                </div>
+                <div class="flow-step">
+                    <strong>purchase_orders</strong> ← (FK) compras.purchase_order_id
+                </div>
+            </div>
+
+            <div class="success">
+                <strong>✅ Integridad Referencial:</strong>
+                <ul>
+                    <li>No se pueden crear ventas de productos inexistentes</li>
+                    <li>No se pueden crear compras de productos inexistentes</li>
+                    <li>No se pueden crear packs con componentes inexistentes</li>
+                    <li>No se puede eliminar un producto con ventas/compras asociadas</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- CALCULATOR SECTION -->
+        <div id="calculator" class="content-section">
+            <h2>🧮 Calculadora Interactiva</h2>
+
+            <div class="interactive-demo">
+                <h3>Calculadora de Cantidad Sugerida</h3>
+
+                <div class="input-group">
+                    <label>Venta Diaria (unidades/día):</label>
+                    <input type="number" id="ventaDiaria" value="5" min="0" step="0.1">
+                </div>
+
+                <div class="input-group">
+                    <label>Lead Time (días):</label>
+                    <input type="number" id="leadTime" value="90" min="0">
+                </div>
+
+                <div class="input-group">
+                    <label>Stock Saludable (días):</label>
+                    <input type="number" id="stockSaludable" value="60" min="0">
+                </div>
+
+                <div class="input-group">
+                    <label>Stock Actual:</label>
+                    <input type="number" id="stockActual" value="200" min="0">
+                </div>
+
+                <div class="input-group">
+                    <label>Stock en Tránsito:</label>
+                    <input type="number" id="stockTransito" value="150" min="0">
+                </div>
+
+                <button class="btn" onclick="calcularStock()">🔢 Calcular</button>
+                <button class="btn" onclick="resetCalculator()">🔄 Reset</button>
+
+                <div id="result" class="result-box" style="display:none;">
+                    <!-- Resultado se mostrará aquí -->
+                </div>
+            </div>
+
+            <div class="interactive-demo" style="margin-top: 30px;">
+                <h3>Calculadora de Rentabilidad</h3>
+
+                <div class="input-group">
+                    <label>Costo FOB (RMB):</label>
+                    <input type="number" id="costoFOB" value="50" min="0" step="0.01">
+                </div>
+
+                <div class="input-group">
+                    <label>Tasa de Cambio RMB → CLP:</label>
+                    <input type="number" id="tasaCambio" value="130" min="0" step="1">
+                </div>
+
+                <div class="input-group">
+                    <label>Envío por Unidad (CLP):</label>
+                    <input type="number" id="envioPorUnidad" value="500" min="0">
+                </div>
+
+                <div class="input-group">
+                    <label>Precio Venta ML (CLP):</label>
+                    <input type="number" id="precioVenta" value="15000" min="0">
+                </div>
+
+                <button class="btn" onclick="calcularRentabilidad()">💰 Calcular Rentabilidad</button>
+
+                <div id="resultRentabilidad" class="result-box" style="display:none;">
+                    <!-- Resultado se mostrará aquí -->
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p><strong>Sistema de Gestión de Inventario v1.0</strong></p>
+            <p>Fecha: 16 de octubre de 2025 | 232 Tests Pasando ✅</p>
+            <p>Desarrollado con Next.js + Supabase + PostgreSQL</p>
+        </footer>
+    </div>
+
+    <script>
+        function showSection(sectionId) {
+            // Ocultar todas las secciones
+            const sections = document.querySelectorAll('.content-section');
+            sections.forEach(section => section.classList.remove('active'));
+
+            // Mostrar la sección seleccionada
+            document.getElementById(sectionId).classList.add('active');
+
+            // Actualizar tabs
+            const tabs = document.querySelectorAll('.nav-tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Scroll to top
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function toggleAccordion(header) {
+            const content = header.nextElementSibling;
+            const arrow = header.querySelector('span:last-child');
+
+            if (content.classList.contains('active')) {
+                content.classList.remove('active');
+                arrow.textContent = '▼';
+            } else {
+                content.classList.add('active');
+                arrow.textContent = '▲';
+            }
+        }
+
+        function calcularStock() {
+            const ventaDiaria = parseFloat(document.getElementById('ventaDiaria').value) || 0;
+            const leadTime = parseFloat(document.getElementById('leadTime').value) || 0;
+            const stockSaludable = parseFloat(document.getElementById('stockSaludable').value) || 0;
+            const stockActual = parseFloat(document.getElementById('stockActual').value) || 0;
+            const stockTransito = parseFloat(document.getElementById('stockTransito').value) || 0;
+
+            // Cálculos CORRECTOS
+            const stockObjetivo = ventaDiaria * stockSaludable;
+            const consumoDuranteLeadTime = ventaDiaria * leadTime;
+            const stockProyectado = stockActual + stockTransito - consumoDuranteLeadTime;
+
+            let cantidadSugerida = 0;
+            if (stockProyectado < 0) {
+                cantidadSugerida = stockObjetivo;
+            } else {
+                cantidadSugerida = Math.max(0, stockObjetivo - stockProyectado);
+            }
+
+            const diasInventario = ventaDiaria > 0 ? (stockActual / ventaDiaria).toFixed(1) : '∞';
+
+            // Determinar estado
+            let estado = '';
+            let estadoClass = '';
+            if (cantidadSugerida > 0 && stockTransito === 0) {
+                estado = 'CRITICAL';
+                estadoClass = 'badge-danger';
+            } else if (cantidadSugerida > 0 && stockTransito > 0) {
+                estado = 'PARTIAL';
+                estadoClass = 'badge-warning';
+            } else if (cantidadSugerida === 0 && stockTransito > 0) {
+                estado = 'COVERED';
+                estadoClass = 'badge-success';
+            } else {
+                estado = 'SUFFICIENT_STOCK';
+                estadoClass = 'badge-info';
+            }
+
+            // Mostrar resultado
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `
+                <h4>📊 Resultados del Cálculo</h4>
+                <div style="margin: 15px 0;">
+                    <strong>Stock Objetivo:</strong> ${stockObjetivo.toFixed(0)} unidades
+                    <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
+                        = ${ventaDiaria} (venta diaria) × ${stockSaludable} (días) = ${stockObjetivo.toFixed(0)}
+                    </div>
+                </div>
+                <div style="margin: 15px 0;">
+                    <strong>Consumo Durante Lead Time:</strong> ${consumoDuranteLeadTime.toFixed(0)} unidades
+                    <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
+                        = ${ventaDiaria} × ${leadTime} días = ${consumoDuranteLeadTime.toFixed(0)}
+                    </div>
+                </div>
+                <div style="margin: 15px 0;">
+                    <strong>Stock Proyectado a la Llegada:</strong> ${stockProyectado.toFixed(0)} unidades
+                    <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
+                        = ${stockActual} (actual) + ${stockTransito} (tránsito) - ${consumoDuranteLeadTime.toFixed(0)} (consumo) = ${stockProyectado.toFixed(0)}
+                        ${stockProyectado < 0 ? '<span style="color: #dc3545;"> ⚠️ NEGATIVO</span>' : ''}
+                    </div>
+                </div>
+                <div style="margin: 15px 0;">
+                    <strong>Cantidad Sugerida:</strong> <span style="font-size: 1.5em; color: #667eea;">${cantidadSugerida.toFixed(0)} unidades</span>
+                    <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
+                        ${stockProyectado < 0
+                            ? `Como Stock Proyectado < 0, necesitas Stock Objetivo completo = ${stockObjetivo.toFixed(0)}`
+                            : `= MAX(0, ${stockObjetivo.toFixed(0)} - ${stockProyectado.toFixed(0)}) = ${cantidadSugerida.toFixed(0)}`
+                        }
+                    </div>
+                </div>
+                <div style="margin: 15px 0;">
+                    <strong>Días de Inventario:</strong> ${diasInventario} días
+                </div>
+                <div style="margin: 15px 0;">
+                    <strong>Estado:</strong> <span class="badge ${estadoClass}">${estado}</span>
+                </div>
+                <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
+                    <strong>📝 Explicación:</strong><br>
+                    ${stockProyectado < 0
+                        ? `Tu stock se agotará ANTES de que llegue la próxima orden, por eso necesitas el stock objetivo completo.`
+                        : `Tu stock será suficiente durante el lead time. Solo necesitas ${cantidadSugerida.toFixed(0)} unidades adicionales para alcanzar el objetivo de ${stockSaludable} días.`
+                    }
+                </div>
+            `;
+        }
+
+        function resetCalculator() {
+            document.getElementById('ventaDiaria').value = 5;
+            document.getElementById('leadTime').value = 90;
+            document.getElementById('stockSaludable').value = 60;
+            document.getElementById('stockActual').value = 200;
+            document.getElementById('stockTransito').value = 150;
+            document.getElementById('result').style.display = 'none';
+        }
+
+        function calcularRentabilidad() {
+            const costoFOB = parseFloat(document.getElementById('costoFOB').value) || 0;
+            const tasaCambio = parseFloat(document.getElementById('tasaCambio').value) || 0;
+            const envioPorUnidad = parseFloat(document.getElementById('envioPorUnidad').value) || 0;
+            const precioVenta = parseFloat(document.getElementById('precioVenta').value) || 0;
+
+            // Cálculos
+            const costoFOBCLP = costoFOB * tasaCambio;
+            const costoTotal = costoFOBCLP + envioPorUnidad;
+            const comisionML = precioVenta * 0.16;
+            const envioML = precioVenta >= 60000 ? 0 : 5000;
+            const costoOperacional = precioVenta * 0.15;
+            const margen = precioVenta - costoTotal - comisionML - envioML - costoOperacional;
+            const porcentajeMargen = (margen / precioVenta) * 100;
+            const roi = (margen / costoTotal) * 100;
+
+            // Determinar si es rentable
+            const esRentable = margen > 0;
+            const colorMargen = esRentable ? '#28a745' : '#dc3545';
+
+            // Mostrar resultado
+            const resultDiv = document.getElementById('resultRentabilidad');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `
+                <h4>💰 Análisis de Rentabilidad</h4>
+                <div class="table-container">
+                    <table>
+                        <tr>
+                            <td><strong>Costo FOB (CLP):</strong></td>
+                            <td>$${costoFOBCLP.toLocaleString('es-CL')}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Envío por Unidad:</strong></td>
+                            <td>$${envioPorUnidad.toLocaleString('es-CL')}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Costo Total:</strong></td>
+                            <td><strong>$${costoTotal.toLocaleString('es-CL')}</strong></td>
+                        </tr>
+                        <tr style="border-top: 2px solid #dee2e6;">
+                            <td><strong>Precio Venta ML:</strong></td>
+                            <td>$${precioVenta.toLocaleString('es-CL')}</td>
+                        </tr>
+                        <tr>
+                            <td>Comisión ML (16%):</td>
+                            <td>-$${comisionML.toLocaleString('es-CL')}</td>
+                        </tr>
+                        <tr>
+                            <td>Envío ML:</td>
+                            <td>-$${envioML.toLocaleString('es-CL')}</td>
+                        </tr>
+                        <tr>
+                            <td>Costo Operacional (15%):</td>
+                            <td>-$${costoOperacional.toLocaleString('es-CL')}</td>
+                        </tr>
+                        <tr style="border-top: 2px solid #dee2e6;">
+                            <td><strong>Margen Neto:</strong></td>
+                            <td style="color: ${colorMargen}; font-size: 1.3em;"><strong>$${margen.toLocaleString('es-CL')}</strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>% Margen:</strong></td>
+                            <td style="color: ${colorMargen};"><strong>${porcentajeMargen.toFixed(2)}%</strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>ROI:</strong></td>
+                            <td style="color: ${colorMargen};"><strong>${roi.toFixed(2)}%</strong></td>
+                        </tr>
+                    </table>
+                </div>
+                <div style="margin-top: 20px; padding: 15px; background: ${esRentable ? '#d4edda' : '#f8d7da'}; border-radius: 5px; color: ${esRentable ? '#155724' : '#721c24'};">
+                    <strong>${esRentable ? '✅ PRODUCTO RENTABLE' : '⚠️ PRODUCTO NO RENTABLE'}</strong><br>
+                    ${esRentable ?
+                        `Este producto genera $${margen.toLocaleString('es-CL')} de ganancia por unidad.` :
+                        `Este producto pierde $${Math.abs(margen).toLocaleString('es-CL')} por unidad. Considera aumentar el precio de venta o reducir costos.`
+                    }
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>

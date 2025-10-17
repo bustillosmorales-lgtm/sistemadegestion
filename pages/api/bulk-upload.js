@@ -184,8 +184,18 @@ async function procesarVentas(ventasData) {
 
     console.log(`✅ Validadas ${ventasValidadas.length} ventas, ${skusUnicos.size} SKUs únicos`);
 
-    // PASO 2: Crear todos los productos que no existen en un solo batch
-    await crearProductosFaltantesBatch(Array.from(skusUnicos), ventasValidadas, resultado);
+    // PASO 2: Verificar que todos los productos existen (NO crear automáticamente)
+    const skusExistentes = await verificarProductosExistentes(Array.from(skusUnicos), resultado);
+
+    // Filtrar solo las ventas cuyos productos existen
+    const ventasConProductosValidos = ventasValidadas.filter(venta => skusExistentes.has(venta.sku));
+
+    if (ventasConProductosValidos.length === 0) {
+        console.log('⚠️ No hay ventas válidas para procesar (todos los productos son inválidos)');
+        return resultado;
+    }
+
+    console.log(`📊 ${ventasConProductosValidos.length} ventas con productos válidos para procesar`);
 
     // PASO 3: Obtener ventas existentes para detectar duplicados (batch query)
     const { data: ventasExistentes } = await supabase
@@ -197,8 +207,8 @@ async function procesarVentas(ventasData) {
         (ventasExistentes || []).map(v => `${v.sku}-${v.fecha_venta}`)
     );
 
-    // PASO 4: Filtrar duplicados
-    const ventasParaInsertar = ventasValidadas.filter(venta => {
+    // PASO 4: Filtrar duplicados (solo de las ventas con productos válidos)
+    const ventasParaInsertar = ventasConProductosValidos.filter(venta => {
         const key = `${venta.sku}-${venta.fecha_venta}`;
         if (ventasExistentesSet.has(key)) {
             resultado.duplicados.push(key);
@@ -387,8 +397,18 @@ async function procesarCompras(comprasData) {
 
     console.log(`✅ Validadas ${comprasValidadas.length} compras, ${skusUnicos.size} SKUs únicos, ${containersUnicos.size} containers`);
 
-    // PASO 2: Crear productos faltantes en batch
-    await crearProductosFaltantesBatch(Array.from(skusUnicos), comprasValidadas, resultado);
+    // PASO 2: Verificar que todos los productos existen (NO crear automáticamente)
+    const skusExistentes = await verificarProductosExistentes(Array.from(skusUnicos), resultado);
+
+    // Filtrar solo las compras cuyos productos existen
+    const comprasConProductosValidos = comprasValidadas.filter(compra => skusExistentes.has(compra.sku));
+
+    if (comprasConProductosValidos.length === 0) {
+        console.log('⚠️ No hay compras válidas para procesar (todos los productos son inválidos)');
+        return resultado;
+    }
+
+    console.log(`📊 ${comprasConProductosValidos.length} compras con productos válidos para procesar`);
 
     // PASO 3: Crear containers faltantes en batch
     if (containersUnicos.size > 0) {
@@ -405,8 +425,8 @@ async function procesarCompras(comprasData) {
         (comprasExistentes || []).map(c => `${c.sku}-${c.fecha_compra}`)
     );
 
-    // PASO 5: Filtrar duplicados
-    const comprasParaInsertar = comprasValidadas.filter(compra => {
+    // PASO 5: Filtrar duplicados (solo de las compras con productos válidos)
+    const comprasParaInsertar = comprasConProductosValidos.filter(compra => {
         const key = `${compra.sku}-${compra.fecha_compra}`;
         if (comprasExistentesSet.has(key)) {
             resultado.duplicados.push(key);
@@ -577,8 +597,9 @@ async function procesarContainers(containersData) {
     return resultado;
 }
 
-// Función para crear productos faltantes en batch (OPTIMIZADA)
-async function crearProductosFaltantesBatch(skus, ventasData, resultado) {
+// Función para verificar que los productos existen (NO crear automáticamente)
+// Retorna un Set con los SKUs que SÍ existen
+async function verificarProductosExistentes(skus, resultado) {
     try {
         console.log(`🔍 Verificando ${skus.length} SKUs únicos...`);
 
@@ -595,68 +616,24 @@ async function crearProductosFaltantesBatch(skus, ventasData, resultado) {
         const skusExistentes = new Set((productosExistentes || []).map(p => p.sku));
         const skusFaltantes = skus.filter(sku => !skusExistentes.has(sku));
 
-        console.log(`📦 ${skusExistentes.size} productos existen, ${skusFaltantes.length} productos nuevos a crear`);
+        console.log(`📦 ${skusExistentes.size} productos existen, ${skusFaltantes.length} productos NO encontrados`);
 
-        if (skusFaltantes.length === 0) {
-            return;
+        if (skusFaltantes.length > 0) {
+            console.warn(`⚠️ ADVERTENCIA: ${skusFaltantes.length} productos no existen en la tabla productos:`);
+            skusFaltantes.forEach(sku => {
+                console.warn(`   - SKU: ${sku}`);
+                resultado.errores.push({
+                    sku: sku,
+                    error: 'Producto no existe en la tabla productos. Debe crearlo mediante carga masiva de productos.'
+                });
+            });
+        } else {
+            console.log(`✅ Todos los productos existen en la tabla productos`);
         }
 
-        // Preparar productos para insertar en batch
-        const productosParaInsertar = skusFaltantes.map(sku => {
-            // Buscar descripción desde las ventas
-            const ventaConDesc = ventasData.find(v => v.sku === sku && v.descripcion);
-
-            return {
-                sku: sku.toString().trim(),
-                descripcion: ventaConDesc?.descripcion || `Producto ${sku} (Auto-creado)`,
-                costo_fob_rmb: 1.0,
-                cbm: 0.01,
-                stock_actual: 0,
-                status: 'NEEDS_REPLENISHMENT',
-                link: '',
-                desconsiderado: false
-            };
-        });
-
-        // Insertar en batches de 100 (optimizado para Netlify timeout)
-        const BATCH_SIZE = 100;
-        for (let i = 0; i < productosParaInsertar.length; i += BATCH_SIZE) {
-            const batch = productosParaInsertar.slice(i, i + BATCH_SIZE);
-
-            console.log(`📦 Creando batch de productos ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(productosParaInsertar.length/BATCH_SIZE)} (${batch.length} productos)`);
-
-            const { data, error } = await supabase
-                .from('products')
-                .insert(batch)
-                .select();
-
-            if (error) {
-                console.error(`⚠️ Error insertando batch de productos: ${error.message}`);
-                // Intentar individualmente si falla el batch
-                for (const producto of batch) {
-                    try {
-                        const { data: single, error: singleError } = await supabase
-                            .from('products')
-                            .insert(producto)
-                            .select();
-
-                        if (!singleError && single) {
-                            resultado.productosNuevos.push(single[0]);
-                        } else if (singleError && !singleError.message.includes('duplicate')) {
-                            console.error(`❌ Error creando producto ${producto.sku}: ${singleError.message}`);
-                        }
-                    } catch (e) {
-                        // Ignorar duplicados silenciosamente
-                    }
-                }
-            } else {
-                resultado.productosNuevos.push(...(data || []));
-            }
-        }
-
-        console.log(`✅ ${resultado.productosNuevos.length} productos nuevos creados`);
+        return skusExistentes; // Retornar el Set de SKUs válidos
     } catch (error) {
-        console.error(`❌ Error en crearProductosFaltantesBatch: ${error.message}`);
+        console.error(`❌ Error en verificarProductosExistentes: ${error.message}`);
         throw error;
     }
 }
@@ -751,77 +728,9 @@ async function crearContainersFaltantesBatch(containers, comprasData, resultado)
     }
 }
 
-// Función para verificar y crear producto automáticamente
-async function verificarYCrearProducto(sku, descripcion, resultado) {
-    try {
-        // Normalizar SKU
-        const skuLimpio = sku.toString().trim().replace(/["'`]/g, '').replace(/\s+/g, ' ');
-
-        // Verificar si el producto existe (manejar caso donde no hay coincidencias)
-        const { data: existingProduct, error: selectError } = await supabase
-            .from('products')
-            .select('sku')
-            .eq('sku', skuLimpio)
-            .maybeSingle(); // Usar maybeSingle en lugar de single para evitar errores cuando no existe
-
-        if (selectError) {
-            throw new Error(`Error verificando producto ${skuLimpio}: ${selectError.message}`);
-        }
-
-        if (!existingProduct) {
-            console.log(`📦 Creando producto automáticamente: ${skuLimpio}`);
-
-            // Verificación doble antes de insertar
-            const { data: doubleCheck } = await supabase
-                .from('products')
-                .select('sku')
-                .eq('sku', skuLimpio)
-                .maybeSingle();
-
-            if (doubleCheck) {
-                console.log(`✓ Producto ${skuLimpio} ya existe (verificación doble)`);
-                return;
-            }
-
-            // Crear producto automáticamente (solo campos que existen en la tabla)
-            const nuevoProducto = {
-                sku: skuLimpio,
-                descripcion: descripcion || `Producto ${skuLimpio} (Auto-creado)`,
-                costo_fob_rmb: 1.0,
-                cbm: 0.01,
-                stock_actual: 0,
-                status: 'NEEDS_REPLENISHMENT',
-                link: '',
-                desconsiderado: false
-            };
-
-            const { data, error } = await supabase
-                .from('products')
-                .insert(nuevoProducto)
-                .select();
-
-            if (error) {
-                // Si falla por duplicado, verificar si ya existe
-                if (error.code === '23505' || error.message.includes('duplicate') || error.message.includes('unique')) {
-                    console.log(`⚠️ Producto ${skuLimpio} ya fue creado por otro proceso (error de duplicado), continuando...`);
-                    return;
-                }
-                throw new Error(`No se pudo crear producto ${skuLimpio}: ${error.message}`);
-            } else {
-                resultado.productosNuevos.push(data[0]);
-                console.log(`✅ Producto ${skuLimpio} creado automáticamente`);
-
-                // Pequeña pausa para asegurar que se commitee la transacción
-                await new Promise(resolve => setTimeout(resolve, 100));
-            }
-        } else {
-            console.log(`✓ Producto ${skuLimpio} ya existe`);
-        }
-    } catch (error) {
-        console.error(`❌ Error en verificarYCrearProducto para ${sku}:`, error.message);
-        throw error; // Re-throw para que el proceso padre lo maneje
-    }
-}
+// NOTA: Esta función ha sido eliminada. Los productos ya NO se crean automáticamente.
+// Ahora solo se verifican y se reportan como errores si no existen.
+// Use la carga masiva de productos para crear productos nuevos.
 
 // Función para descargar template de productos existentes como Excel
 async function descargarTemplateProductos(res) {
