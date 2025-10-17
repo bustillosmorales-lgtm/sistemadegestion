@@ -256,7 +256,7 @@ export default async function handler(req, res) {
           .from('products')
           .select('*')
           .eq('status', status)
-          .eq('desconsiderado', false); // ✅ Filtrar productos desconsiderados
+          .or('desconsiderado.eq.false,desconsiderado.is.null'); // ✅ Filtrar productos desconsiderados (incluir NULL como activo)
 
         const { data: directData, error: directError } = await query
           .order('sku')
