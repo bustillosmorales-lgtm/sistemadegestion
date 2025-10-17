@@ -355,11 +355,35 @@ export default function BulkUploadPage() {
             return;
         }
 
+        if (selectedTable === 'containers') {
+            // Para contenedores, descargar template desde API con todos los campos
+            try {
+                const response = await fetch('/api/bulk-upload?tableType=containers', {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `contenedores_${new Date().toISOString().split('T')[0]}.xlsx`;
+                    link.click();
+                    window.URL.revokeObjectURL(url);
+                } else {
+                    throw new Error('Error descargando template de contenedores');
+                }
+            } catch (error) {
+                setError('Error descargando template de contenedores: ' + error.message);
+            }
+            return;
+        }
+
         // Templates estáticos para otros tipos
         const templates = {
             ventas: 'numero_venta,sku,cantidad,fecha_venta,precio_venta_clp,descripcion_producto\nV001,SKU001,10,2024-01-15,15000,Producto Ejemplo',
-            compras: 'numero_compra,sku,cantidad,fecha_compra,fecha_llegada_estimada,status_compra,container_number,proveedor,precio_compra,descripcion_producto\nC001,SKU001,100,2024-01-10,2024-02-15,en_transito,CONT001,Proveedor A,5.50,Producto Ejemplo',
-            containers: 'container_number,container_type,max_cbm,departure_port,arrival_port,estimated_departure,estimated_arrival,shipping_company,notes\nCONT001,STD,68,Shanghai,Valparaiso,2024-01-15,2024-02-15,COSCO,Contenedor ejemplo'
+            compras: 'numero_compra,sku,cantidad,fecha_compra,fecha_llegada_estimada,status_compra,container_number,proveedor,precio_compra,descripcion_producto\nC001,SKU001,100,2024-01-10,2024-02-15,en_transito,CONT001,Proveedor A,5.50,Producto Ejemplo'
         };
 
         const csvContent = templates[selectedTable];
