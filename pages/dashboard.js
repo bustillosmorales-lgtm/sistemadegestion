@@ -388,7 +388,7 @@ export default function DashboardV3() {
     }
   };
 
-  // Función para subir Excel
+  // Función para subir Excel (VERSIÓN ASÍNCRONA - Netlify Free compatible)
   const handleFileUpload = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -400,24 +400,122 @@ export default function DashboardV3() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('/api/import-by-action', {
+      // 1. Iniciar job asíncrono
+      console.log('📤 Subiendo archivo y creando job...');
+      const response = await fetch('/api/import-by-action-async', {
         method: 'POST',
         body: formData,
       });
 
       const result = await response.json();
 
-      if (response.ok) {
-        setUploadResult(result);
-        // Refrescar stats después de importar
-        mutate();
-      } else {
-        throw new Error(result.error || 'Error al procesar el archivo');
+      if (!response.ok) {
+        throw new Error(result.error || 'Error al subir el archivo');
       }
+
+      const jobId = result.job_id;
+      console.log(`✅ Job creado: ${jobId}`);
+
+      // 2. Mostrar mensaje de procesamiento
+      setUploadResult({
+        success: true,
+        message: 'Procesando archivo en segundo plano...',
+        status: 'processing',
+        job_id: jobId,
+        progress: 0
+      });
+
+      // 3. Polling para verificar estado (cada 3 segundos)
+      let pollCount = 0;
+      const maxPolls = 200; // Máximo 10 minutos (200 * 3s)
+
+      const checkStatus = async () => {
+        try {
+          pollCount++;
+
+          const statusResponse = await fetch(`/api/job-status?job_id=${jobId}`);
+          const statusData = await statusResponse.json();
+
+          console.log(`🔍 Poll ${pollCount}: ${statusData.status} (${statusData.progress}%)`);
+
+          // Actualizar resultado con progreso
+          setUploadResult({
+            success: true,
+            message: `Procesando... ${statusData.progress}%`,
+            status: statusData.status,
+            job_id: jobId,
+            progress: statusData.progress,
+            processed_items: statusData.processed_items,
+            total_items: statusData.total_items,
+            elapsed_seconds: statusData.elapsed_seconds,
+            estimated_remaining_seconds: statusData.estimated_remaining_seconds
+          });
+
+          if (statusData.status === 'completed') {
+            // Job completado exitosamente
+            console.log('✅ Job completado:', statusData.results);
+
+            setUploadResult({
+              success: true,
+              message: '¡Importación completada exitosamente!',
+              status: 'completed',
+              job_id: jobId,
+              progress: 100,
+              ...statusData.results
+            });
+
+            // Refrescar stats después de completar
+            mutate();
+
+            setIsUploading(false);
+            clearInterval(pollInterval);
+
+          } else if (statusData.status === 'failed') {
+            // Job falló
+            console.error('❌ Job falló:', statusData.error_message);
+
+            setUploadResult({
+              success: false,
+              message: 'Error en la importación',
+              status: 'failed',
+              error: statusData.error_message
+            });
+
+            setIsUploading(false);
+            clearInterval(pollInterval);
+
+          } else if (pollCount >= maxPolls) {
+            // Timeout
+            console.warn('⚠️  Timeout esperando job');
+
+            setUploadResult({
+              success: false,
+              message: 'Timeout: El procesamiento está tomando demasiado tiempo',
+              status: 'timeout',
+              job_id: jobId
+            });
+
+            setIsUploading(false);
+            clearInterval(pollInterval);
+          }
+
+        } catch (error) {
+          console.error('❌ Error verificando estado:', error);
+          // Continuar polling en caso de error temporal
+        }
+      };
+
+      // Iniciar polling cada 3 segundos
+      const pollInterval = setInterval(checkStatus, 3000);
+
+      // Primera verificación inmediata
+      checkStatus();
+
     } catch (error) {
+      console.error('❌ Error:', error);
       alert('Error al importar: ' + error.message);
-    } finally {
       setIsUploading(false);
+    } finally {
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -696,29 +794,104 @@ export default function DashboardV3() {
               </div>
             </div>
 
-            {/* Resultado de la importación */}
+            {/* Resultado de la importación (con progreso asíncrono) */}
             {uploadResult && (
               <div className={`mt-4 p-4 rounded-lg ${
-                uploadResult.successCount > 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+                uploadResult.status === 'completed' ? 'bg-green-50 border border-green-200' :
+                uploadResult.status === 'failed' || uploadResult.status === 'timeout' ? 'bg-red-50 border border-red-200' :
+                'bg-blue-50 border border-blue-200'
               }`}>
-                <p className={`font-semibold ${
-                  uploadResult.successCount > 0 ? 'text-green-800' : 'text-red-800'
-                }`}>
-                  ✅ Procesados: {uploadResult.processed} |
-                  Exitosos: {uploadResult.successCount} |
-                  Errores: {uploadResult.errorCount}
-                </p>
-                {uploadResult.errorCount > 0 && (
-                  <details className="mt-2 text-sm text-red-700">
-                    <summary className="cursor-pointer font-semibold">Ver errores</summary>
-                    <ul className="mt-2 list-disc list-inside">
-                      {uploadResult.details
-                        .filter(d => !d.success)
-                        .map((d, i) => (
-                          <li key={i}>{d.sku}: {d.error || d.reason}</li>
-                        ))}
-                    </ul>
-                  </details>
+                {/* Header con status */}
+                <div className="flex items-center justify-between mb-3">
+                  <p className={`font-semibold text-lg ${
+                    uploadResult.status === 'completed' ? 'text-green-800' :
+                    uploadResult.status === 'failed' || uploadResult.status === 'timeout' ? 'text-red-800' :
+                    'text-blue-800'
+                  }`}>
+                    {uploadResult.status === 'completed' && '✅ '}
+                    {uploadResult.status === 'failed' && '❌ '}
+                    {uploadResult.status === 'timeout' && '⏱️ '}
+                    {(uploadResult.status === 'processing' || uploadResult.status === 'queued') && '⏳ '}
+                    {uploadResult.message}
+                  </p>
+
+                  {uploadResult.job_id && (
+                    <span className="text-xs text-gray-500 font-mono">
+                      Job: {uploadResult.job_id.substring(0, 8)}...
+                    </span>
+                  )}
+                </div>
+
+                {/* Barra de progreso */}
+                {(uploadResult.status === 'processing' || uploadResult.status === 'queued') && (
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between text-sm text-blue-700 mb-1">
+                      <span>Progreso: {uploadResult.progress || 0}%</span>
+                      {uploadResult.processed_items !== undefined && uploadResult.total_items && (
+                        <span>{uploadResult.processed_items} / {uploadResult.total_items} items</span>
+                      )}
+                    </div>
+                    <div className="w-full bg-blue-200 rounded-full h-3 overflow-hidden">
+                      <div
+                        className="bg-blue-600 h-3 rounded-full transition-all duration-300 ease-out"
+                        style={{ width: `${uploadResult.progress || 0}%` }}
+                      ></div>
+                    </div>
+                    {uploadResult.elapsed_seconds !== undefined && (
+                      <div className="flex items-center justify-between text-xs text-blue-600 mt-1">
+                        <span>⏱️ Transcurrido: {uploadResult.elapsed_seconds}s</span>
+                        {uploadResult.estimated_remaining_seconds !== undefined && uploadResult.estimated_remaining_seconds > 0 && (
+                          <span>⏳ Restante: ~{uploadResult.estimated_remaining_seconds}s</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Resultados finales */}
+                {uploadResult.status === 'completed' && uploadResult.success !== undefined && (
+                  <div className="mt-2">
+                    <p className="text-green-800 font-medium">
+                      ✅ Total: {uploadResult.total} |
+                      Exitosos: {uploadResult.success} |
+                      {uploadResult.errors > 0 && ` Errores: ${uploadResult.errors}`}
+                    </p>
+
+                    {uploadResult.details && uploadResult.errors > 0 && (
+                      <details className="mt-2 text-sm text-red-700">
+                        <summary className="cursor-pointer font-semibold hover:text-red-800">
+                          Ver {uploadResult.errors} errores
+                        </summary>
+                        <ul className="mt-2 list-disc list-inside max-h-48 overflow-y-auto bg-white p-2 rounded">
+                          {uploadResult.details
+                            .filter(d => !d.success)
+                            .map((d, i) => (
+                              <li key={i} className="py-1">
+                                <span className="font-mono">{d.sku}</span>: {d.error || d.reason}
+                              </li>
+                            ))}
+                        </ul>
+                      </details>
+                    )}
+                  </div>
+                )}
+
+                {/* Error message */}
+                {(uploadResult.status === 'failed' || uploadResult.status === 'timeout') && uploadResult.error && (
+                  <p className="text-red-700 text-sm mt-2">
+                    Error: {uploadResult.error}
+                  </p>
+                )}
+
+                {/* Spinner animado para processing */}
+                {(uploadResult.status === 'processing' || uploadResult.status === 'queued') && (
+                  <div className="flex items-center gap-2 text-blue-600 text-sm mt-2">
+                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Procesando en segundo plano... No cierres esta ventana.</span>
+                  </div>
                 )}
               </div>
             )}
