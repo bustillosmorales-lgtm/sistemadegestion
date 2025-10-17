@@ -410,12 +410,47 @@ async function procesarCompras(comprasData) {
 
     console.log(`📊 ${comprasConProductosValidos.length} compras con productos válidos para procesar`);
 
-    // PASO 3: Crear containers faltantes en batch
+    // PASO 3: Obtener información de contenedores existentes (fecha_efectiva_llegada)
+    let contenedoresMap = new Map();
+    if (containersUnicos.size > 0) {
+        const { data: contenedoresExistentes } = await supabase
+            .from('containers')
+            .select('container_number, fecha_efectiva_llegada')
+            .in('container_number', Array.from(containersUnicos));
+
+        if (contenedoresExistentes) {
+            contenedoresExistentes.forEach(cont => {
+                contenedoresMap.set(cont.container_number, cont.fecha_efectiva_llegada);
+            });
+        }
+        console.log(`📦 Obtenidos datos de ${contenedoresMap.size} contenedores existentes`);
+    }
+
+    // PASO 4: Actualizar status_compra basado en fecha_efectiva_llegada del contenedor
+    for (const compra of comprasConProductosValidos) {
+        if (compra.container_number && contenedoresMap.has(compra.container_number)) {
+            const fechaEfectiva = contenedoresMap.get(compra.container_number);
+            if (fechaEfectiva) {
+                compra.status_compra = 'llegado';
+                compra.fecha_llegada_real = fechaEfectiva; // Usar la fecha efectiva del contenedor
+                console.log(`✅ Compra de ${compra.sku} en contenedor ${compra.container_number}: status='llegado' (fecha_efectiva=${fechaEfectiva})`);
+            } else {
+                compra.status_compra = 'en_transito';
+                console.log(`🚢 Compra de ${compra.sku} en contenedor ${compra.container_number}: status='en_transito' (sin fecha_efectiva)`);
+            }
+        } else if (compra.container_number) {
+            // El contenedor no existe aún, será creado - por defecto en tránsito
+            compra.status_compra = 'en_transito';
+            console.log(`🆕 Compra de ${compra.sku} en contenedor nuevo ${compra.container_number}: status='en_transito'`);
+        }
+    }
+
+    // PASO 5: Crear containers faltantes en batch
     if (containersUnicos.size > 0) {
         await crearContainersFaltantesBatch(Array.from(containersUnicos), comprasValidadas, resultado);
     }
 
-    // PASO 4: Obtener compras existentes para detectar duplicados
+    // PASO 6: Obtener compras existentes para detectar duplicados
     const { data: comprasExistentes } = await supabase
         .from('compras')
         .select('sku, fecha_compra')
@@ -425,7 +460,7 @@ async function procesarCompras(comprasData) {
         (comprasExistentes || []).map(c => `${c.sku}-${c.fecha_compra}`)
     );
 
-    // PASO 5: Filtrar duplicados (solo de las compras con productos válidos)
+    // PASO 7: Filtrar duplicados (solo de las compras con productos válidos)
     const comprasParaInsertar = comprasConProductosValidos.filter(compra => {
         const key = `${compra.sku}-${compra.fecha_compra}`;
         if (comprasExistentesSet.has(key)) {
@@ -437,7 +472,7 @@ async function procesarCompras(comprasData) {
 
     console.log(`📊 ${comprasParaInsertar.length} compras nuevas para insertar, ${resultado.duplicados.length} duplicados`);
 
-    // PASO 6: Insertar en batches de 100 (optimizado para Netlify timeout)
+    // PASO 8: Insertar en batches de 100 (optimizado para Netlify timeout)
     const BATCH_SIZE = 100;
 
     for (let i = 0; i < comprasParaInsertar.length; i += BATCH_SIZE) {
@@ -668,6 +703,21 @@ async function crearContainersFaltantesBatch(containers, comprasData, resultado)
             const compraConContainer = comprasData.find(c => c.container_number === containerNumber);
             const datosCompra = compraConContainer?._original || {};
 
+            // NUEVO: Determinar fecha_efectiva_llegada basado en datos de la compra o del archivo original
+            let fechaEfectivaLlegada = null;
+
+            // Prioridad 1: campo explícito fecha_efectiva_llegada en datos originales
+            if (datosCompra.fecha_efectiva_llegada) {
+                fechaEfectivaLlegada = datosCompra.fecha_efectiva_llegada;
+            }
+            // Prioridad 2: si la compra tiene status 'llegado' y fecha_llegada_real
+            else if (compraConContainer?.status_compra === 'llegado' && compraConContainer?.fecha_llegada_real) {
+                fechaEfectivaLlegada = compraConContainer.fecha_llegada_real;
+            }
+
+            // Determinar status basado en fecha_efectiva_llegada
+            const containerStatus = fechaEfectivaLlegada ? 'DELIVERED' : 'CREATED';
+
             return {
                 container_number: containerNumber.toString(),
                 container_type: datosCompra.container_type || 'STD',
@@ -676,10 +726,11 @@ async function crearContainersFaltantesBatch(containers, comprasData, resultado)
                 arrival_port: datosCompra.arrival_port || '',
                 estimated_departure: datosCompra.estimated_departure || null,
                 estimated_arrival: compraConContainer?.fecha_llegada_estimada || datosCompra.estimated_arrival || null,
-                actual_arrival_date: (compraConContainer?.status_compra === 'llegado' && compraConContainer?.fecha_llegada_real) ? compraConContainer.fecha_llegada_real : null,
+                actual_arrival_date: datosCompra.actual_arrival_date || null,
+                fecha_efectiva_llegada: fechaEfectivaLlegada, // NUEVO: Campo que define si está en bodega
                 shipping_company: datosCompra.shipping_company || '',
                 notes: datosCompra.notes || `Auto-creado desde carga masiva`,
-                status: (compraConContainer?.status_compra === 'llegado') ? 'DELIVERED' : 'CREATED',
+                status: containerStatus,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             };
@@ -1300,7 +1351,22 @@ async function verificarYCrearContenedor(container_number, datosCompra, resultad
 
         if (!existingContainer) {
             console.log(`🚢 Creando contenedor automáticamente: ${container_number}`);
-            
+
+            // NUEVO: Determinar fecha_efectiva_llegada
+            let fechaEfectivaLlegada = null;
+
+            // Prioridad 1: campo explícito fecha_efectiva_llegada
+            if (datosCompra.fecha_efectiva_llegada) {
+                fechaEfectivaLlegada = datosCompra.fecha_efectiva_llegada;
+            }
+            // Prioridad 2: si el status es 'llegado' y tiene fecha_llegada_real
+            else if (datosCompra.status_compra === 'llegado' && datosCompra.fecha_llegada_real) {
+                fechaEfectivaLlegada = datosCompra.fecha_llegada_real;
+            }
+
+            // Determinar status basado en fecha_efectiva_llegada
+            const containerStatus = fechaEfectivaLlegada ? 'DELIVERED' : 'CREATED';
+
             // Crear contenedor automáticamente con datos de la compra
             const nuevoContenedor = {
                 container_number: container_number.toString(),
@@ -1310,11 +1376,11 @@ async function verificarYCrearContenedor(container_number, datosCompra, resultad
                 arrival_port: datosCompra.arrival_port || '',
                 estimated_departure: datosCompra.estimated_departure || null,
                 estimated_arrival: datosCompra.fecha_llegada_estimada || datosCompra.estimated_arrival || null,
-                // Solo establecer actual_arrival_date si el status es 'llegado'
-                actual_arrival_date: (datosCompra.status_compra === 'llegado' && datosCompra.fecha_llegada_real) ? datosCompra.fecha_llegada_real : null,
+                actual_arrival_date: datosCompra.actual_arrival_date || null,
+                fecha_efectiva_llegada: fechaEfectivaLlegada, // NUEVO: Campo que define si está en bodega
                 shipping_company: datosCompra.shipping_company || '',
                 notes: datosCompra.notes || `Auto-creado desde compra de ${datosCompra.sku}`,
-                status: (datosCompra.status_compra === 'llegado') ? 'DELIVERED' : 'CREATED',
+                status: containerStatus,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             };
