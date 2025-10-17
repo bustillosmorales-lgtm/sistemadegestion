@@ -124,15 +124,37 @@ async function processJob(job) {
           continue;
         }
 
-        const accion = (row['✅ Acción'] || row['Acción'] || '').toString().trim().toUpperCase();
-
-        if (accion !== 'SI') {
-          results.skipped.push({ sku, row: i + 2, reason: `Acción no es SI: ${accion}` });
-          continue;
-        }
-
         // Procesar según el tipo
-        if (accionType === 'request_quote') {
+        if (accionType === 'mark_desconsiderado') {
+          // Para desconsiderar, verificar la columna ✅ Desconsiderar
+          const desconsiderarAction = (row['✅ Desconsiderar'] || '').toString().trim().toUpperCase();
+
+          if (desconsiderarAction !== 'SI') {
+            results.skipped.push({ sku, row: i + 2, reason: 'Desconsiderar no es SI' });
+            continue;
+          }
+
+          // Marcar producto como desconsiderado
+          const { error: updateError } = await supabase
+            .from('products')
+            .update({
+              desconsiderado: true
+            })
+            .eq('sku', sku);
+
+          if (updateError) {
+            results.errors.push({ sku, row: i + 2, error: updateError.message });
+          } else {
+            results.success.push({ sku, action: 'desconsiderado' });
+          }
+        } else if (accionType === 'request_quote') {
+          const accion = (row['✅ Acción'] || row['Acción'] || '').toString().trim().toUpperCase();
+
+          if (accion !== 'SI') {
+            results.skipped.push({ sku, row: i + 2, reason: `Acción no es SI: ${accion}` });
+            continue;
+          }
+
           const cantidad = parseInt(row['📝 Cantidad a Cotizar'] || row['Cantidad a Cotizar'] || 0);
 
           if (cantidad <= 0) {
@@ -222,6 +244,11 @@ function detectActionType(data) {
   }
 
   const firstRow = data[0];
+
+  // Buscar columnas relacionadas con desconsiderar
+  if (firstRow.hasOwnProperty('✅ Desconsiderar')) {
+    return 'mark_desconsiderado';
+  }
 
   // Buscar columnas relacionadas con cotización
   if (

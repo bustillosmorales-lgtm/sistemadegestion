@@ -268,6 +268,9 @@ function detectAction(firstRow) {
   if (columns.includes('✅ Acción') && columns.includes('📝 Cantidad a Cotizar')) {
     return 'request_quote';
   }
+  if (columns.includes('✅ Desconsiderar')) {
+    return 'mark_desconsiderado';
+  }
 
   return 'unknown';
 }
@@ -299,6 +302,9 @@ async function processRow(row, action) {
       case 'force_request_quote':
         await processForceRequestQuote(sku, row);
         break;
+      case 'mark_desconsiderado':
+        await processMarkDesconsiderado(sku, row);
+        break;
       // ... agregar otros casos según necesites
       default:
         throw new Error(`Action ${action} not implemented in worker`);
@@ -318,7 +324,8 @@ function checkShouldProcess(row, action) {
     quote: '✅ Acción',
     analyze: '✅ Analizar',
     approve: '✅ Aprobar',
-    confirm_purchase: '✅ Confirmado'
+    confirm_purchase: '✅ Confirmado',
+    mark_desconsiderado: '✅ Desconsiderar'
   };
 
   const column = actionColumns[action];
@@ -369,6 +376,22 @@ async function processForceRequestQuote(sku, row) {
       }
     })
     .eq('sku', sku);
+}
+
+// Marcar producto como desconsiderado
+async function processMarkDesconsiderado(sku, row) {
+  console.log(`  ⚠️ Marcando ${sku} como desconsiderado`);
+
+  const { error } = await supabase
+    .from('products')
+    .update({
+      desconsiderado: true
+    })
+    .eq('sku', sku);
+
+  if (error) {
+    throw new Error(`Error actualizando producto: ${error.message}`);
+  }
 }
 
 // =====================================================
