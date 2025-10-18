@@ -425,6 +425,11 @@ export default function BulkUploadPage() {
                 {uploadResult && (
                     <div className="mb-6 p-4 bg-green-100 border border-green-200 text-green-700 rounded-lg">
                         <h3 className="font-bold mb-2">✅ {uploadResult.mensaje}</h3>
+                        {uploadResult.cacheInvalidado && (
+                            <div className="mb-3 p-2 bg-blue-50 border border-blue-200 text-blue-700 rounded text-sm">
+                                🔄 Caché invalidado - Los datos se mostrarán en tiempo real en el dashboard
+                            </div>
+                        )}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                             <div>📊 Nuevos: <strong>{uploadResult.resumen.nuevos}</strong></div>
                             <div>🔄 {selectedTable === 'productos' ? 'Actualizados' : 'Duplicados'}: <strong>{uploadResult.resumen.duplicados}</strong></div>

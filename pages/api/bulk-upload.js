@@ -2,6 +2,38 @@
 import { supabase } from '../../lib/supabaseClient';
 import * as XLSX from 'xlsx';
 
+// Función para invalidar cachés después de cargas masivas
+async function invalidarCaches(tableType) {
+    console.log(`🗑️ Invalidando cachés después de cargar ${tableType}...`);
+
+    try {
+        // Limpiar dashboard_analysis_cache
+        await supabase
+            .from('dashboard_analysis_cache')
+            .delete()
+            .neq('id', 0);
+
+        // Limpiar sku_analysis_cache
+        await supabase
+            .from('sku_analysis_cache')
+            .delete()
+            .neq('sku', '');
+
+        // Limpiar vista materializada si fue carga de ventas
+        if (tableType === 'ventas') {
+            await supabase
+                .from('sku_venta_diaria_mv')
+                .delete()
+                .neq('sku', '');
+        }
+
+        console.log(`✅ Cachés invalidados exitosamente para ${tableType}`);
+    } catch (error) {
+        console.error(`⚠️ Error invalidando cachés: ${error.message}`);
+        // No fallar la carga masiva por error en caché
+    }
+}
+
 export default async function handler(req, res) {
     // Manejar descarga de templates
     if (req.method === 'GET') {
@@ -86,6 +118,9 @@ export default async function handler(req, res) {
                 break;
         }
 
+        // Invalidar cachés automáticamente después de cargar datos
+        await invalidarCaches(tableType);
+
         return res.status(200).json({
             mensaje: `Carga masiva completada para ${tableType}`,
             resumen: {
@@ -95,7 +130,8 @@ export default async function handler(req, res) {
                 productosNuevos: processedData.productosNuevos?.length || 0,
                 contenedoresNuevos: processedData.contenedoresNuevos?.length || 0
             },
-            detalles: processedData
+            detalles: processedData,
+            cacheInvalidado: true // Indicar que el caché fue limpiado
         });
 
     } catch (error) {
