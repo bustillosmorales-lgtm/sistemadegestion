@@ -23,3 +23,7 @@
 [functions]
   node_bundler = "esbuild"
   included_files = ["node_modules/xlsx/**"]
+
+[[functions]]
+  name = "procesar-excel"
+  timeout = 900  # 15 minutos (máximo para funciones en plan gratuito)
