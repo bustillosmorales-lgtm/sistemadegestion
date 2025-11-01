@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',  // Static export para Netlify
+  // Netlify soporta SSR nativamente - no usar 'export'
   images: {
-    unoptimized: true  // Necesario para export estático
+    unoptimized: true
   },
   // Variables de entorno públicas
   env: {
