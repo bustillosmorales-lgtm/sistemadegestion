@@ -1,0 +1,2337 @@
+Option Explicit
+
+' ==========================================
+' MACRO DE REPOSICIÓN DE STOCK FULL - v2.1
+' ==========================================
+' Esta macro analiza las ventas y genera sugerencias de reposición
+' desde bodega central + bodega 3a hacia bodega full de TeloTenemos
+' CORRECCIÓN: Lógica de ponderación ahora funciona correctamente
+
+Sub GenerarSugerenciasReposicion()
+    
+    ' Declaración de variables
+    Dim wbArchivo As Workbook
+    Dim wsVentas As Worksheet, wsStock As Worksheet, wsTransito As Worksheet
+    Dim wsPacks As Worksheet, wsPIV As Worksheet, wsResultado As Worksheet
+    Dim diasStock As Integer
+    Dim fechaHoy As Date
+    Dim ultimaFilaVentas As Long, ultimaFilaStock As Long, ultimaFilaTransito As Long
+    Dim ultimaFilaPacks As Long, ultimaFilaPIV As Long
+    Dim i As Long, j As Long
+    Dim respuesta As VbMsgBoxResult
+    
+    ' Deshabilitar actualizaciones de pantalla para mejor rendimiento
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+    
+    ' Solicitar parámetro de días de stock
+    diasStock = InputBox("Ingrese la cantidad de días de stock deseada en bodega Full:", _
+                         "Parámetro de Stock", "30")
+    
+    If diasStock <= 0 Then
+        MsgBox "Debe ingresar un valor válido de días", vbExclamation
+        GoTo Salir
+    End If
+    
+    ' Establecer fecha actual
+    fechaHoy = Date
+    
+    ' Asignar hojas de trabajo
+    Set wbArchivo = ThisWorkbook
+    On Error Resume Next
+    Set wsVentas = wbArchivo.Worksheets("ventas")
+    Set wsStock = wbArchivo.Worksheets("Stock")
+    Set wsTransito = wbArchivo.Worksheets("Transito full")
+    Set wsPacks = wbArchivo.Worksheets("Packs")
+    Set wsPIV = wbArchivo.Worksheets("PIV Full")
+    On Error GoTo 0
+    
+    ' Verificar que todas las hojas existan
+    If wsVentas Is Nothing Or wsStock Is Nothing Or wsTransito Is Nothing Or _
+       wsPacks Is Nothing Or wsPIV Is Nothing Then
+        MsgBox "No se encontraron todas las hojas necesarias. Verifique el archivo.", vbCritical
+        GoTo Salir
+    End If
+    
+    ' Crear o limpiar hoja de resultados
+    On Error Resume Next
+    Set wsResultado = wbArchivo.Worksheets("Sugerencias Reposición")
+    If Not wsResultado Is Nothing Then
+        respuesta = MsgBox("Ya existe una hoja de sugerencias. ¿Desea reemplazarla?", _
+                          vbYesNo + vbQuestion, "Confirmar")
+        If respuesta = vbYes Then
+            Application.DisplayAlerts = False
+            wsResultado.Delete
+            Application.DisplayAlerts = True
+            Set wsResultado = Nothing
+        Else
+            GoTo Salir
+        End If
+    End If
+    On Error GoTo 0
+    
+    ' Crear nueva hoja de resultados
+    Set wsResultado = wbArchivo.Worksheets.Add(After:=wbArchivo.Worksheets(wbArchivo.Worksheets.Count))
+    wsResultado.Name = "Sugerencias Reposición"
+    
+    ' Crear encabezados
+    With wsResultado
+        .Range("A1").Value = "Código Tránsito"
+        .Range("B1").Value = "MLC"
+        .Range("C1").Value = "SKU"
+        .Range("D1").Value = "Descripción"
+        .Range("E1").Value = "Venta Diaria"
+        .Range("F1").Value = "Stock Óptimo (" & diasStock & " días)"
+        .Range("G1").Value = "Stock Actual Full"
+        .Range("H1").Value = "Stock en Tránsito"
+        .Range("I1").Value = "Stock Disponible (Packs)"
+        .Range("J1").Value = "Sugerencia Reposición"
+        .Range("K1").Value = "Precio Unitario"
+        .Range("L1").Value = "Valor Total Sugerencia"
+        .Range("M1").Value = "Fecha Inicio"
+        .Range("N1").Value = "Fecha Fin"
+        .Range("O1").Value = "Unidades Periodo"
+        .Range("P1").Value = "Observaciones"
+        
+        ' Formato de encabezados
+        .Range("A1:P1").Font.Bold = True
+        .Range("A1:P1").Interior.Color = RGB(68, 114, 196)
+        .Range("A1:P1").Font.Color = RGB(255, 255, 255)
+        .Range("A1:P1").HorizontalAlignment = xlCenter
+    End With
+    
+    ' Llamar a la función principal de análisis
+    Call AnalizarYGenerarSugerencias(wsVentas, wsStock, wsTransito, wsPacks, wsPIV, _
+                                     wsResultado, diasStock, fechaHoy)
+    
+    ' Ordenar por Valor Total Sugerencia (columna L) descendente
+    With wsResultado
+        ultimaFilaVentas = .Cells(.Rows.Count, 1).End(xlUp).Row
+        If ultimaFilaVentas > 2 Then
+            .Sort.SortFields.Clear
+            .Sort.SortFields.Add Key:=.Range("L2:L" & ultimaFilaVentas), _
+                SortOn:=xlSortOnValues, Order:=xlDescending, DataOption:=xlSortNormal
+            With .Sort
+                .SetRange wsResultado.Range("A1:P" & ultimaFilaVentas)
+                .Header = xlYes
+                .MatchCase = False
+                .Orientation = xlTopToBottom
+                .SortMethod = xlPinYin
+                .Apply
+            End With
+        End If
+    End With
+    
+    ' Ajustar ancho de columnas
+    wsResultado.Columns("A:P").AutoFit
+    
+    ' Aplicar formato condicional a las sugerencias
+    With wsResultado
+        ultimaFilaVentas = .Cells(.Rows.Count, 1).End(xlUp).Row
+        If ultimaFilaVentas > 1 Then
+            .Range("J2:J" & ultimaFilaVentas).FormatConditions.Add Type:=xlCellValue, _
+                Operator:=xlGreater, Formula1:="0"
+            .Range("J2:J" & ultimaFilaVentas).FormatConditions(1).Interior.Color = RGB(169, 208, 142)
+        End If
+    End With
+    
+    ' Crear dashboard en pestaña Run
+    On Error Resume Next
+    Dim wsRun As Worksheet
+    Set wsRun = wbArchivo.Worksheets("Run")
+    On Error GoTo 0
+    
+    If Not wsRun Is Nothing Then
+        Call CrearDashboardRun(wsRun, wsResultado, diasStock, fechaHoy)
+    End If
+    
+    ' Mensaje de finalización
+    MsgBox "Análisis completado. Se generaron las sugerencias de reposición y el dashboard en Run.", vbInformation
+    
+Salir:
+    ' Restaurar configuración
+    Application.ScreenUpdating = True
+    Application.Calculation = xlCalculationAutomatic
+    
+End Sub
+
+' ==========================================
+' FUNCIÓN PRINCIPAL DE ANÁLISIS
+' ==========================================
+Sub AnalizarYGenerarSugerencias(wsVentas As Worksheet, wsStock As Worksheet, _
+                                wsTransito As Worksheet, wsPacks As Worksheet, _
+                                wsPIV As Worksheet, wsResultado As Worksheet, _
+                                diasStock As Integer, fechaHoy As Date)
+    
+    Dim dictVentasPorMLCSKU As Object
+    Dim dictStockActual As Object
+    Dim dictTransito As Object
+    Dim dictPacks As Object
+    Dim dictPIV As Object
+    Dim dictDescripciones As Object
+    Dim dictCodigoTransito As Object
+    Dim dictStockFullActual As Object
+    Dim dictPrecios As Object
+    
+    Dim ultimaFilaVentas As Long, ultimaFilaStock As Long
+    Dim ultimaFilaTransito As Long, ultimaFilaPacks As Long, ultimaFilaPIV As Long
+    Dim ultimaFilaPublicaciones As Long
+    Dim i As Long, filaResultado As Long, j As Long, idx As Long
+    Dim empresa As String, canal As String, sku As String, mlc As String
+    Dim fechaVenta As Date, ultimaLlegada As Date
+    Dim unidades As Double
+    Dim claveMLCSKU1 As Variant  ' DEBE SER VARIANT para For Each
+    Dim claveMlcSku As String
+    Dim contadorVentas As Long
+    Dim contadorTotal As Long, contadorTLT As Long, contadorMELI As Long
+    Dim wsPublicaciones As Worksheet
+    Dim contSugerencias As Long
+    Dim debugMsg As String
+    Dim contDebug As Long
+    Dim contPacks As Long
+    Dim contPacksSugerencia As Long
+    Dim contConCodigo As Long
+    
+    ' Variables para ordenamiento
+    Dim arrOrdenamiento() As Variant
+    Dim temp1 As Variant, temp2 As Variant
+    Dim cambio As Boolean
+    Dim idxOriginal As Long
+    
+    ' Variables para PASADA 2 (prorrateo)
+    Dim dictNecesidadesPorSKU As Object
+    Dim stockFisico As Double
+    Dim necesidadTotalSKU As Double
+    Dim indicesCol As Collection
+    Dim sugerenciaPorItem As Double
+    Dim skuKey As Variant  ' DEBE SER VARIANT para For Each
+    
+    ' Variables para PACKS
+    Dim idPack As String
+    Dim skuComponente As String
+    Dim cantidadComponente As Double
+    
+    ' Variables para STOCK
+    Dim bodega As String
+    Dim stockCantidad As Double
+    Dim arrStock As Variant
+    Dim stockColumnaC As Double
+    Dim stockColumnaE As Double
+    
+    ' Variables para TRÁNSITO
+    Dim cantidadTransito As Double
+    Dim codigoTransito As String
+    Dim claveTransito As Variant  ' DEBE SER VARIANT para For Each
+    
+    ' Variables para PRECIOS y DESCRIPCIÓN
+    Dim descripcion As String
+    Dim precio As Double
+    Dim clavePrec As String
+    
+    ' Variables para VENTAS y NECESIDADES
+    Dim colNecesidades As Collection
+    Dim esPack As Boolean
+    Dim totalVentas As Double
+    Dim ventaCol As Collection
+    Dim primeraFecha As Date
+    Dim ultimaFecha As Date
+    Dim diasVenta As Long
+    Dim ventaDiaria As Double
+    Dim ventaDiaria30Dias As Double
+    Dim fechaLimite30Dias As Date
+    Dim totalVentas30Dias As Double
+    Dim fechaColeccion As Collection
+    Dim idxVenta As Long
+    Dim stockOptimo As Double
+    Dim stockFullActual As Double
+    Dim stockEnTransito As Double
+    Dim fechaUltimaLlegada As Date
+    Dim necesidad As Double
+    Dim dictNec As Object
+    Dim dictInfo As Object
+    
+    ' Variables para PONDERACIÓN
+    Dim dictComponentesUnicos As Object
+    Dim nec As Object
+    Dim dictComp As Object
+    Dim comp As Variant  ' DEBE SER VARIANT para For Each
+    Dim componente As Variant  ' DEBE SER VARIANT para For Each
+    Dim necesidadTotalComp As Double
+    Dim dictIndicesUso As Object
+    Dim cantPorPack As Double
+    Dim necesidadEnPack As Double
+    Dim stockFisicoComp As Double
+    Dim disponible80 As Double
+    Dim totalVentaDiaria As Double
+    Dim idxKey As Variant  ' DEBE SER VARIANT para For Each
+    Dim proporcion As Double
+    
+    ' Variables para AJUSTE de PACKS
+    Dim dictStockUsado As Object
+    Dim skuComp As String
+    Dim packsMaximos As Double
+    Dim componenteLimitante As String
+    Dim stockDisponibleComp As Double
+    Dim packsPosibles As Double
+    
+    ' Variables para ESCRITURA de RESULTADOS
+    Dim stockDispMostrar As Double
+    Dim stockComp As Double
+    Dim packsPosiblesComp As Double
+    Dim textoComponentes As String
+    Dim factorAjuste As Double
+    Dim diasReales As Long
+    Dim fechaInicio As Date, fechaFin As Date
+    Dim esFechaValida As Boolean
+    
+    ' Crear diccionarios
+    Set dictVentasPorMLCSKU = CreateObject("Scripting.Dictionary")
+    Set dictStockActual = CreateObject("Scripting.Dictionary")
+    Set dictTransito = CreateObject("Scripting.Dictionary")
+    Set dictPacks = CreateObject("Scripting.Dictionary")
+    Set dictPIV = CreateObject("Scripting.Dictionary")
+    Set dictDescripciones = CreateObject("Scripting.Dictionary")
+    Set dictCodigoTransito = CreateObject("Scripting.Dictionary")
+    Set dictStockFullActual = CreateObject("Scripting.Dictionary")
+    Set dictPrecios = CreateObject("Scripting.Dictionary")
+    
+    ' Obtener última fila de cada hoja
+    ultimaFilaVentas = wsVentas.Cells(wsVentas.Rows.Count, 1).End(xlUp).Row
+    ultimaFilaStock = wsStock.Cells(wsStock.Rows.Count, 1).End(xlUp).Row
+    ultimaFilaTransito = wsTransito.Cells(wsTransito.Rows.Count, 1).End(xlUp).Row
+    ultimaFilaPacks = wsPacks.Cells(wsPacks.Rows.Count, 1).End(xlUp).Row
+    ultimaFilaPIV = wsPIV.Cells(wsPIV.Rows.Count, 1).End(xlUp).Row
+    
+    ' ==========================================
+    ' 1. CARGAR DICCIONARIO DE PIV (SKUs excluidos)
+    ' ==========================================
+    For i = 2 To ultimaFilaPIV
+        sku = Trim(CStr(wsPIV.Cells(i, 1).Value))
+        If sku <> "" Then
+            dictPIV(sku) = True
+        End If
+    Next i
+    
+    ' ==========================================
+    ' 2. CARGAR DICCIONARIO DE PACKS
+    ' ==========================================
+    For i = 2 To ultimaFilaPacks
+        'Dim idPack As String (movido al inicio)
+        
+        idPack = Trim(CStr(wsPacks.Cells(i, 1).Value))
+        skuComponente = Trim(CStr(wsPacks.Cells(i, 2).Value))
+        
+        ' Validar que cantidadComponente sea numérico
+        On Error Resume Next
+        cantidadComponente = CDbl(wsPacks.Cells(i, 3).Value)
+        If Err.Number <> 0 Then
+            cantidadComponente = 1
+            Err.Clear
+        End If
+        On Error GoTo 0
+        
+        If idPack <> "" And skuComponente <> "" Then
+            If Not dictPacks.Exists(idPack) Then
+                Set dictPacks(idPack) = CreateObject("Scripting.Dictionary")
+            End If
+            
+            dictPacks(idPack)(skuComponente) = cantidadComponente
+        End If
+    Next i
+    
+    ' ==========================================
+    ' 3. CARGAR VENTAS (filtrado TLT + MELI)
+    ' ==========================================
+    contadorVentas = 0
+    contadorTotal = 0
+    contadorTLT = 0
+    contadorMELI = 0
+    
+    For i = 2 To ultimaFilaVentas
+        contadorTotal = contadorTotal + 1
+        empresa = Trim(CStr(wsVentas.Cells(i, 1).Value))  ' Columna A
+        canal = Trim(CStr(wsVentas.Cells(i, 2).Value))    ' Columna B
+        
+        ' Debug: contar TLT y MELI
+        If UCase(empresa) = "TLT" Then contadorTLT = contadorTLT + 1
+        If UCase(canal) = "MELI" Then contadorMELI = contadorMELI + 1
+        
+        ' Mostrar primeros 5 registros para debug
+        If i <= 6 Then
+            Debug.Print "Fila " & i & ": empresa=[" & empresa & "] UCase=[" & UCase(empresa) & "] canal=[" & canal & "] UCase=[" & UCase(canal) & "]"
+        End If
+        
+        If UCase(empresa) = "TLT" And UCase(canal) = "MELI" Then
+            mlc = Trim(CStr(wsVentas.Cells(i, 21).Value))     ' Columna U: # de publicación
+            sku = Trim(CStr(wsVentas.Cells(i, 20).Value))     ' Columna T: SKU
+            
+            ' Quitar prefijo "MLC" si existe
+            If Left(UCase(mlc), 3) = "MLC" Then
+                mlc = Mid(mlc, 4)  ' Tomar desde el caracter 4 en adelante
+            End If
+            
+            ' Validar fecha y unidades
+            On Error Resume Next
+            fechaVenta = CDate(wsVentas.Cells(i, 6).Value)    ' Columna F: Fecha de venta
+            If Err.Number <> 0 Then
+                fechaVenta = Date
+                Err.Clear
+            End If
+            
+            unidades = CDbl(wsVentas.Cells(i, 11).Value)      ' Columna K: Unidades
+            If Err.Number <> 0 Then
+                unidades = 0
+                Err.Clear
+            End If
+            On Error GoTo 0
+            
+            If mlc <> "" And sku <> "" And unidades > 0 Then
+                
+                claveMlcSku = mlc & "|" & sku
+                
+                If Not dictVentasPorMLCSKU.Exists(claveMlcSku) Then
+                    Set dictInfo = CreateObject("Scripting.Dictionary")
+                    dictInfo("mlc") = mlc
+                    dictInfo("sku") = sku
+                    Set dictInfo("ventas") = New Collection
+                    Set dictInfo("fechasVentas") = New Collection
+                    dictInfo("primeraFecha") = fechaVenta
+                    dictInfo("ultimaFecha") = fechaVenta
+                    Set dictVentasPorMLCSKU(claveMlcSku) = dictInfo
+                Else
+                    Set dictInfo = dictVentasPorMLCSKU(claveMlcSku)
+                    If fechaVenta < dictInfo("primeraFecha") Then
+                        dictInfo("primeraFecha") = fechaVenta
+                    End If
+                    If fechaVenta > dictInfo("ultimaFecha") Then
+                        dictInfo("ultimaFecha") = fechaVenta
+                    End If
+                End If
+                
+                dictInfo("ventas").Add unidades
+                dictInfo("fechasVentas").Add fechaVenta
+                contadorVentas = contadorVentas + 1
+            End If
+        End If
+    Next i
+    
+    MsgBox "DEBUG Ventas:" & vbCrLf & _
+           "Total filas: " & contadorTotal & vbCrLf & _
+           "Filas con TLT: " & contadorTLT & vbCrLf & _
+           "Filas con MELI: " & contadorMELI & vbCrLf & _
+           "Ventas cargadas: " & dictVentasPorMLCSKU.Count & " SKUs únicos con " & contadorVentas & " registros de venta", vbInformation
+    
+    ' ==========================================
+    ' 4. CARGAR STOCK ACTUAL (Columna C + Columna E)
+    ' ==========================================
+    For i = 2 To ultimaFilaStock
+        sku = Trim(CStr(wsStock.Cells(i, 1).Value))  ' Columna A: SKU
+        
+        ' Validar que ambas cantidades sean numéricas
+        On Error Resume Next
+        
+        stockColumnaC = CDbl(wsStock.Cells(i, 3).Value)  ' Columna C
+        If Err.Number <> 0 Then
+            stockColumnaC = 0
+            Err.Clear
+        End If
+        
+        stockColumnaE = CDbl(wsStock.Cells(i, 5).Value)  ' Columna E
+        If Err.Number <> 0 Then
+            stockColumnaE = 0
+            Err.Clear
+        End If
+        On Error GoTo 0
+        
+        If sku <> "" Then
+            If Not dictStockActual.Exists(sku) Then
+                dictStockActual(sku) = Array(0, 0)
+            End If
+            
+            arrStock = dictStockActual(sku)
+            
+            ' Acumular stock de columna C en posición 0
+            arrStock(0) = arrStock(0) + stockColumnaC
+            ' Acumular stock de columna E en posición 1
+            arrStock(1) = arrStock(1) + stockColumnaE
+            
+            dictStockActual(sku) = arrStock
+        End If
+    Next i
+    
+    ' ==========================================
+    ' 5. CARGAR STOCK FULL ACTUAL (desde Publicaciones por MLC+SKU)
+    ' ==========================================
+    Set wsPublicaciones = ThisWorkbook.Sheets("publicaciones")
+    
+    ultimaFilaPublicaciones = wsPublicaciones.Cells(wsPublicaciones.Rows.Count, 1).End(xlUp).Row
+    
+    For i = 2 To ultimaFilaPublicaciones
+        mlc = Trim(CStr(wsPublicaciones.Cells(i, 1).Value))      ' Columna A: MLC
+        sku = Trim(CStr(wsPublicaciones.Cells(i, 3).Value))      ' Columna C: SKU
+        
+        ' Validar que stockCantidad sea numérico
+        On Error Resume Next
+        stockCantidad = CDbl(wsPublicaciones.Cells(i, 7).Value)  ' Columna G: Stock Full
+        If Err.Number <> 0 Then
+            stockCantidad = 0
+            Err.Clear
+        End If
+        On Error GoTo 0
+        
+        If mlc <> "" And sku <> "" Then
+            claveMlcSku = mlc & "|" & sku
+            dictStockFullActual(claveMlcSku) = stockCantidad
+        End If
+    Next i
+    
+    ' ==========================================
+    ' 6. CARGAR TRÁNSITO (desde hoja "Transito full")
+    ' ==========================================
+    For i = 2 To ultimaFilaTransito
+        codigoTransito = Trim(CStr(wsTransito.Cells(i, 1).Value))  ' Columna A: Código ML
+        sku = Trim(CStr(wsTransito.Cells(i, 3).Value))             ' Columna C: SKU
+        mlc = Trim(CStr(wsTransito.Cells(i, 4).Value))             ' Columna D: ID publicación (MLC)
+        
+        ' Validar que el valor sea numérico (Columna K: Pendientes de ingreso)
+        On Error Resume Next
+        cantidadTransito = CDbl(wsTransito.Cells(i, 11).Value)     ' Columna K
+        If Err.Number <> 0 Then
+            cantidadTransito = 0
+            Err.Clear
+        End If
+        On Error GoTo 0
+        
+        If sku <> "" And mlc <> "" Then
+            claveTransito = mlc & "|" & sku
+            
+            If Not dictTransito.Exists(claveTransito) Then
+                dictTransito(claveTransito) = 0
+            End If
+            dictTransito(claveTransito) = dictTransito(claveTransito) + cantidadTransito
+            
+            If codigoTransito <> "" And Not dictCodigoTransito.Exists(claveTransito) Then
+                dictCodigoTransito(claveTransito) = codigoTransito
+            End If
+        End If
+    Next i
+    
+    ' DEBUG: Verificar carga de tránsito
+    debugMsg = "DEBUG TRÁNSITO:" & vbCrLf & vbCrLf
+    debugMsg = debugMsg & "dictTransito tiene " & dictTransito.Count & " claves" & vbCrLf
+    debugMsg = debugMsg & "dictCodigoTransito tiene " & dictCodigoTransito.Count & " claves" & vbCrLf & vbCrLf
+    
+    ' Mostrar primeros 3 códigos
+    contDebug = 0
+    For Each claveTransito In dictCodigoTransito.Keys
+        If contDebug < 3 Then
+            debugMsg = debugMsg & "Clave: " & claveTransito & vbCrLf
+            debugMsg = debugMsg & "Código: " & dictCodigoTransito(claveTransito) & vbCrLf & vbCrLf
+            contDebug = contDebug + 1
+        End If
+    Next claveTransito
+    
+    MsgBox debugMsg, vbInformation
+    
+    ' ==========================================
+    ' 7. CARGAR DESCRIPCIONES Y PRECIOS
+    ' ==========================================
+    For i = 2 To ultimaFilaVentas
+        empresa = Trim(CStr(wsVentas.Cells(i, 1).Value))  ' Columna A
+        canal = Trim(CStr(wsVentas.Cells(i, 2).Value))    ' Columna B
+        
+        If UCase(empresa) = "TLT" And UCase(canal) = "MELI" Then
+            mlc = Trim(CStr(wsVentas.Cells(i, 21).Value))         ' Columna U: # de publicación
+            sku = Trim(CStr(wsVentas.Cells(i, 20).Value))         ' Columna T: SKU
+            descripcion = Trim(CStr(wsVentas.Cells(i, 22).Value)) ' Columna V: Título
+            
+            ' Quitar prefijo "MLC" si existe
+            If Left(UCase(mlc), 3) = "MLC" Then
+                mlc = Mid(mlc, 4)
+            End If
+            
+            ' Validar que precio sea numérico
+            On Error Resume Next
+            precio = CDbl(wsVentas.Cells(i, 24).Value)            ' Columna X: Precio unitario
+            If Err.Number <> 0 Then
+                precio = 0
+                Err.Clear
+            End If
+            On Error GoTo 0
+            
+            If sku <> "" And Not dictDescripciones.Exists(sku) Then
+                dictDescripciones(sku) = descripcion
+            End If
+            
+            'Dim clavePrec As String (ya declarado al inicio)
+            clavePrec = mlc & "|" & sku
+            If Not dictPrecios.Exists(clavePrec) Then
+                dictPrecios(clavePrec) = precio
+            End If
+        End If
+    Next i
+    
+    ' ==========================================
+    ' ==========================================
+    ' PASADA 1: CALCULAR NECESIDADES BÁSICAS
+    ' ==========================================
+    
+    Set colNecesidades = New Collection
+    
+    For Each claveMLCSKU1 In dictVentasPorMLCSKU.Keys
+        
+        Set dictInfo = dictVentasPorMLCSKU(claveMLCSKU1)
+        mlc = dictInfo("mlc")
+        sku = dictInfo("sku")
+        
+        ' Saltar si está en PIV
+        If dictPIV.Exists(sku) Then GoTo SiguienteSKU
+        
+        ' Determinar si es PACK
+        '        Dim esPack As Boolean (movido al inicio)
+        esPack = dictPacks.Exists(sku)
+        
+        ' Calcular venta diaria
+        '        Dim totalVentas As Double (movido al inicio)
+        totalVentas = 0
+        '        Dim ventaCol As Collection (movido al inicio)
+        Set ventaCol = dictInfo("ventas")
+        
+        '        Dim j As Long (movido al inicio)
+        For j = 1 To ventaCol.Count
+            totalVentas = totalVentas + ventaCol(j)
+        Next j
+        
+        '        Dim primeraFecha As Date (movido al inicio)
+        '        Dim ultimaFecha As Date (movido al inicio)
+        primeraFecha = dictInfo("primeraFecha")
+        ultimaFecha = dictInfo("ultimaFecha")
+        
+        '        Dim diasVenta As Long (movido al inicio)
+        diasVenta = ultimaFecha - primeraFecha
+        If diasVenta <= 0 Then diasVenta = 1
+        
+        '        Dim ventaDiaria As Double (movido al inicio)
+        ventaDiaria = totalVentas / diasVenta
+        
+        ' ==========================================
+        ' CALCULAR VENTA DIARIA DE LOS ÚLTIMOS 30 DÍAS
+        ' ==========================================
+        fechaLimite30Dias = fechaHoy - 30
+        totalVentas30Dias = 0
+        Set fechaColeccion = dictInfo("fechasVentas")
+        
+        ' Sumar ventas de los últimos 30 días
+        For idxVenta = 1 To ventaCol.Count
+            If fechaColeccion(idxVenta) >= fechaLimite30Dias Then
+                totalVentas30Dias = totalVentas30Dias + ventaCol(idxVenta)
+            End If
+        Next idxVenta
+        
+        ' Calcular venta diaria de últimos 30 días
+        If totalVentas30Dias > 0 Then
+            ventaDiaria30Dias = totalVentas30Dias / 30
+        Else
+            ventaDiaria30Dias = 0
+        End If
+        
+        ' TOMAR LA VENTA DIARIA MAYOR
+        If ventaDiaria30Dias > ventaDiaria Then
+            ventaDiaria = ventaDiaria30Dias
+        End If
+        
+        ' Calcular stock óptimo
+        '        Dim stockOptimo As Double (movido al inicio)
+        stockOptimo = ventaDiaria * diasStock
+        
+        ' Obtener stock Full actual (por MLC+SKU)
+        stockFullActual = 0
+        claveMlcSku = mlc & "|" & sku
+        If dictStockFullActual.Exists(claveMlcSku) Then
+            stockFullActual = dictStockFullActual(claveMlcSku)
+        End If
+        
+        ' Obtener stock en tránsito
+        '        Dim stockEnTransito As Double (movido al inicio)
+        stockEnTransito = 0
+        claveTransito = mlc & "|" & sku
+        If dictTransito.Exists(claveTransito) Then
+            stockEnTransito = dictTransito(claveTransito)
+        End If
+        
+        ' Obtener fecha última llegada
+        '        Dim fechaUltimaLlegada As Date (movido al inicio)
+        fechaUltimaLlegada = DateSerial(1900, 1, 1)
+        
+        ' Calcular necesidad
+        '        Dim necesidad As Double (movido al inicio)
+        necesidad = stockOptimo - stockFullActual - stockEnTransito
+        
+        ' Solo guardar si hay necesidad positiva
+        If necesidad > 0 Then
+            'Dim dictNec As Object (ya declarado al inicio)
+            Set dictNec = CreateObject("Scripting.Dictionary")
+            
+            dictNec("mlc") = mlc
+            dictNec("sku") = sku
+            dictNec("esPack") = esPack
+            dictNec("ventaDiaria") = ventaDiaria
+            dictNec("totalVentas") = totalVentas
+            dictNec("stockOptimo") = stockOptimo
+            dictNec("stockFull") = stockFullActual
+            dictNec("stockTransito") = stockEnTransito
+            dictNec("necesidad") = necesidad
+            dictNec("sugerencia") = necesidad
+            dictNec("primeraFecha") = primeraFecha
+            dictNec("ultimaFecha") = ultimaFecha
+            dictNec("fechaLlegada") = fechaUltimaLlegada
+            dictNec("observaciones") = ""
+            
+            If dictCodigoTransito.Exists(mlc & "|" & sku) Then
+                dictNec("codigoTransito") = dictCodigoTransito(mlc & "|" & sku)
+            Else
+                dictNec("codigoTransito") = ""
+            End If
+            
+            ' DEBUG: Contar cuántos tienen código
+            If idx <= 3 And dictNec("codigoTransito") <> "" Then
+                Debug.Print "PASADA1 - Fila " & idx & ": MLC=" & mlc & " SKU=" & sku & " Código=" & dictNec("codigoTransito")
+            End If
+            
+            clavePrec = mlc & "|" & sku
+            If dictPrecios.Exists(clavePrec) Then
+                dictNec("precio") = dictPrecios(clavePrec)
+            Else
+                dictNec("precio") = 0
+            End If
+            
+            If dictDescripciones.Exists(sku) Then
+                dictNec("descripcion") = dictDescripciones(sku)
+            ElseIf esPack Then
+                dictNec("descripcion") = "PACK - " & sku
+            Else
+                dictNec("descripcion") = ""
+            End If
+            
+            colNecesidades.Add dictNec
+        End If
+        
+SiguienteSKU:
+    Next claveMLCSKU1
+    
+    ' Contar cuántos tienen código tránsito
+    contConCodigo = 0
+    For idx = 1 To colNecesidades.Count
+        Set nec = colNecesidades(idx)
+        If nec("codigoTransito") <> "" Then
+            contConCodigo = contConCodigo + 1
+        End If
+    Next idx
+    
+    MsgBox "PASADA 1 completada: " & colNecesidades.Count & " necesidades identificadas" & vbCrLf & _
+           "Con código tránsito: " & contConCodigo, vbInformation
+    
+    ' ==========================================
+    ' PASADA 2: PRORATEAR STOCK DISPONIBLE AL 80% POR SKU
+    ' ==========================================
+    ' Agrupar todas las necesidades por SKU
+    Set dictNecesidadesPorSKU = CreateObject("Scripting.Dictionary")
+    
+    For idx = 1 To colNecesidades.Count
+        Set nec = colNecesidades(idx)
+        sku = nec("sku")
+        
+        ' SOLO procesar componentes directos (NO packs) en PASADA 2
+        If Not nec("esPack") Then
+            ' Crear lista de índices para este SKU
+            If Not dictNecesidadesPorSKU.Exists(sku) Then
+                Set dictNecesidadesPorSKU(sku) = CreateObject("Scripting.Dictionary")
+                Set dictNecesidadesPorSKU(sku)("indices") = New Collection
+                dictNecesidadesPorSKU(sku)("necesidadTotal") = 0
+            End If
+            
+            ' Agregar índice y sumar necesidad total
+            dictNecesidadesPorSKU(sku)("indices").Add idx
+            dictNecesidadesPorSKU(sku)("necesidadTotal") = dictNecesidadesPorSKU(sku)("necesidadTotal") + nec("necesidad")
+        End If
+    Next idx
+    
+    ' DEBUG: Mostrar info de dictStockActual
+    debugMsg = "DEBUG PASADA 2:" & vbCrLf & vbCrLf
+    debugMsg = debugMsg & "dictStockActual tiene " & dictStockActual.Count & " SKUs" & vbCrLf
+    debugMsg = debugMsg & "dictNecesidadesPorSKU tiene " & dictNecesidadesPorSKU.Count & " SKUs" & vbCrLf & vbCrLf
+    
+    ' Mostrar primeros 3 SKUs de dictStockActual
+    contDebug = 0
+    For Each skuKey In dictStockActual.Keys
+        If contDebug < 3 Then
+            arrStock = dictStockActual(skuKey)
+            debugMsg = debugMsg & "Stock[" & skuKey & "]: Central=" & arrStock(0) & " 3A=" & arrStock(1) & vbCrLf
+            contDebug = contDebug + 1
+        End If
+    Next skuKey
+    
+    debugMsg = debugMsg & vbCrLf & "Procesando necesidades..."
+    MsgBox debugMsg, vbInformation
+    
+    ' Para cada SKU, comparar necesidad total vs stock disponible al 80%
+    For Each skuKey In dictNecesidadesPorSKU.Keys
+        sku = CStr(skuKey)
+        
+        ' Obtener stock físico del SKU (Central + 3A)
+        stockFisico = 0
+        
+        If dictStockActual.Exists(sku) Then
+            arrStock = dictStockActual(sku)
+            stockFisico = arrStock(0) + arrStock(1)  ' Central + 3A
+        End If
+        
+        disponible80 = stockFisico * 0.8
+        
+        necesidadTotalSKU = dictNecesidadesPorSKU(sku)("necesidadTotal")
+        
+        Set indicesCol = dictNecesidadesPorSKU(sku)("indices")
+        
+        ' CASO 1: Stock al 80% cubre toda la necesidad
+        If disponible80 >= necesidadTotalSKU Then
+            ' Sugerir el total de la necesidad para cada MLC+SKU
+            For j = 1 To indicesCol.Count
+                idx = indicesCol(j)
+                Set nec = colNecesidades(idx)
+                nec("sugerencia") = nec("necesidad")
+            Next j
+            
+        ' CASO 2: Stock al 80% NO cubre la necesidad ? PRORATEAR
+        Else
+            ' Proratear disponible80 proporcionalmente a las ventas diarias
+            totalVentaDiaria = 0
+            
+            ' Calcular total de venta diaria del SKU
+            For j = 1 To indicesCol.Count
+                idx = indicesCol(j)
+                Set nec = colNecesidades(idx)
+                totalVentaDiaria = totalVentaDiaria + nec("ventaDiaria")
+            Next j
+            
+            ' Asignar proporcionalmente
+            If totalVentaDiaria > 0 Then
+                For j = 1 To indicesCol.Count
+                    idx = indicesCol(j)
+                    Set nec = colNecesidades(idx)
+                    
+                    proporcion = nec("ventaDiaria") / totalVentaDiaria
+                    nec("sugerencia") = disponible80 * proporcion
+                    
+                    If nec("observaciones") <> "" Then
+                        nec("observaciones") = nec("observaciones") & "; "
+                    End If
+                    nec("observaciones") = nec("observaciones") & "Limitado por stock (prorrateado al 80%)"
+                Next j
+            Else
+                ' Si no hay ventas, distribuir equitativamente
+                sugerenciaPorItem = disponible80 / indicesCol.Count
+                
+                For j = 1 To indicesCol.Count
+                    idx = indicesCol(j)
+                    Set nec = colNecesidades(idx)
+                    nec("sugerencia") = sugerenciaPorItem
+                    
+                    If nec("observaciones") <> "" Then
+                        nec("observaciones") = nec("observaciones") & "; "
+                    End If
+                    nec("observaciones") = nec("observaciones") & "Limitado por stock (distribuido equitativamente)"
+                Next j
+            End If
+        End If
+    Next skuKey
+    
+    ' DEBUG: Ver cuántas sugerencias > 0 hay después de PASADA 2
+    contSugerencias = 0
+    debugMsg = "DESPUÉS DE PASADA 2:" & vbCrLf & vbCrLf
+    
+    For idx = 1 To colNecesidades.Count
+        Set nec = colNecesidades(idx)
+        If nec("sugerencia") > 0 Then
+            contSugerencias = contSugerencias + 1
+        End If
+        If idx <= 5 Then
+            debugMsg = debugMsg & "SKU " & nec("sku") & ": necesidad=" & Round(nec("necesidad"), 2) & " sugerencia=" & Round(nec("sugerencia"), 2) & vbCrLf
+        End If
+    Next idx
+    
+    debugMsg = debugMsg & vbCrLf & "Sugerencias > 0: " & contSugerencias & " de " & colNecesidades.Count
+    MsgBox debugMsg, vbInformation
+    
+    ' ==========================================
+    ' PASADA 3: AJUSTAR PACKS AL MÍNIMO
+    ' ==========================================
+    
+    Set dictStockUsado = CreateObject("Scripting.Dictionary")
+    
+    For idx = 1 To colNecesidades.Count
+        Set nec = colNecesidades(idx)
+        
+        If Not nec("esPack") Then
+            'Dim skuComp As String (ya declarado al inicio)
+            skuComp = nec("sku")
+            
+            If Not dictStockUsado.Exists(skuComp) Then
+                dictStockUsado(skuComp) = 0
+            End If
+            dictStockUsado(skuComp) = dictStockUsado(skuComp) + nec("sugerencia")
+        End If
+    Next idx
+    
+    ' ==========================================
+    ' PASADA 3: AJUSTAR PACKS AL MÍNIMO
+    ' ==========================================
+    
+    For idx = 1 To colNecesidades.Count
+        Set nec = colNecesidades(idx)
+        
+        If nec("esPack") Then
+            idPack = nec("sku")
+            
+            If dictPacks.Exists(idPack) Then
+                Set dictComp = dictPacks(idPack)
+                
+                'Dim packsMaximos As Double (ya declarado al inicio)
+                packsMaximos = 999999999
+                
+                'Dim componenteLimitante As String (ya declarado al inicio)
+                componenteLimitante = ""
+                
+                For Each comp In dictComp.Keys
+                    cantPorPack = dictComp(comp)
+                    
+                    ' Dim stockDisponibleComp As Double (ya declarado al inicio)
+                    stockDisponibleComp = 0
+                    
+                    If dictStockActual.Exists(CStr(comp)) Then
+                        arrStock = dictStockActual(CStr(comp))
+                        stockDisponibleComp = (arrStock(0) + arrStock(1)) * 0.8
+                    End If
+                    
+                    If dictStockUsado.Exists(CStr(comp)) Then
+                        stockDisponibleComp = stockDisponibleComp - dictStockUsado(CStr(comp))
+                    End If
+                    
+                    If stockDisponibleComp < 0 Then stockDisponibleComp = 0
+                    
+                    ' Dim packsPosibles As Double (ya declarado al inicio)
+                    If cantPorPack > 0 And stockDisponibleComp > 0 Then
+                        packsPosibles = Int(stockDisponibleComp / cantPorPack)
+                    Else
+                        packsPosibles = 0
+                    End If
+                    
+                    If packsPosibles < packsMaximos Then
+                        packsMaximos = packsPosibles
+                        componenteLimitante = CStr(comp)
+                    End If
+                Next comp
+                
+                If packsMaximos < nec("sugerencia") Then
+                    nec("sugerencia") = packsMaximos
+                    
+                    If nec("observaciones") <> "" Then
+                        nec("observaciones") = nec("observaciones") & "; "
+                    End If
+                    nec("observaciones") = nec("observaciones") & "Limitado por componente: " & componenteLimitante & " (" & packsMaximos & " packs máximo)"
+                End If
+                
+                If nec("sugerencia") > nec("necesidad") Then
+                    nec("sugerencia") = nec("necesidad")
+                    
+                    If nec("observaciones") <> "" Then
+                        nec("observaciones") = nec("observaciones") & "; "
+                    End If
+                    nec("observaciones") = nec("observaciones") & "Ajustado a stock óptimo"
+                End If
+                
+                For Each comp In dictComp.Keys
+                    cantPorPack = dictComp(comp)
+                    
+                    If Not dictStockUsado.Exists(CStr(comp)) Then
+                        dictStockUsado(CStr(comp)) = 0
+                    End If
+                    dictStockUsado(CStr(comp)) = dictStockUsado(CStr(comp)) + (nec("sugerencia") * cantPorPack)
+                Next comp
+            End If
+        End If
+    Next idx
+    
+    ' DEBUG: Mostrar info de packs después de PASADA 3
+    debugMsg = "DESPUÉS DE PASADA 3 (Packs):" & vbCrLf & vbCrLf
+    contPacks = 0
+    contPacksSugerencia = 0
+    
+    For idx = 1 To colNecesidades.Count
+        Set nec = colNecesidades(idx)
+        If nec("esPack") Then
+            contPacks = contPacks + 1
+            If nec("sugerencia") > 0 Then
+                contPacksSugerencia = contPacksSugerencia + 1
+            End If
+            If contPacks <= 5 Then
+                debugMsg = debugMsg & "Pack " & nec("sku") & ": necesidad=" & Round(nec("necesidad"), 2) & " sugerencia=" & Round(nec("sugerencia"), 2) & vbCrLf
+            End If
+        End If
+    Next idx
+    
+    debugMsg = debugMsg & vbCrLf & "Total packs: " & contPacks & vbCrLf
+    debugMsg = debugMsg & "Packs con sugerencia > 0: " & contPacksSugerencia
+    MsgBox debugMsg, vbInformation
+    
+    ' ==========================================
+    ' VALIDACIÓN FINAL
+    ' ==========================================
+    
+    For idx = 1 To colNecesidades.Count
+        Set nec = colNecesidades(idx)
+        
+        If Not nec("esPack") Then
+            If nec("sugerencia") > nec("necesidad") Then
+                nec("sugerencia") = nec("necesidad")
+                
+                If nec("observaciones") <> "" Then
+                    nec("observaciones") = nec("observaciones") & "; "
+                End If
+                nec("observaciones") = nec("observaciones") & "Ajustado a stock óptimo"
+            End If
+        End If
+        
+        If nec("sugerencia") < 0 Then
+            nec("sugerencia") = 0
+        End If
+    Next idx
+    
+    ' ==========================================
+    ' ORDENAR RESULTADOS POR VALOR TOTAL (MAYOR A MENOR)
+    ' ==========================================
+    
+    ' Crear array temporal para ordenar
+    ReDim arrOrdenamiento(1 To colNecesidades.Count, 1 To 2) As Variant
+    
+    For idx = 1 To colNecesidades.Count
+        Set nec = colNecesidades(idx)
+        arrOrdenamiento(idx, 1) = idx  ' Índice original
+        arrOrdenamiento(idx, 2) = nec("sugerencia") * nec("precio")  ' Valor total
+    Next idx
+    
+    ' Ordenamiento burbuja (de mayor a menor)
+    
+    Do
+        cambio = False
+        For idx = 1 To colNecesidades.Count - 1
+            If arrOrdenamiento(idx, 2) < arrOrdenamiento(idx + 1, 2) Then
+                ' Intercambiar
+                temp1 = arrOrdenamiento(idx, 1)
+                temp2 = arrOrdenamiento(idx, 2)
+                arrOrdenamiento(idx, 1) = arrOrdenamiento(idx + 1, 1)
+                arrOrdenamiento(idx, 2) = arrOrdenamiento(idx + 1, 2)
+                arrOrdenamiento(idx + 1, 1) = temp1
+                arrOrdenamiento(idx + 1, 2) = temp2
+                cambio = True
+            End If
+        Next idx
+    Loop While cambio
+    
+    ' ==========================================
+    ' ESCRIBIR RESULTADOS
+    ' ==========================================
+    
+    filaResultado = 2
+    
+    ' Recorrer en orden de valor total (mayor a menor)
+    For idx = 1 To colNecesidades.Count
+        idxOriginal = arrOrdenamiento(idx, 1)
+        Set nec = colNecesidades(idxOriginal)
+        
+        ' Validar que fecha inicio sea diferente a fecha fin
+        esFechaValida = (nec("primeraFecha") <> nec("ultimaFecha"))
+        
+        If nec("sugerencia") > 0 And esFechaValida Then
+            
+            ' ==========================================
+            ' FACTOR DE AJUSTE SI UNIDADES PERIODO < 10
+            ' ==========================================
+            If nec("totalVentas") < 10 Then
+                fechaInicio = nec("primeraFecha")
+                fechaFin = nec("ultimaFecha")
+                diasReales = fechaFin - fechaInicio
+                
+                If diasReales > 0 Then
+                    ' Factor = (diasReales / 90)
+                    factorAjuste = diasReales / 90
+                    
+                    ' Aplicar factor a la sugerencia
+                    nec("sugerencia") = nec("sugerencia") * factorAjuste
+                    
+                    ' Actualizar observaciones
+                    If nec("observaciones") <> "" Then
+                        nec("observaciones") = nec("observaciones") & " | Factor ajuste (" & Round(factorAjuste, 2) & ") por pocas unidades"
+                    Else
+                        nec("observaciones") = "Factor ajuste (" & Round(factorAjuste, 2) & ") por pocas unidades"
+                    End If
+                End If
+            End If
+            
+            'Dim stockDispMostrar As Double (ya declarado al inicio)
+            If nec("esPack") Then
+                stockDispMostrar = 0
+                If dictPacks.Exists(nec("sku")) Then
+                    Set dictComp = dictPacks(nec("sku"))
+                    stockDispMostrar = 999999
+                    For Each comp In dictComp.Keys
+                        If dictStockActual.Exists(CStr(comp)) Then
+                            arrStock = dictStockActual(CStr(comp))
+                            ' Dim stockComp As Double (ya declarado al inicio)
+                            stockComp = arrStock(0) + arrStock(1)
+                            ' Dim packsPosiblesComp As Double (ya declarado al inicio)
+                            cantPorPack = dictComp(comp)
+                            If cantPorPack > 0 Then
+                                packsPosiblesComp = Int(stockComp / cantPorPack)
+                            Else
+                                packsPosiblesComp = 0
+                            End If
+                            If packsPosiblesComp < stockDispMostrar Then
+                                stockDispMostrar = packsPosiblesComp
+                            End If
+                        End If
+                    Next comp
+                    If stockDispMostrar = 999999 Then stockDispMostrar = 0
+                End If
+            Else
+                If dictStockActual.Exists(nec("sku")) Then
+                    arrStock = dictStockActual(nec("sku"))
+                    stockDispMostrar = arrStock(0) + arrStock(1)
+                Else
+                    stockDispMostrar = 0
+                End If
+            End If
+            
+            'Dim textoComponentes As String (ya declarado al inicio)
+            textoComponentes = nec("observaciones")
+            If nec("esPack") And textoComponentes = "" Then
+                textoComponentes = ObtenerComponentesPack(nec("sku"), dictPacks)
+            End If
+            
+            With wsResultado
+                .Cells(filaResultado, 1).Value = nec("codigoTransito")
+                .Cells(filaResultado, 2).Value = nec("mlc")
+                .Cells(filaResultado, 3).Value = nec("sku")
+                .Cells(filaResultado, 4).Value = nec("descripcion")
+                .Cells(filaResultado, 5).Value = Round(nec("ventaDiaria"), 2)
+                .Cells(filaResultado, 6).Value = Round(nec("stockOptimo"), 0)
+                .Cells(filaResultado, 7).Value = Round(nec("stockFull"), 0)
+                .Cells(filaResultado, 8).Value = Round(nec("stockTransito"), 0)
+                .Cells(filaResultado, 9).Value = Round(stockDispMostrar, 0)
+                .Cells(filaResultado, 10).Value = Round(nec("sugerencia"), 0)
+                .Cells(filaResultado, 11).Value = nec("precio")
+                .Cells(filaResultado, 12).Value = Round(nec("sugerencia"), 0) * nec("precio")
+                .Cells(filaResultado, 13).Value = nec("primeraFecha")
+                .Cells(filaResultado, 14).Value = nec("ultimaFecha")
+                .Cells(filaResultado, 15).Value = Round(nec("totalVentas"), 0)
+                .Cells(filaResultado, 16).Value = textoComponentes
+                
+                .Cells(filaResultado, 5).NumberFormat = "0.00"
+                .Cells(filaResultado, 6).NumberFormat = "#,##0"
+                .Cells(filaResultado, 7).NumberFormat = "#,##0"
+                .Cells(filaResultado, 8).NumberFormat = "#,##0"
+                .Cells(filaResultado, 9).NumberFormat = "#,##0"
+                .Cells(filaResultado, 10).NumberFormat = "#,##0"
+                .Cells(filaResultado, 11).NumberFormat = "$#,##0"
+                .Cells(filaResultado, 12).NumberFormat = "$#,##0"
+                .Cells(filaResultado, 13).NumberFormat = "dd/mm/yyyy"
+                .Cells(filaResultado, 14).NumberFormat = "dd/mm/yyyy"
+                .Cells(filaResultado, 15).NumberFormat = "#,##0"
+            End With
+            
+            filaResultado = filaResultado + 1
+        End If
+    Next idx
+    
+    MsgBox "Resultados escritos: " & (filaResultado - 2) & " sugerencias generadas", vbInformation
+    
+End Sub
+
+' ==========================================
+' FUNCIÓN: Obtener componentes de un PACK
+' ==========================================
+Function ObtenerComponentesPack(idPack As String, dictPacks As Object) As String
+    
+    If Not dictPacks.Exists(idPack) Then
+        ObtenerComponentesPack = ""
+        Exit Function
+    End If
+    
+    Dim dictComp As Object
+    Set dictComp = dictPacks(idPack)
+    
+    Dim resultado As String
+    resultado = "Componentes: "
+    
+    Dim comp As Variant
+    Dim primero As Boolean
+    primero = True
+    
+    For Each comp In dictComp.Keys
+        If Not primero Then resultado = resultado & ", "
+        resultado = resultado & CStr(comp) & " (" & dictComp(comp) & ")"
+        primero = False
+    Next comp
+    
+    ObtenerComponentesPack = resultado
+    
+End Function
+
+' ==========================================
+' FUNCIÓN: Calcular necesidad total de SKU
+' ==========================================
+Function CalcularNecesidadTotalSKU(sku As String, dictVentas As Object, diasStock As Integer, _
+                                   fechaHoy As Date, dictStockFull As Object, _
+                                   dictTransito As Object) As Double
+    
+    Dim totalNecesidad As Double
+    Dim clave As Variant
+    Dim dictInfo As Object
+    Dim totalVentas As Double
+    Dim ventaCol As Collection
+    Dim j As Long
+    Dim diasVenta As Long
+    Dim ventaDiaria As Double
+    Dim stockOptimo As Double
+    Dim stockFull As Double
+    Dim stockTrans As Double
+    Dim necesidad As Double
+    
+    totalNecesidad = 0
+    
+    For Each clave In dictVentas.Keys
+        '        Dim dictInfo As Object (movido al inicio)
+        Set dictInfo = dictVentas(clave)
+        
+        If dictInfo("sku") = sku Then
+            'Dim totalVentas As Double (ya declarado al inicio)
+            totalVentas = 0
+            
+            'Dim ventaCol As Collection (ya declarado al inicio)
+            Set ventaCol = dictInfo("ventas")
+            
+            'Dim j As Long (ya declarado al inicio)
+            For j = 1 To ventaCol.Count
+                totalVentas = totalVentas + ventaCol(j)
+            Next j
+            
+            'Dim diasVenta As Long (ya declarado al inicio)
+            diasVenta = dictInfo("ultimaFecha") - dictInfo("primeraFecha")
+            If diasVenta <= 0 Then diasVenta = 1
+            
+            'Dim ventaDiaria As Double (ya declarado al inicio)
+            ventaDiaria = totalVentas / diasVenta
+            
+            'Dim stockOptimo As Double (ya declarado al inicio)
+            stockOptimo = ventaDiaria * diasStock
+            
+            'Dim stockFull As Double (ya declarado al inicio)
+            stockFull = 0
+            If dictStockFull.Exists(sku) Then
+                stockFull = dictStockFull(sku)
+            End If
+            
+            'Dim stockTrans As Double (ya declarado al inicio)
+            stockTrans = 0
+            If dictTransito.Exists(clave) Then
+                stockTrans = dictTransito(clave)
+            End If
+            
+            'Dim necesidad As Double (ya declarado al inicio)
+            necesidad = stockOptimo - stockFull - stockTrans
+            
+            If necesidad > 0 Then
+                totalNecesidad = totalNecesidad + necesidad
+            End If
+        End If
+    Next clave
+    
+    CalcularNecesidadTotalSKU = totalNecesidad
+    
+End Function
+
+' ==========================================
+' FUNCIÓN: Crear Dashboard en Run
+' ==========================================
+Sub CrearDashboardRun(wsRun As Worksheet, wsResultado As Worksheet, diasStock As Integer, fechaHoy As Date)
+    
+    wsRun.Cells.Clear
+    
+    With wsRun
+        .Range("A1").Value = "DASHBOARD DE REPOSICIÓN"
+        .Range("A1").Font.Size = 16
+        .Range("A1").Font.Bold = True
+        
+        .Range("A3").Value = "Fecha de Análisis:"
+        .Range("B3").Value = fechaHoy
+        .Range("B3").NumberFormat = "dd/mm/yyyy"
+        
+        .Range("A4").Value = "Días de Stock Objetivo:"
+        .Range("B4").Value = diasStock
+        
+        Dim ultimaFila As Long
+        ultimaFila = wsResultado.Cells(wsResultado.Rows.Count, 1).End(xlUp).Row
+        
+        .Range("A6").Value = "Total de SKUs con Necesidad:"
+        .Range("B6").Value = ultimaFila - 1
+        
+        Dim sumaTotal As Double
+        sumaTotal = Application.WorksheetFunction.Sum(wsResultado.Range("L2:L" & ultimaFila))
+        
+        .Range("A7").Value = "Valor Total de Sugerencias:"
+        .Range("B7").Value = sumaTotal
+        .Range("B7").NumberFormat = "$#,##0"
+        
+        .Columns("A:B").AutoFit
+    End With
+    
+End Sub
+
+' ==========================================
+' FUNCIÓN: Analizar velocidad de venta
+' ==========================================
+Sub AnalizarVelocidadVenta()
+    
+    Dim wbArchivo As Workbook
+    Dim wsVentas As Worksheet, wsStock As Worksheet, wsTransito As Worksheet
+    Dim wsResultado As Worksheet
+    Dim ultimaFilaVentas As Long
+    Dim i As Long
+    Dim respuesta As VbMsgBoxResult
+    
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+    
+    Set wbArchivo = ThisWorkbook
+    
+    On Error Resume Next
+    Set wsVentas = wbArchivo.Worksheets("ventas")
+    Set wsStock = wbArchivo.Worksheets("Stock")
+    Set wsTransito = wbArchivo.Worksheets("Transito full")
+    On Error GoTo 0
+    
+    If wsVentas Is Nothing Or wsStock Is Nothing Or wsTransito Is Nothing Then
+        MsgBox "No se encontraron las hojas necesarias.", vbCritical
+        GoTo Salir
+    End If
+    
+    On Error Resume Next
+    Set wsResultado = wbArchivo.Worksheets("Velocidad Venta")
+    If Not wsResultado Is Nothing Then
+        respuesta = MsgBox("Ya existe un análisis de velocidad. ¿Desea reemplazarlo?", _
+                          vbYesNo + vbQuestion, "Confirmar")
+        If respuesta = vbYes Then
+            Application.DisplayAlerts = False
+            wsResultado.Delete
+            Application.DisplayAlerts = True
+            Set wsResultado = Nothing
+        Else
+            GoTo Salir
+        End If
+    End If
+    On Error GoTo 0
+    
+    Set wsResultado = wbArchivo.Worksheets.Add(After:=wbArchivo.Worksheets(wbArchivo.Worksheets.Count))
+    wsResultado.Name = "Velocidad Venta"
+    
+    With wsResultado
+        .Range("A1").Value = "SKU"
+        .Range("B1").Value = "Descripción"
+        .Range("C1").Value = "Contenedor Compra"
+        .Range("D1").Value = "Fecha Compra"
+        .Range("E1").Value = "Unidades Compradas"
+        .Range("F1").Value = "Primera Venta Post-Compra"
+        .Range("G1").Value = "Última Venta"
+        .Range("H1").Value = "Total Vendido"
+        .Range("I1").Value = "Stock Actual"
+        .Range("J1").Value = "Fecha Final Cálculo"
+        .Range("K1").Value = "Días Transcurridos"
+        .Range("L1").Value = "Venta Diaria"
+        .Range("M1").Value = "Método"
+        
+        .Range("A1:M1").Font.Bold = True
+        .Range("A1:M1").Interior.Color = RGB(68, 114, 196)
+        .Range("A1:M1").Font.Color = RGB(255, 255, 255)
+        .Range("A1:M1").HorizontalAlignment = xlCenter
+    End With
+    
+    Call AnalizarVelocidadPorCompra(wsVentas, wsStock, wsTransito, wsResultado)
+    
+    wsResultado.Columns("A:M").AutoFit
+    
+    MsgBox "Análisis de velocidad de venta completado.", vbInformation
+    
+Salir:
+    Application.ScreenUpdating = True
+    Application.Calculation = xlCalculationAutomatic
+    
+End Sub
+
+' ==========================================
+' FUNCIÓN: Analizar velocidad por compra
+' ==========================================
+Sub AnalizarVelocidadPorCompra(wsVentas As Worksheet, wsStock As Worksheet, _
+                               wsTransito As Worksheet, wsResultado As Worksheet)
+    
+    Dim dictVentasPorSKU As Object
+    Dim dictStockActual As Object
+    Dim dictDescripciones As Object
+    Dim dictCompras As Object
+    
+    Dim ultimaFilaVentas As Long, ultimaFilaStock As Long, ultimaFilaTransito As Long
+    Dim i As Long, j As Long
+    Dim empresa As String, canal As String, sku As String
+    Dim fechaVenta As Date, unidades As Double, descripcion As String
+    Dim bodega As String
+    Dim stockCantidad As Double
+    Dim contenedor As String
+    Dim fechaLlegada As Date
+    Dim fechaHoy As Date
+    Dim filaResultado As Long
+    Dim skuKey As Variant
+    Dim compraInfo As Variant
+    Dim fechaCompraValida As Date
+    Dim contenedorCompra As String
+    Dim ventasCol As Collection
+    Dim totalVendido As Double
+    Dim primeraVentaPostCompra As Date
+    Dim ultimaVenta As Date
+    Dim ventaInfo As Variant
+    Dim stockActualSKU As Double
+    Dim fechaFinal As Date
+    Dim metodo As String
+    Dim diasTranscurridos As Long
+    Dim ventaDiaria As Double
+    Dim descripcionMostrar As String
+    
+    Set dictVentasPorSKU = CreateObject("Scripting.Dictionary")
+    Set dictStockActual = CreateObject("Scripting.Dictionary")
+    Set dictDescripciones = CreateObject("Scripting.Dictionary")
+    Set dictCompras = CreateObject("Scripting.Dictionary")
+    
+    ultimaFilaVentas = wsVentas.Cells(wsVentas.Rows.Count, 1).End(xlUp).Row
+    ultimaFilaStock = wsStock.Cells(wsStock.Rows.Count, 1).End(xlUp).Row
+    ultimaFilaTransito = wsTransito.Cells(wsTransito.Rows.Count, 1).End(xlUp).Row
+    
+    For i = 2 To ultimaFilaVentas
+        empresa = Trim(CStr(wsVentas.Cells(i, 1).Value))  ' Columna A
+        canal = Trim(CStr(wsVentas.Cells(i, 2).Value))    ' Columna B
+        
+        If UCase(empresa) = "TLT" And UCase(canal) = "MELI" Then
+            sku = Trim(CStr(wsVentas.Cells(i, 20).Value))         ' Columna T: SKU
+            fechaVenta = wsVentas.Cells(i, 6).Value               ' Columna F: Fecha de venta
+            unidades = wsVentas.Cells(i, 11).Value                ' Columna K: Unidades
+            descripcion = Trim(CStr(wsVentas.Cells(i, 22).Value)) ' Columna V: Título
+            
+            If sku <> "" Then
+                Call AgregarVentaDiaria(dictVentasPorSKU, sku, fechaVenta, unidades)
+                
+                If Not dictDescripciones.Exists(sku) Then
+                    dictDescripciones(sku) = descripcion
+                End If
+            End If
+        End If
+    Next i
+    
+    For i = 2 To ultimaFilaStock
+        sku = Trim(CStr(wsStock.Cells(i, 1).Value))
+        '        Dim bodega As String (movido al inicio)
+        bodega = Trim(CStr(wsStock.Cells(i, 2).Value))
+        '        Dim stockCantidad As Double (movido al inicio)
+        stockCantidad = wsStock.Cells(i, 3).Value
+        
+        If sku <> "" And UCase(bodega) = "FULL" Then
+            If Not dictStockActual.Exists(sku) Then
+                dictStockActual(sku) = 0
+            End If
+            dictStockActual(sku) = dictStockActual(sku) + stockCantidad
+        End If
+    Next i
+    
+    For i = 2 To ultimaFilaTransito
+        sku = Trim(CStr(wsTransito.Cells(i, 3).Value))
+        '        Dim contenedor As String (movido al inicio)
+        contenedor = Trim(CStr(wsTransito.Cells(i, 1).Value))
+        '        Dim fechaLlegada As Date (movido al inicio)
+        fechaLlegada = wsTransito.Cells(i, 5).Value
+        
+        If sku <> "" And contenedor <> "" Then
+            If Not dictCompras.Exists(sku) Then
+                Set dictCompras(sku) = New Collection
+            End If
+            
+            dictCompras(sku).Add Array(fechaLlegada, contenedor)
+        End If
+    Next i
+    
+    fechaHoy = Date
+    
+    filaResultado = 2
+    
+    For Each skuKey In dictVentasPorSKU.Keys
+        sku = CStr(skuKey)
+        
+        '        Dim compraInfo As Variant (movido al inicio)
+        compraInfo = ObtenerCompraValida(dictCompras, sku, fechaHoy)
+        
+        If IsEmpty(compraInfo) Then GoTo SiguienteSKU
+        
+        '        Dim fechaCompraValida As Date (movido al inicio)
+        '        Dim contenedorCompra As String (movido al inicio)
+        fechaCompraValida = compraInfo(0)
+        contenedorCompra = compraInfo(1)
+        
+        '        Dim ventasCol As Collection (movido al inicio)
+        Set ventasCol = dictVentasPorSKU(sku)
+        
+        '        Dim totalVendido As Double (movido al inicio)
+        totalVendido = 0
+        
+        '        Dim primeraVentaPostCompra As Date (movido al inicio)
+        primeraVentaPostCompra = DateSerial(2099, 12, 31)
+        
+        '        Dim ultimaVenta As Date (movido al inicio)
+        ultimaVenta = DateSerial(1900, 1, 1)
+        
+        '        Dim j As Long (movido al inicio)
+        For j = 1 To ventasCol.Count
+            'Dim ventaInfo As Variant (ya declarado al inicio)
+            ventaInfo = ventasCol(j)
+            fechaVenta = ventaInfo(0)
+            unidades = ventaInfo(1)
+            
+            If fechaVenta >= fechaCompraValida Then
+                totalVendido = totalVendido + unidades
+                
+                If fechaVenta < primeraVentaPostCompra Then
+                    primeraVentaPostCompra = fechaVenta
+                End If
+                
+                If fechaVenta > ultimaVenta Then
+                    ultimaVenta = fechaVenta
+                End If
+            End If
+        Next j
+        
+        If totalVendido = 0 Then GoTo SiguienteSKU
+        
+        '        Dim stockActualSKU As Double (movido al inicio)
+        stockActualSKU = 0
+        If dictStockActual.Exists(sku) Then
+            stockActualSKU = dictStockActual(sku)
+        End If
+        
+        '        Dim fechaFinal As Date (movido al inicio)
+        '        Dim metodo As String (movido al inicio)
+        
+        If stockActualSKU > 0 Then
+            fechaFinal = fechaHoy
+            metodo = "Stock>0 (hoy)"
+        Else
+            fechaFinal = ultimaVenta
+            metodo = "Stock=0 (última venta)"
+        End If
+        
+        '        Dim diasTranscurridos As Long (movido al inicio)
+        diasTranscurridos = fechaFinal - primeraVentaPostCompra
+        If diasTranscurridos <= 0 Then diasTranscurridos = 1
+        
+        '        Dim ventaDiaria As Double (movido al inicio)
+        ventaDiaria = totalVendido / diasTranscurridos
+        
+        '        Dim descripcionMostrar As String (movido al inicio)
+        descripcionMostrar = ""
+        If dictDescripciones.Exists(sku) Then
+            descripcionMostrar = dictDescripciones(sku)
+        End If
+        
+        With wsResultado
+            .Cells(filaResultado, 1).Value = sku
+            .Cells(filaResultado, 2).Value = descripcionMostrar
+            .Cells(filaResultado, 3).Value = contenedorCompra
+            .Cells(filaResultado, 4).Value = fechaCompraValida
+            .Cells(filaResultado, 5).Value = 0
+            .Cells(filaResultado, 6).Value = primeraVentaPostCompra
+            .Cells(filaResultado, 7).Value = ultimaVenta
+            .Cells(filaResultado, 8).Value = Round(totalVendido, 0)
+            .Cells(filaResultado, 9).Value = Round(stockActualSKU, 0)
+            .Cells(filaResultado, 10).Value = fechaFinal
+            .Cells(filaResultado, 11).Value = diasTranscurridos
+            .Cells(filaResultado, 12).Value = Round(ventaDiaria, 2)
+            .Cells(filaResultado, 13).Value = metodo
+            
+            .Cells(filaResultado, 4).NumberFormat = "dd/mm/yyyy"
+            .Cells(filaResultado, 6).NumberFormat = "dd/mm/yyyy"
+            .Cells(filaResultado, 7).NumberFormat = "dd/mm/yyyy"
+            .Cells(filaResultado, 10).NumberFormat = "dd/mm/yyyy"
+            .Cells(filaResultado, 8).NumberFormat = "#,##0"
+            .Cells(filaResultado, 9).NumberFormat = "#,##0"
+            .Cells(filaResultado, 11).NumberFormat = "#,##0"
+            .Cells(filaResultado, 12).NumberFormat = "#,##0.00"
+        End With
+        
+        filaResultado = filaResultado + 1
+        
+SiguienteSKU:
+    Next skuKey
+    
+End Sub
+
+' ==========================================
+' FUNCIÓN AUXILIAR: Agregar venta al diccionario
+' ==========================================
+Sub AgregarVentaDiaria(dict As Object, sku As String, fechaVenta As Date, unidades As Double)
+    
+    If Not dict.Exists(sku) Then
+        Set dict(sku) = New Collection
+    End If
+    
+    dict(sku).Add Array(fechaVenta, unidades)
+    
+End Sub
+
+' ==========================================
+' FUNCIÓN: Obtener compra válida
+' ==========================================
+Function ObtenerCompraValida(dictCompras As Object, sku As String, fechaHoy As Date) As Variant
+    
+    If Not dictCompras.Exists(sku) Then
+        ObtenerCompraValida = Empty
+        Exit Function
+    End If
+    
+    Dim comprasCol As Collection
+    Set comprasCol = dictCompras(sku)
+    
+    If comprasCol.Count = 0 Then
+        ObtenerCompraValida = Empty
+        Exit Function
+    End If
+    
+    Dim compras() As Variant
+    ReDim compras(1 To comprasCol.Count)
+    
+    Dim i As Long
+    For i = 1 To comprasCol.Count
+        compras(i) = comprasCol(i)
+    Next i
+    
+    Dim j As Long
+    Dim temp As Variant
+    For i = 1 To UBound(compras) - 1
+        For j = i + 1 To UBound(compras)
+            If compras(i)(0) < compras(j)(0) Then
+                temp = compras(i)
+                compras(i) = compras(j)
+                compras(j) = temp
+            End If
+        Next j
+    Next i
+    
+    Dim diasDesdeCompra As Long
+    For i = 1 To UBound(compras)
+        diasDesdeCompra = fechaHoy - compras(i)(0)
+        If diasDesdeCompra > 30 Then
+            ObtenerCompraValida = compras(i)
+            Exit Function
+        End If
+    Next i
+    
+    If UBound(compras) >= 2 Then
+        ObtenerCompraValida = compras(2)
+    ElseIf UBound(compras) >= 1 Then
+        ObtenerCompraValida = compras(1)
+    Else
+        ObtenerCompraValida = Empty
+    End If
+    
+End Function
+
+' ==========================================
+' FUNCIÓN: Calcular necesidad REAL de un componente
+' ==========================================
+Function CalcularNecesidadTotalComponente(componente As String, dictVentas As Object, _
+                                          dictPacks As Object, diasStock As Integer, _
+                                          fechaHoy As Date, dictStockFull As Object, _
+                                          dictTransito As Object) As Double
+    
+    Dim totalNecesidad As Double
+    Dim idPack As Variant
+    Dim dictComponentes As Object
+    Dim cantidadPorPack As Double
+    Dim necesidadPack As Double
+    
+    totalNecesidad = 0
+    
+    totalNecesidad = totalNecesidad + CalcularNecesidadTotalSKU(componente, dictVentas, _
+                                                                diasStock, fechaHoy, dictStockFull, dictTransito)
+    
+    For Each idPack In dictPacks.Keys
+        Set dictComponentes = dictPacks(idPack)
+        
+        If dictComponentes.Exists(componente) Then
+            cantidadPorPack = dictComponentes(componente)
+            
+            necesidadPack = CalcularNecesidadTotalSKU(CStr(idPack), dictVentas, diasStock, _
+                                                      fechaHoy, dictStockFull, dictTransito)
+            
+            totalNecesidad = totalNecesidad + (necesidadPack * cantidadPorPack)
+        End If
+    Next idPack
+    
+    CalcularNecesidadTotalComponente = totalNecesidad
+    
+End Function
+
+' ==========================================
+' FUNCIÓN: SUGERENCIAS REPOSICIÓN CHINA ? CHILE
+' ==========================================
+Sub GenerarSugerenciasChinaChile()
+    
+    On Error GoTo ErrorHandler
+    
+    Dim wbArchivo As Workbook
+    Dim wsVentas As Worksheet, wsStock As Worksheet, wsResultado As Worksheet
+    Dim wsTransitoChina As Worksheet, wsCompras As Worksheet, wsDesconsiderar As Worksheet
+    Dim diasStockDeseado As Integer
+    Dim diasTransito As Integer
+    Dim ultimaFilaVentas As Long, ultimaFilaStock As Long
+    Dim ultimaFilaTransitoChina As Long, ultimaFilaCompras As Long, ultimaFilaDesconsiderar As Long
+    Dim i As Long
+    Dim empresa As String, canal As String, mlc As String, sku As String
+    Dim fechaVenta As Date
+    Dim unidades As Double
+    
+    ' Diccionarios
+    Dim dictVentaPorSKU As Object
+    Dim dictStockChilePorSKU As Object
+    Dim dictInfoVentaSKU As Object
+    Dim dictPacks As Object
+    Dim dictTransitoChina As Object
+    Dim dictUltimaCompra As Object
+    Dim dictDesconsiderar As Object
+    
+    Dim skuKey As Variant
+    Dim ventaDiariaSKU As Double
+    Dim stockTotalChile As Double
+    Dim diasStockChile As Double
+    Dim stockOptimo90 As Double
+    Dim sugerenciaReposicion As Double
+    Dim transitoChina As Double
+    Dim filaResultado As Long
+    
+    MsgBox "Iniciando macro GenerarSugerenciasChinaChile...", vbInformation
+    
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+    
+    ' Solicitar parámetros
+    diasStockDeseado = InputBox("Ingrese los días de stock deseados en Chile:", "Stock Óptimo China?Chile", "90")
+    If diasStockDeseado <= 0 Then
+        MsgBox "Debe ingresar un valor válido de días", vbExclamation
+        Exit Sub
+    End If
+    
+    diasTransito = 120  ' Días fijos de tránsito desde China
+    
+    ' Asignar hojas
+    Set wbArchivo = ThisWorkbook
+    On Error Resume Next
+    Set wsVentas = wbArchivo.Worksheets("ventas")
+    Set wsStock = wbArchivo.Worksheets("Stock")
+    Set wsTransitoChina = wbArchivo.Worksheets("transito china")
+    Set wsCompras = wbArchivo.Worksheets("compras")
+    Set wsDesconsiderar = wbArchivo.Worksheets("desconsiderar")
+    On Error GoTo 0
+    
+    If wsVentas Is Nothing Or wsStock Is Nothing Then
+        MsgBox "No se encontraron las hojas necesarias (ventas, Stock)", vbCritical
+        GoTo Salir
+    End If
+    
+    If wsTransitoChina Is Nothing Then
+        MsgBox "Advertencia: No se encontró la hoja 'transito china'. Se continuará sin considerar tránsito.", vbExclamation
+    End If
+    
+    If wsCompras Is Nothing Then
+        MsgBox "Advertencia: No se encontró la hoja 'compras'. Se usará todo el periodo de ventas.", vbExclamation
+    End If
+    
+    If wsDesconsiderar Is Nothing Then
+        MsgBox "Advertencia: No se encontró la hoja 'desconsiderar'. Se incluirán todos los SKUs.", vbExclamation
+    End If
+    
+    ' Crear/limpiar hoja de resultados
+    On Error Resume Next
+    Set wsResultado = wbArchivo.Worksheets("Sugerencias China-Chile")
+    If Not wsResultado Is Nothing Then
+        Application.DisplayAlerts = False
+        wsResultado.Delete
+        Application.DisplayAlerts = True
+    End If
+    On Error GoTo 0
+    
+    Set wsResultado = wbArchivo.Worksheets.Add
+    wsResultado.Name = "Sugerencias China-Chile"
+    
+    ' Encabezados (mismo formato que Sugerencias Reposición Full)
+    With wsResultado
+        .Cells(1, 1).Value = "SKU"
+        .Cells(1, 2).Value = "Descripción"
+        .Cells(1, 3).Value = "Venta Diaria"
+        .Cells(1, 4).Value = "Stock Óptimo (" & diasStockDeseado & " días)"
+        .Cells(1, 5).Value = "Stock Total Chile"
+        .Cells(1, 6).Value = "Tránsito China"
+        .Cells(1, 7).Value = "Días de Stock Chile"
+        .Cells(1, 8).Value = "Sugerencia Reposición"
+        .Cells(1, 9).Value = "Precio Unitario"
+        .Cells(1, 10).Value = "Valor Total Sugerencia"
+        .Cells(1, 11).Value = "Fecha Inicio"
+        .Cells(1, 12).Value = "Fecha Fin"
+        .Cells(1, 13).Value = "Unidades Periodo"
+        .Cells(1, 14).Value = "Observaciones"
+        
+        .Range("A1:N1").Font.Bold = True
+        .Range("A1:N1").Interior.Color = RGB(68, 114, 196)
+        .Range("A1:N1").Font.Color = RGB(255, 255, 255)
+    End With
+    
+    ' Inicializar diccionarios
+    Set dictVentaPorSKU = CreateObject("Scripting.Dictionary")
+    Set dictStockChilePorSKU = CreateObject("Scripting.Dictionary")
+    Set dictPacks = CreateObject("Scripting.Dictionary")
+    Set dictTransitoChina = CreateObject("Scripting.Dictionary")
+    Set dictUltimaCompra = CreateObject("Scripting.Dictionary")
+    Set dictDesconsiderar = CreateObject("Scripting.Dictionary")
+    
+    ' ==========================================
+    ' 0. CARGAR SKUs A DESCONSIDERAR
+    ' ==========================================
+    If Not wsDesconsiderar Is Nothing Then
+        ultimaFilaDesconsiderar = wsDesconsiderar.Cells(wsDesconsiderar.Rows.Count, 1).End(xlUp).Row
+        
+        For i = 2 To ultimaFilaDesconsiderar
+            sku = Trim(CStr(wsDesconsiderar.Cells(i, 1).Value))  ' Columna A: SKU
+            
+            If sku <> "" Then
+                dictDesconsiderar(sku) = True
+            End If
+        Next i
+        
+        MsgBox "SKUs a desconsiderar: " & dictDesconsiderar.Count, vbInformation
+    End If
+    
+    ' ==========================================
+    ' 1. CARGAR PACKS (para descomponer en componentes)
+    ' ==========================================
+    Dim wsPacks As Worksheet
+    Set wsPacks = wbArchivo.Worksheets("Packs")
+    Dim ultimaFilaPacks As Long
+    ultimaFilaPacks = wsPacks.Cells(wsPacks.Rows.Count, 1).End(xlUp).Row
+    
+    Dim idPack As String, skuComponente As String, cantidadComponente As Double
+    Dim dictComp As Object
+    
+    For i = 2 To ultimaFilaPacks
+        idPack = Trim(CStr(wsPacks.Cells(i, 1).Value))
+        skuComponente = Trim(CStr(wsPacks.Cells(i, 2).Value))
+        
+        On Error Resume Next
+        cantidadComponente = CDbl(wsPacks.Cells(i, 3).Value)
+        If Err.Number <> 0 Then
+            cantidadComponente = 1
+            Err.Clear
+        End If
+        On Error GoTo 0
+        
+        If idPack <> "" And skuComponente <> "" Then
+            If Not dictPacks.Exists(idPack) Then
+                Set dictPacks(idPack) = CreateObject("Scripting.Dictionary")
+            End If
+            
+            Set dictComp = dictPacks(idPack)
+            dictComp(skuComponente) = cantidadComponente
+        End If
+    Next i
+    
+    MsgBox "Packs cargados: " & dictPacks.Count, vbInformation
+    
+    ' ==========================================
+    ' 1B. CARGAR TRÁNSITO CHINA
+    ' ==========================================
+    If Not wsTransitoChina Is Nothing Then
+        ultimaFilaTransitoChina = wsTransitoChina.Cells(wsTransitoChina.Rows.Count, 1).End(xlUp).Row
+        
+        For i = 2 To ultimaFilaTransitoChina
+            sku = Trim(CStr(wsTransitoChina.Cells(i, 4).Value))  ' Columna D: SKU
+            
+            Dim cantTransito As Double
+            On Error Resume Next
+            cantTransito = CDbl(wsTransitoChina.Cells(i, 8).Value)  ' Columna H: Total Units
+            If Err.Number <> 0 Then
+                cantTransito = 0
+                Err.Clear
+            End If
+            On Error GoTo 0
+            
+            If sku <> "" And cantTransito > 0 Then
+                If Not dictTransitoChina.Exists(sku) Then
+                    dictTransitoChina(sku) = 0
+                End If
+                dictTransitoChina(sku) = dictTransitoChina(sku) + cantTransito
+            End If
+        Next i
+        
+        MsgBox "Tránsito China cargado: " & dictTransitoChina.Count & " SKUs", vbInformation
+    End If
+    
+    ' ==========================================
+    ' 1C. CARGAR ÚLTIMA COMPRA POR SKU
+    ' ==========================================
+    If Not wsCompras Is Nothing Then
+        ultimaFilaCompras = wsCompras.Cells(wsCompras.Rows.Count, 1).End(xlUp).Row
+        
+        Dim fechaCompra As Date
+        Dim fechaHoy As Date
+        fechaHoy = Date
+        
+        For i = 2 To ultimaFilaCompras
+            sku = Trim(CStr(wsCompras.Cells(i, 1).Value))  ' Columna A: ITEM NO.
+            
+            On Error Resume Next
+            fechaCompra = CDate(wsCompras.Cells(i, 4).Value)  ' Columna D: Fecha
+            If Err.Number <> 0 Then
+                fechaCompra = DateSerial(1900, 1, 1)
+                Err.Clear
+            End If
+            On Error GoTo 0
+            
+            If sku <> "" And Year(fechaCompra) > 1900 Then
+                ' Guardar la fecha MÁS RECIENTE de compra para cada SKU
+                If dictUltimaCompra.Exists(sku) Then
+                    If fechaCompra > dictUltimaCompra(sku) Then
+                        dictUltimaCompra(sku) = fechaCompra
+                    End If
+                Else
+                    dictUltimaCompra(sku) = fechaCompra
+                End If
+            End If
+        Next i
+        
+        MsgBox "Compras cargadas: " & dictUltimaCompra.Count & " SKUs", vbInformation
+    End If
+    
+    ' ==========================================
+    ' 2. CARGAR VENTAS POR SKU
+    ' ==========================================
+    ultimaFilaVentas = wsVentas.Cells(wsVentas.Rows.Count, 1).End(xlUp).Row
+    
+    For i = 2 To ultimaFilaVentas
+        empresa = Trim(CStr(wsVentas.Cells(i, 1).Value))
+        canal = Trim(CStr(wsVentas.Cells(i, 2).Value))
+        
+        If UCase(empresa) = "TLT" And UCase(canal) = "MELI" Then
+            mlc = Trim(CStr(wsVentas.Cells(i, 21).Value))
+            sku = Trim(CStr(wsVentas.Cells(i, 20).Value))
+            
+            ' Quitar prefijo "MLC"
+            If Left(UCase(mlc), 3) = "MLC" Then
+                mlc = Mid(mlc, 4)
+            End If
+            
+            On Error Resume Next
+            fechaVenta = CDate(wsVentas.Cells(i, 6).Value)
+            unidades = CDbl(wsVentas.Cells(i, 11).Value)
+            If Err.Number <> 0 Then
+                fechaVenta = DateSerial(1900, 1, 1)
+                unidades = 0
+                Err.Clear
+            End If
+            On Error GoTo 0
+            
+            If sku <> "" And unidades > 0 And Year(fechaVenta) > 1900 Then
+                
+                ' Verificar si es pack y descomponer
+                Dim esPack As Boolean
+                esPack = dictPacks.Exists(sku)
+                
+                If esPack Then
+                    ' Descomponer pack en componentes
+                    Set dictComp = dictPacks(sku)
+                    Dim comp As Variant
+                    For Each comp In dictComp.Keys
+                        Dim skuComp As String
+                        Dim cantPorPack As Double
+                        skuComp = CStr(comp)
+                        cantPorPack = dictComp(comp)
+                        
+                        ' Agregar venta del componente
+                        If Not dictVentaPorSKU.Exists(skuComp) Then
+                            Set dictVentaPorSKU(skuComp) = CreateObject("Scripting.Dictionary")
+                            Set dictVentaPorSKU(skuComp)("fechas") = New Collection
+                            dictVentaPorSKU(skuComp)("totalUnidades") = 0
+                        End If
+                        
+                        Set dictInfoVentaSKU = dictVentaPorSKU(skuComp)
+                        dictInfoVentaSKU("fechas").Add fechaVenta
+                        dictInfoVentaSKU("totalUnidades") = dictInfoVentaSKU("totalUnidades") + (unidades * cantPorPack)
+                    Next comp
+                Else
+                    ' SKU directo (no es pack)
+                    If Not dictVentaPorSKU.Exists(sku) Then
+                        Set dictVentaPorSKU(sku) = CreateObject("Scripting.Dictionary")
+                        Set dictVentaPorSKU(sku)("fechas") = New Collection
+                        dictVentaPorSKU(sku)("totalUnidades") = 0
+                    End If
+                    
+                    Set dictInfoVentaSKU = dictVentaPorSKU(sku)
+                    dictInfoVentaSKU("fechas").Add fechaVenta
+                    dictInfoVentaSKU("totalUnidades") = dictInfoVentaSKU("totalUnidades") + unidades
+                End If
+            End If
+        End If
+    Next i
+    
+    MsgBox "SKUs con ventas cargados: " & dictVentaPorSKU.Count, vbInformation
+    
+    ' ==========================================
+    ' 3. CARGAR STOCK TOTAL CHILE POR SKU
+    ' ==========================================
+    ultimaFilaStock = wsStock.Cells(wsStock.Rows.Count, 1).End(xlUp).Row
+    
+    For i = 2 To ultimaFilaStock
+        sku = Trim(CStr(wsStock.Cells(i, 1).Value))
+        
+        If sku <> "" Then
+            Dim stockC As Double, stockD As Double, stockE As Double
+            Dim stockF As Double, stockH As Double, stockJ As Double
+            
+            On Error Resume Next
+            stockC = CDbl(wsStock.Cells(i, 3).Value)
+            If Err.Number <> 0 Then stockC = 0: Err.Clear
+            
+            stockD = CDbl(wsStock.Cells(i, 4).Value)
+            If Err.Number <> 0 Then stockD = 0: Err.Clear
+            
+            stockE = CDbl(wsStock.Cells(i, 5).Value)
+            If Err.Number <> 0 Then stockE = 0: Err.Clear
+            
+            stockF = CDbl(wsStock.Cells(i, 6).Value)
+            If Err.Number <> 0 Then stockF = 0: Err.Clear
+            
+            stockH = CDbl(wsStock.Cells(i, 8).Value)
+            If Err.Number <> 0 Then stockH = 0: Err.Clear
+            
+            stockJ = CDbl(wsStock.Cells(i, 10).Value)
+            If Err.Number <> 0 Then stockJ = 0: Err.Clear
+            On Error GoTo 0
+            
+            stockTotalChile = stockC + stockD + stockE + stockF + stockH + stockJ
+            
+            If Not dictStockChilePorSKU.Exists(sku) Then
+                dictStockChilePorSKU(sku) = 0
+            End If
+            dictStockChilePorSKU(sku) = dictStockChilePorSKU(sku) + stockTotalChile
+        End If
+    Next i
+    
+    MsgBox "SKUs con stock en Chile: " & dictStockChilePorSKU.Count, vbInformation
+    
+    ' ==========================================
+    ' 4. CALCULAR VENTA DIARIA Y SUGERENCIAS
+    ' ==========================================
+    filaResultado = 2
+    
+    ' Cargar descripciones desde tabla Stock (columna B)
+    Dim dictDescripciones As Object
+    Set dictDescripciones = CreateObject("Scripting.Dictionary")
+    
+    For i = 2 To ultimaFilaStock
+        sku = Trim(CStr(wsStock.Cells(i, 1).Value))
+        Dim descripcion As String
+        descripcion = Trim(CStr(wsStock.Cells(i, 2).Value))
+        
+        If sku <> "" And descripcion <> "" And Not dictDescripciones.Exists(sku) Then
+            dictDescripciones(sku) = descripcion
+        End If
+    Next i
+    
+    MsgBox "Descripciones cargadas desde Stock: " & dictDescripciones.Count, vbInformation
+    
+    ' Cargar precios por SKU
+    Dim dictPrecios As Object
+    Set dictPrecios = CreateObject("Scripting.Dictionary")
+    
+    For i = 2 To ultimaFilaVentas
+        empresa = Trim(CStr(wsVentas.Cells(i, 1).Value))
+        canal = Trim(CStr(wsVentas.Cells(i, 2).Value))
+        
+        If UCase(empresa) = "TLT" And UCase(canal) = "MELI" Then
+            sku = Trim(CStr(wsVentas.Cells(i, 20).Value))
+            Dim precio As Double
+            
+            On Error Resume Next
+            precio = CDbl(wsVentas.Cells(i, 24).Value)
+            If Err.Number <> 0 Then
+                precio = 0
+                Err.Clear
+            End If
+            On Error GoTo 0
+            
+            If sku <> "" And precio > 0 And Not dictPrecios.Exists(sku) Then
+                dictPrecios(sku) = precio
+            End If
+        End If
+    Next i
+    
+    ' Procesar cada SKU
+    For Each skuKey In dictVentaPorSKU.Keys
+        sku = CStr(skuKey)
+        Set dictInfoVentaSKU = dictVentaPorSKU(sku)
+        
+        ' Calcular venta diaria
+        Dim fechaCol As Collection
+        Set fechaCol = dictInfoVentaSKU("fechas")
+        
+        ' Buscar fechaMin y fechaMax en las ventas
+        Dim fechaMin As Date, fechaMax As Date
+        Dim fechaMinVentas As Date, fechaMaxVentas As Date
+        fechaMinVentas = DateSerial(9999, 12, 31)
+        fechaMaxVentas = DateSerial(1900, 1, 1)
+        
+        Dim f As Variant
+        For Each f In fechaCol
+            If f < fechaMinVentas Then fechaMinVentas = f
+            If f > fechaMaxVentas Then fechaMaxVentas = f
+        Next f
+        
+        ' Obtener stock total Chile (necesario para lógica de fechas)
+        stockTotalChile = 0
+        If dictStockChilePorSKU.Exists(sku) Then
+            stockTotalChile = dictStockChilePorSKU(sku)
+        End If
+        
+        ' ==========================================
+        ' NUEVA LÓGICA: AJUSTAR FECHA INICIO SEGÚN ÚLTIMA COMPRA
+        ' ==========================================
+        Dim fechaUltimaCompra As Date
+        Dim fechaInicioAnalisis As Date
+        fechaHoy = Date
+        
+        If dictUltimaCompra.Exists(sku) Then
+            fechaUltimaCompra = dictUltimaCompra(sku)
+            
+            ' Solo considerar compras que llegaron hace MÁS de 30 días
+            Dim diasDesdeCompra As Long
+            diasDesdeCompra = fechaHoy - fechaUltimaCompra
+            
+            If diasDesdeCompra > 30 Then
+                ' Fecha inicio = última compra - 30 días
+                fechaInicioAnalisis = fechaUltimaCompra - 30
+                
+                ' Buscar la primera venta DESPUÉS de fechaInicioAnalisis
+                fechaMin = DateSerial(9999, 12, 31)
+                For Each f In fechaCol
+                    If f >= fechaInicioAnalisis And f < fechaMin Then
+                        fechaMin = f
+                    End If
+                Next f
+                
+                ' Si no hay ventas después de la fecha de análisis, usar la primera venta
+                If Year(fechaMin) = 9999 Then
+                    fechaMin = fechaMinVentas
+                End If
+            Else
+                ' Compra reciente (< 30 días), usar primera venta del periodo
+                fechaMin = fechaMinVentas
+            End If
+        Else
+            ' No hay compra registrada, usar primera venta
+            fechaMin = fechaMinVentas
+        End If
+        
+        ' ==========================================
+        ' FECHA FIN: Última venta O hoy si hay stock
+        ' ==========================================
+        If stockTotalChile = 0 Then
+            ' Sin stock: fecha fin = última venta
+            fechaMax = fechaMaxVentas
+        Else
+            ' Con stock: fecha fin = hoy
+            fechaMax = fechaHoy
+        End If
+        
+        ' Calcular días del periodo
+        Dim diasPeriodo As Long
+        diasPeriodo = fechaMax - fechaMin
+        If diasPeriodo <= 0 Then diasPeriodo = 1
+        
+        ' Calcular venta diaria (usando total de unidades / días ajustados)
+        Dim totalUnidades As Double
+        totalUnidades = dictInfoVentaSKU("totalUnidades")
+        ventaDiariaSKU = totalUnidades / diasPeriodo
+        
+        ' Calcular días de stock en Chile
+        If ventaDiariaSKU > 0 Then
+            diasStockChile = stockTotalChile / ventaDiariaSKU
+        Else
+            diasStockChile = 999999
+        End If
+        
+        ' Calcular stock óptimo
+        stockOptimo90 = ventaDiariaSKU * diasStockDeseado
+        
+        ' Calcular sugerencia según lógica de 120 días de tránsito
+        Dim observaciones As String
+        observaciones = ""
+        
+        If diasStockChile > diasTransito Then
+            ' Stock supera 120 días
+            Dim diasRestantes As Double
+            diasRestantes = diasStockChile - diasTransito
+            sugerenciaReposicion = stockOptimo90 - (diasRestantes * ventaDiariaSKU)
+            
+            If sugerenciaReposicion < 0 Then sugerenciaReposicion = 0
+            
+            observaciones = "Stock supera " & diasTransito & " días. Días restantes: " & Round(diasRestantes, 0)
+        Else
+            ' Stock NO supera 120 días
+            sugerenciaReposicion = stockOptimo90
+            observaciones = "Stock por debajo de " & diasTransito & " días de tránsito"
+        End If
+        
+        ' ==========================================
+        ' RESTAR TRÁNSITO CHINA DE LA SUGERENCIA
+        ' ==========================================
+        transitoChina = 0
+        If dictTransitoChina.Exists(sku) Then
+            transitoChina = dictTransitoChina(sku)
+        End If
+        
+        ' Ajustar sugerencia restando lo que viene en tránsito
+        sugerenciaReposicion = sugerenciaReposicion - transitoChina
+        If sugerenciaReposicion < 0 Then sugerenciaReposicion = 0
+        
+        ' Actualizar observaciones si hay tránsito
+        If transitoChina > 0 Then
+            observaciones = observaciones & " | Tránsito: " & Round(transitoChina, 0)
+        End If
+        
+        ' ==========================================
+        ' FACTOR DE AJUSTE SI UNIDADES PERIODO < 10
+        ' ==========================================
+        If totalUnidades < 10 Then
+            Dim factorAjuste As Double
+            Dim diasReales As Long
+            diasReales = fechaMax - fechaMin
+            
+            If diasReales > 0 Then
+                ' Factor = (diasReales / 90)
+                factorAjuste = diasReales / 90
+                
+                ' Aplicar factor a la sugerencia
+                sugerenciaReposicion = sugerenciaReposicion * factorAjuste
+                
+                ' Actualizar observaciones
+                observaciones = observaciones & " | Factor ajuste (" & Round(factorAjuste, 2) & ") por pocas unidades"
+            End If
+        End If
+        
+        ' Solo escribir si hay sugerencia > 0 Y fechas diferentes Y NO está en desconsiderar
+        Dim esDesconsiderar As Boolean
+        esDesconsiderar = False
+        If dictDesconsiderar.Exists(sku) Then
+            esDesconsiderar = True
+        End If
+        
+        If sugerenciaReposicion > 0 And fechaMin <> fechaMax And Not esDesconsiderar Then
+            Dim descripcionMostrar As String
+            descripcionMostrar = ""
+            If dictDescripciones.Exists(sku) Then
+                descripcionMostrar = dictDescripciones(sku)
+            End If
+            
+            Dim precioMostrar As Double
+            precioMostrar = 0
+            If dictPrecios.Exists(sku) Then
+                precioMostrar = dictPrecios(sku)
+            End If
+            
+            Dim valorTotal As Double
+            valorTotal = sugerenciaReposicion * precioMostrar
+            
+            With wsResultado
+                .Cells(filaResultado, 1).Value = sku
+                .Cells(filaResultado, 2).Value = descripcionMostrar
+                .Cells(filaResultado, 3).Value = Round(ventaDiariaSKU, 2)
+                .Cells(filaResultado, 4).Value = Round(stockOptimo90, 0)
+                .Cells(filaResultado, 5).Value = Round(stockTotalChile, 0)
+                .Cells(filaResultado, 6).Value = Round(transitoChina, 0)
+                .Cells(filaResultado, 7).Value = Round(diasStockChile, 0)
+                .Cells(filaResultado, 8).Value = Round(sugerenciaReposicion, 0)
+                .Cells(filaResultado, 9).Value = precioMostrar
+                .Cells(filaResultado, 10).Value = Round(valorTotal, 0)
+                .Cells(filaResultado, 11).Value = fechaMin
+                .Cells(filaResultado, 12).Value = fechaMax
+                .Cells(filaResultado, 13).Value = Round(totalUnidades, 0)
+                .Cells(filaResultado, 14).Value = observaciones
+                
+                .Cells(filaResultado, 3).NumberFormat = "0.00"
+                .Cells(filaResultado, 4).NumberFormat = "#,##0"
+                .Cells(filaResultado, 5).NumberFormat = "#,##0"
+                .Cells(filaResultado, 6).NumberFormat = "#,##0"
+                .Cells(filaResultado, 7).NumberFormat = "#,##0"
+                .Cells(filaResultado, 8).NumberFormat = "#,##0"
+                .Cells(filaResultado, 9).NumberFormat = "$#,##0"
+                .Cells(filaResultado, 10).NumberFormat = "$#,##0"
+                .Cells(filaResultado, 11).NumberFormat = "dd/mm/yyyy"
+                .Cells(filaResultado, 12).NumberFormat = "dd/mm/yyyy"
+                .Cells(filaResultado, 13).NumberFormat = "#,##0"
+            End With
+            
+            filaResultado = filaResultado + 1
+        End If
+    Next skuKey
+    
+    ' ==========================================
+    ' ORDENAR POR VALOR TOTAL SUGERENCIA (MAYOR A MENOR)
+    ' ==========================================
+    If filaResultado > 2 Then
+        With wsResultado
+            .Range("A1:N" & (filaResultado - 1)).Sort _
+                Key1:=.Range("J2"), Order1:=xlDescending, _
+                Header:=xlYes, _
+                OrderCustom:=1, _
+                MatchCase:=False, _
+                Orientation:=xlTopToBottom
+        End With
+    End If
+    
+    ' Autoajustar columnas
+    wsResultado.Columns("A:N").AutoFit
+    
+    MsgBox "Proceso completado. Se generaron " & (filaResultado - 2) & " sugerencias de reposición China?Chile.", vbInformation
+    
+Salir:
+    Application.ScreenUpdating = True
+    Application.Calculation = xlCalculationAutomatic
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error en GenerarSugerenciasChinaChile: " & Err.Description & vbCrLf & _
+           "Línea: " & Erl & vbCrLf & _
+           "Número: " & Err.Number, vbCritical
+    Resume Salir
+    
+End Sub
+
+

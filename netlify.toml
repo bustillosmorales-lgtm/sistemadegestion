@@ -1,0 +1,25 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/predicciones"
+  to = "/.netlify/functions/predicciones"
+  status = 200
+
+[[redirects]]
+  from = "/api/alertas"
+  to = "/.netlify/functions/alertas"
+  status = 200
+
+[[redirects]]
+  from = "/api/procesar-excel"
+  to = "/.netlify/functions/procesar-excel"
+  status = 200
+
+[build.environment]
+  NODE_VERSION = "18"
+
+[functions]
+  node_bundler = "esbuild"

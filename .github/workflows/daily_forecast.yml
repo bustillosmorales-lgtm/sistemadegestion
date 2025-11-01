@@ -1,0 +1,71 @@
+name: Daily Inventory Forecast
+
+on:
+  schedule:
+    # Ejecutar todos los días a las 2:00 AM UTC
+    - cron: '0 2 * * *'
+
+  # Permitir ejecución manual
+  workflow_dispatch:
+    inputs:
+      dias_stock_deseado:
+        description: 'Días de stock deseado'
+        required: false
+        default: '90'
+      nivel_servicio:
+        description: 'Nivel de servicio (0.90 - 0.99)'
+        required: false
+        default: '0.95'
+
+jobs:
+  forecast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Instalar dependencias
+        run: |
+          pip install --upgrade pip
+          pip install pandas numpy scipy supabase python-dotenv openpyxl
+
+      - name: Ejecutar forecasting
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          DIAS_STOCK_DESEADO: ${{ github.event.inputs.dias_stock_deseado || '90' }}
+          NIVEL_SERVICIO: ${{ github.event.inputs.nivel_servicio || '0.95' }}
+        run: |
+          python scripts/run_daily_forecast.py
+
+      - name: Generar reporte
+        if: success()
+        run: |
+          echo "✅ Forecast completado exitosamente"
+          if [ -f forecast_summary.txt ]; then
+            cat forecast_summary.txt
+          fi
+
+      - name: Notificar errores
+        if: failure()
+        run: |
+          echo "❌ Error en el proceso de forecasting"
+          echo "Revisar logs para más detalles"
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: forecast-logs
+          path: |
+            logs/*.log
+            forecast_summary.txt
+          retention-days: 7
