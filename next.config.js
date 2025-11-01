@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Netlify soporta SSR nativamente - no usar 'export'
+  output: 'export',
   images: {
     unoptimized: true
   },

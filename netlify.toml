@@ -1,8 +1,6 @@
 [build]
   command = "npm run build"
-
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
+  publish = "out"
 
 [[redirects]]
   from = "/api/predicciones"
