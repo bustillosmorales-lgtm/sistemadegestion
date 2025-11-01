@@ -32,26 +32,36 @@ exports.handler = async (event, context) => {
   }
 
   try {
+    console.log('=== INICIO PROCESAMIENTO ===');
+    console.log('Event body:', event.body);
+
     const { filePath } = JSON.parse(event.body);
+    console.log('FilePath recibido:', filePath);
 
     if (!filePath) {
       throw new Error('filePath requerido');
     }
 
     // 1. Descargar archivo de Supabase Storage
-    console.log('Descargando archivo:', filePath);
+    console.log('Descargando archivo de Storage...');
     const { data: fileData, error: downloadError } = await supabase.storage
       .from('excel-uploads')
       .download(filePath);
 
     if (downloadError) {
+      console.error('Error en download:', downloadError);
       throw new Error(`Error descargando: ${downloadError.message}`);
     }
+
+    console.log('Archivo descargado, tamaño:', fileData?.size || 'desconocido');
 
     // 2. Leer Excel
     console.log('Leyendo Excel...');
     const buffer = Buffer.from(await fileData.arrayBuffer());
+    console.log('Buffer creado, tamaño:', buffer.length);
+
     const workbook = XLSX.read(buffer, { type: 'buffer' });
+    console.log('Excel leído, hojas encontradas:', workbook.SheetNames.join(', '));
 
     const resultados = {
       ventas_cargadas: 0,
@@ -101,11 +111,17 @@ exports.handler = async (event, context) => {
 
       // Insertar en lotes de 100
       if (ventasRegistros.length > 0) {
+        console.log(`Insertando ${ventasRegistros.length} ventas en lotes...`);
         for (let i = 0; i < ventasRegistros.length; i += 100) {
           const batch = ventasRegistros.slice(i, i + 100);
-          await supabase.from('ventas_historicas').insert(batch);
+          const { error: insertError } = await supabase.from('ventas_historicas').insert(batch);
+          if (insertError) {
+            console.error('Error insertando ventas:', insertError);
+            throw new Error(`Error insertando ventas: ${insertError.message}`);
+          }
           resultados.ventas_cargadas += batch.length;
         }
+        console.log(`✓ ${resultados.ventas_cargadas} ventas insertadas`);
       }
     }
 
@@ -136,11 +152,17 @@ exports.handler = async (event, context) => {
       }
 
       if (stockRegistros.length > 0) {
+        console.log(`Insertando ${stockRegistros.length} SKUs de stock...`);
         for (let i = 0; i < stockRegistros.length; i += 100) {
           const batch = stockRegistros.slice(i, i + 100);
-          await supabase.from('stock_actual').upsert(batch);
+          const { error: insertError } = await supabase.from('stock_actual').upsert(batch);
+          if (insertError) {
+            console.error('Error insertando stock:', insertError);
+            throw new Error(`Error insertando stock: ${insertError.message}`);
+          }
           resultados.stock_cargado += batch.length;
         }
+        console.log(`✓ ${resultados.stock_cargado} SKUs de stock insertados`);
       }
     }
 
