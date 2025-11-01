@@ -25,6 +25,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@netlify/plugin-nextjs": "^5.14.4",
     "eslint": "^8.56.0",
     "eslint-config-next": "^14.0.4",
     "netlify-cli": "^17.0.0"

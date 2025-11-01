@@ -9,7 +9,14 @@
       "Bash(netlify dev)",
       "Bash(npx netlify dev)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git config:*)",
+      "Bash(git branch:*)",
+      "Bash(git remote add:*)",
+      "Bash(git push:*)",
+      "Bash(git rm:*)",
+      "Bash(favicon.ico)"
     ],
     "deny": [],
     "ask": []
