@@ -45,21 +45,39 @@ class ForecastPipeline:
 
 
     def cargar_datos_ventas(self, dias_historico: int = 180) -> pd.DataFrame:
-        """Carga ventas de los últimos N días desde Supabase"""
+        """Carga ventas de los últimos N días desde Supabase con paginación"""
         print(f"\n📥 Cargando ventas de últimos {dias_historico} días...")
 
         fecha_inicio = (datetime.now() - pd.Timedelta(days=dias_historico)).strftime('%Y-%m-%d')
 
-        response = self.supabase.table('ventas_historicas') \
-            .select('*') \
-            .gte('fecha', fecha_inicio) \
-            .execute()
+        # Cargar todos los datos con paginación
+        all_data = []
+        page_size = 1000
+        offset = 0
 
-        if not response.data:
+        while True:
+            response = self.supabase.table('ventas_historicas') \
+                .select('*') \
+                .gte('fecha', fecha_inicio) \
+                .range(offset, offset + page_size - 1) \
+                .execute()
+
+            if not response.data or len(response.data) == 0:
+                break
+
+            all_data.extend(response.data)
+            print(f"   ✓ Descargados {len(all_data)} registros...")
+
+            if len(response.data) < page_size:
+                break
+
+            offset += page_size
+
+        if not all_data:
             print("⚠️  No se encontraron ventas")
             return pd.DataFrame()
 
-        df = pd.DataFrame(response.data)
+        df = pd.DataFrame(all_data)
         df['fecha'] = pd.to_datetime(df['fecha'])
 
         print(f"   ✓ {len(df)} registros cargados")
@@ -69,18 +87,34 @@ class ForecastPipeline:
 
 
     def cargar_datos_stock(self) -> pd.DataFrame:
-        """Carga stock actual desde Supabase"""
+        """Carga stock actual desde Supabase con paginación"""
         print(f"\n📦 Cargando stock actual...")
 
-        response = self.supabase.table('stock_actual') \
-            .select('*') \
-            .execute()
+        all_data = []
+        page_size = 1000
+        offset = 0
 
-        if not response.data:
+        while True:
+            response = self.supabase.table('stock_actual') \
+                .select('*') \
+                .range(offset, offset + page_size - 1) \
+                .execute()
+
+            if not response.data or len(response.data) == 0:
+                break
+
+            all_data.extend(response.data)
+
+            if len(response.data) < page_size:
+                break
+
+            offset += page_size
+
+        if not all_data:
             print("⚠️  No se encontró información de stock")
             return pd.DataFrame()
 
-        df = pd.DataFrame(response.data)
+        df = pd.DataFrame(all_data)
 
         print(f"   ✓ {len(df)} SKUs con stock")
 
