@@ -138,25 +138,30 @@ class AlgoritmoMLAvanzado:
         # Convertir fechas a números (días desde primera fecha)
         dias = (fechas - fechas[0]).astype('timedelta64[D]').astype(float)
 
-        # Regresión lineal
-        if len(dias) > 1 and np.std(dias) > 0:
-            slope, intercept, r_value, p_value, std_err = stats.linregress(dias, ventas)
+        # Regresión lineal con manejo de errores
+        if len(dias) > 1 and len(ventas) > 1 and len(dias) == len(ventas) and np.std(dias) > 0:
+            try:
+                slope, intercept, r_value, p_value, std_err = stats.linregress(dias, ventas)
 
-            # Calcular tasa de crecimiento mensual
-            venta_promedio = np.mean(ventas)
-            if venta_promedio > 0:
-                tasa_mensual = (slope * 30 / venta_promedio) * 100
-            else:
-                tasa_mensual = 0.0
-
-            # Categorizar tendencia
-            if p_value < 0.05:  # Significancia estadística
-                if slope > 0:
-                    tendencia = 'creciente'
+                # Calcular tasa de crecimiento mensual
+                venta_promedio = np.mean(ventas)
+                if venta_promedio > 0:
+                    tasa_mensual = (slope * 30 / venta_promedio) * 100
                 else:
-                    tendencia = 'decreciente'
-            else:
+                    tasa_mensual = 0.0
+
+                # Categorizar tendencia
+                if p_value < 0.05:  # Significancia estadística
+                    if slope > 0:
+                        tendencia = 'creciente'
+                    else:
+                        tendencia = 'decreciente'
+                else:
+                    tendencia = 'estable'
+            except (ValueError, RuntimeError) as e:
+                # Si falla la regresión, usar valores por defecto
                 tendencia = 'estable'
+                tasa_mensual = 0.0
         else:
             tendencia = 'estable'
             tasa_mensual = 0.0
