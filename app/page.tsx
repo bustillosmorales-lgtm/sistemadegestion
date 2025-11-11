@@ -44,17 +44,20 @@ export default function Home() {
     setLoading(true)
     try {
       // Obtener última fecha de cálculo
-      const { data: latest } = await supabase
+      const { data: latestArray, error: latestError } = await supabase
         .from('predicciones')
         .select('fecha_calculo')
         .order('fecha_calculo', { ascending: false })
         .limit(1)
-        .single()
 
-      if (!latest) {
+      // Si hay error o no hay datos, salir temprano
+      if (latestError || !latestArray || latestArray.length === 0) {
+        setPredicciones([])
         setLoading(false)
         return
       }
+
+      const latest = latestArray[0]
 
       // Query con filtros
       let query = supabase

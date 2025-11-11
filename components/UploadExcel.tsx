@@ -30,7 +30,12 @@ export default function UploadExcel() {
     try {
       // 1. Subir archivo a Supabase Storage
       const timestamp = Date.now()
-      const filePath = `uploads/${timestamp}-${file.name}`
+      // Sanitizar nombre del archivo: remover caracteres especiales y acentos
+      const sanitizedName = file.name
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remover acentos
+        .replace(/[^a-zA-Z0-9.-]/g, '_')  // Remover caracteres especiales
+      const filePath = `uploads/${timestamp}-${sanitizedName}`
 
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('excel-uploads')
