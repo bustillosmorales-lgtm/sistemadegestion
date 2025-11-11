@@ -1,16 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 import StatsCards from '@/components/StatsCards'
 import PrediccionesTable from '@/components/PrediccionesTable'
 import Filtros from '@/components/Filtros'
 import UploadExcel from '@/components/UploadExcel'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 interface Prediccion {
   id: number

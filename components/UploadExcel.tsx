@@ -1,12 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { supabase } from '@/lib/supabase'
 
 export default function UploadExcel() {
   const [loading, setLoading] = useState(false)
@@ -55,7 +50,7 @@ export default function UploadExcel() {
       setProgress(prev => [...prev, '⏳ Procesando Excel (esto puede tardar 1-2 minutos)...'])
 
       // 2. Llamar a Netlify Function para procesar
-      const response = await fetch('/api/procesar-excel', {
+      const response = await fetch('/.netlify/functions/procesar-excel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filePath })
