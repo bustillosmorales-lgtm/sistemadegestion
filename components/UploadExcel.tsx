@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useSupabase } from '@/lib/SupabaseProvider'
 
 export default function UploadExcel() {
+  const supabase = useSupabase()
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)

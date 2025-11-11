@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useSupabase } from '@/lib/SupabaseProvider'
 import StatsCards from '@/components/StatsCards'
 import PrediccionesTable from '@/components/PrediccionesTable'
 import Filtros from '@/components/Filtros'
@@ -23,6 +23,7 @@ interface Prediccion {
 }
 
 export default function Home() {
+  const supabase = useSupabase()
   const [predicciones, setPredicciones] = useState<Prediccion[]>([])
   const [loading, setLoading] = useState(true)
   const [filtros, setFiltros] = useState({
