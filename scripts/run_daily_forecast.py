@@ -17,6 +17,23 @@ sys.path.append(str(Path(__file__).parent.parent))
 from algoritmo_ml_avanzado import AlgoritmoMLAvanzado
 
 
+def sanitize_float(value):
+    """Convierte float a JSON-serializable, manejando inf/NaN"""
+    try:
+        f = float(value)
+        # Reemplazar inf y NaN con None
+        if np.isinf(f) or np.isnan(f):
+            return 0.0
+        return f
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def sanitize_bool(value):
+    """Convierte NumPy bool a Python bool"""
+    return bool(value)
+
+
 class ForecastPipeline:
     """Pipeline completo de forecasting"""
 
@@ -151,31 +168,31 @@ class ForecastPipeline:
             registro = {
                 'sku': pred.sku,
                 'fecha_calculo': datetime.now().isoformat(),
-                'venta_diaria_promedio': float(pred.venta_diaria_promedio),
-                'venta_diaria_p50': float(pred.venta_diaria_p50),
-                'venta_diaria_p75': float(pred.venta_diaria_p75),
-                'venta_diaria_p90': float(pred.venta_diaria_p90),
-                'desviacion_estandar': float(pred.desviacion_estandar),
-                'coeficiente_variacion': float(pred.coeficiente_variacion),
+                'venta_diaria_promedio': sanitize_float(pred.venta_diaria_promedio),
+                'venta_diaria_p50': sanitize_float(pred.venta_diaria_p50),
+                'venta_diaria_p75': sanitize_float(pred.venta_diaria_p75),
+                'venta_diaria_p90': sanitize_float(pred.venta_diaria_p90),
+                'desviacion_estandar': sanitize_float(pred.desviacion_estandar),
+                'coeficiente_variacion': sanitize_float(pred.coeficiente_variacion),
                 'tendencia': pred.tendencia,
-                'tasa_crecimiento_mensual': float(pred.tasa_crecimiento_mensual),
-                'stock_actual': float(pred.stock_actual),
-                'stock_optimo': float(pred.stock_optimo),
-                'stock_seguridad': float(pred.stock_seguridad),
-                'dias_stock_actual': float(pred.dias_stock_actual),
-                'transito_china': float(pred.transito_china),
-                'sugerencia_reposicion': float(pred.sugerencia_reposicion),
-                'sugerencia_reposicion_p75': float(pred.sugerencia_reposicion_p75),
-                'sugerencia_reposicion_p90': float(pred.sugerencia_reposicion_p90),
-                'precio_unitario': float(pred.precio_unitario),
-                'valor_total_sugerencia': float(pred.valor_total_sugerencia),
+                'tasa_crecimiento_mensual': sanitize_float(pred.tasa_crecimiento_mensual),
+                'stock_actual': sanitize_float(pred.stock_actual),
+                'stock_optimo': sanitize_float(pred.stock_optimo),
+                'stock_seguridad': sanitize_float(pred.stock_seguridad),
+                'dias_stock_actual': sanitize_float(pred.dias_stock_actual),
+                'transito_china': sanitize_float(pred.transito_china),
+                'sugerencia_reposicion': sanitize_float(pred.sugerencia_reposicion),
+                'sugerencia_reposicion_p75': sanitize_float(pred.sugerencia_reposicion_p75),
+                'sugerencia_reposicion_p90': sanitize_float(pred.sugerencia_reposicion_p90),
+                'precio_unitario': sanitize_float(pred.precio_unitario),
+                'valor_total_sugerencia': sanitize_float(pred.valor_total_sugerencia),
                 'periodo_inicio': pred.periodo_inicio.isoformat(),
                 'periodo_fin': pred.periodo_fin.isoformat(),
                 'dias_periodo': int(pred.dias_periodo),
-                'unidades_totales_periodo': float(pred.unidades_totales_periodo),
+                'unidades_totales_periodo': sanitize_float(pred.unidades_totales_periodo),
                 'clasificacion_abc': pred.clasificacion_abc,
                 'clasificacion_xyz': pred.clasificacion_xyz,
-                'es_demanda_intermitente': pred.es_demanda_intermitente,
+                'es_demanda_intermitente': sanitize_bool(pred.es_demanda_intermitente),
                 'modelo_usado': pred.modelo_usado,
                 'observaciones': pred.observaciones,
                 'alertas': pred.alertas
@@ -219,9 +236,9 @@ class ForecastPipeline:
             'mae': None,
             'rmse': None,
             'bias': None,
-            'mape_abc_a': cv_a,  # Usando CV como proxy
-            'mape_abc_b': cv_b,
-            'mape_abc_c': cv_c,
+            'mape_abc_a': sanitize_float(cv_a),  # Usando CV como proxy
+            'mape_abc_b': sanitize_float(cv_b),
+            'mape_abc_c': sanitize_float(cv_c),
             'skus_con_prediccion': total_skus,
             'skus_sin_datos': 0,
             'tiempo_ejecucion_segundos': 0  # Se calculará después
@@ -248,8 +265,8 @@ class ForecastPipeline:
                     'tipo_alerta': 'stockout_inminente',
                     'severidad': 'critica' if pred.dias_stock_actual < 30 else 'alta',
                     'mensaje': f'Solo {pred.dias_stock_actual:.0f} días de stock restantes',
-                    'valor_actual': float(pred.dias_stock_actual),
-                    'valor_esperado': float(self.dias_stock_deseado),
+                    'valor_actual': sanitize_float(pred.dias_stock_actual),
+                    'valor_esperado': sanitize_float(self.dias_stock_deseado),
                     'estado': 'activa'
                 })
 
@@ -260,8 +277,8 @@ class ForecastPipeline:
                     'tipo_alerta': 'exceso_stock',
                     'severidad': 'media',
                     'mensaje': f'{pred.dias_stock_actual:.0f} días de stock (exceso)',
-                    'valor_actual': float(pred.dias_stock_actual),
-                    'valor_esperado': float(self.dias_stock_deseado),
+                    'valor_actual': sanitize_float(pred.dias_stock_actual),
+                    'valor_esperado': sanitize_float(self.dias_stock_deseado),
                     'estado': 'activa'
                 })
 
@@ -272,7 +289,7 @@ class ForecastPipeline:
                     'tipo_alerta': 'demanda_anomala',
                     'severidad': 'media',
                     'mensaje': f'Demanda cayendo {abs(pred.tasa_crecimiento_mensual):.1f}% mensual',
-                    'valor_actual': float(pred.tasa_crecimiento_mensual),
+                    'valor_actual': sanitize_float(pred.tasa_crecimiento_mensual),
                     'valor_esperado': 0.0,
                     'estado': 'activa'
                 })
