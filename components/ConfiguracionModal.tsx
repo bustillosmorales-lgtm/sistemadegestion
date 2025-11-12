@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase-client'
+import { getSupabaseClient } from '@/lib/supabase'
 
 interface Configuracion {
   id: number
@@ -34,7 +34,7 @@ export default function ConfiguracionModal({ isOpen, onClose }: Props) {
   async function cargarConfiguraciones() {
     setLoading(true)
     try {
-      const supabase = createClient()
+      const supabase = getSupabaseClient()
       const { data, error } = await supabase
         .from('configuracion_sistema')
         .select('*')
@@ -61,7 +61,7 @@ export default function ConfiguracionModal({ isOpen, onClose }: Props) {
   async function guardarConfiguraciones() {
     setSaving(true)
     try {
-      const supabase = createClient()
+      const supabase = getSupabaseClient()
 
       // Actualizar cada configuración modificada
       for (const config of configuraciones) {
