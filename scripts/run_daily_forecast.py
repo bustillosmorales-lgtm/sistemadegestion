@@ -243,23 +243,15 @@ class ForecastPipeline:
             count_antiguas = response_count.count if hasattr(response_count, 'count') else 0
 
             if count_antiguas > 0:
-                # Eliminar predicciones en lotes para evitar límite de 1000
-                total_eliminadas = 0
-                while True:
-                    response_delete = self.supabase.table('predicciones') \
-                        .delete() \
-                        .gte('fecha_calculo', fecha_hoy) \
-                        .lt('fecha_calculo', fecha_manana) \
-                        .limit(1000) \
-                        .execute()
+                # Simplemente eliminar todas las predicciones del día
+                # (Supabase delete no soporta limit, pero sí soporta filtros)
+                response_delete = self.supabase.table('predicciones') \
+                    .delete() \
+                    .gte('fecha_calculo', fecha_hoy) \
+                    .lt('fecha_calculo', fecha_manana) \
+                    .execute()
 
-                    eliminadas_batch = len(response_delete.data) if response_delete.data else 0
-                    total_eliminadas += eliminadas_batch
-
-                    if eliminadas_batch < 1000:
-                        break  # No hay más registros que eliminar
-
-                print(f"   ✓ {total_eliminadas} predicciones antiguas eliminadas")
+                print(f"   ✓ {count_antiguas} predicciones antiguas eliminadas")
             else:
                 print(f"   ℹ️  No hay predicciones antiguas para hoy")
         except Exception as e:
