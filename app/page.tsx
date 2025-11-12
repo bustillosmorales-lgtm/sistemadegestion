@@ -10,6 +10,7 @@ import UploadExcel from '@/components/UploadExcel'
 interface Prediccion {
   id: number
   sku: string
+  descripcion: string
   venta_diaria_p50: number
   stock_actual: number
   dias_stock_actual: number
