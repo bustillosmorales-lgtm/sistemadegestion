@@ -1,5 +1,3 @@
-import Link from 'next/link'
-
 interface Prediccion {
   id: number
   sku: string
@@ -82,12 +80,9 @@ export default function PrediccionesTable({ predicciones }: Props) {
           {predicciones.map((pred) => (
             <tr key={pred.id} className="hover:bg-gray-50 transition-colors">
               <td className="px-6 py-4 whitespace-nowrap">
-                <Link
-                  href={`/sku/${pred.sku}`}
-                  className="text-sm font-medium text-blue-600 hover:text-blue-800"
-                >
+                <span className="text-sm font-medium text-gray-900">
                   {pred.sku}
-                </Link>
+                </span>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getClaseABCColor(pred.clasificacion_abc)}`}>
