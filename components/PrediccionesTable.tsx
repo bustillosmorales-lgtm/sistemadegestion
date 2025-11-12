@@ -1,6 +1,7 @@
 interface Prediccion {
   id: number
   sku: string
+  descripcion: string
   venta_diaria_p50: number
   stock_actual: number
   dias_stock_actual: number
@@ -27,12 +28,21 @@ export default function PrediccionesTable({ predicciones }: Props) {
     }
   }
 
-  const getTendenciaIcon = (tendencia: string) => {
+  const getTendenciaTexto = (tendencia: string) => {
     switch (tendencia) {
-      case 'creciente': return '📈'
-      case 'decreciente': return '📉'
-      case 'estable': return '➡️'
-      default: return '❓'
+      case 'creciente': return 'Creciente'
+      case 'decreciente': return 'Decreciente'
+      case 'estable': return 'Estable'
+      default: return 'Desconocida'
+    }
+  }
+
+  const getTendenciaColor = (tendencia: string) => {
+    switch (tendencia) {
+      case 'creciente': return 'text-green-600'
+      case 'decreciente': return 'text-red-600'
+      case 'estable': return 'text-gray-600'
+      default: return 'text-gray-400'
     }
   }
 
@@ -49,6 +59,9 @@ export default function PrediccionesTable({ predicciones }: Props) {
           <tr>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               SKU
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Descripción
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Clase
@@ -84,6 +97,11 @@ export default function PrediccionesTable({ predicciones }: Props) {
                   {pred.sku}
                 </span>
               </td>
+              <td className="px-6 py-4">
+                <span className="text-sm text-gray-700 line-clamp-2">
+                  {pred.descripcion || '—'}
+                </span>
+              </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getClaseABCColor(pred.clasificacion_abc)}`}>
                   {pred.clasificacion_abc}-{pred.clasificacion_xyz}
@@ -107,8 +125,8 @@ export default function PrediccionesTable({ predicciones }: Props) {
                 ${(pred.valor_total_sugerencia / 1000).toFixed(0)}k
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
-                <span title={pred.tendencia}>
-                  {getTendenciaIcon(pred.tendencia)}
+                <span className={`font-medium ${getTendenciaColor(pred.tendencia)}`}>
+                  {getTendenciaTexto(pred.tendencia)}
                 </span>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-center">

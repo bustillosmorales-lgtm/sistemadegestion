@@ -263,6 +263,7 @@ class ForecastPipeline:
         for pred in predicciones:
             registro = {
                 'sku': pred.sku,
+                'descripcion': pred.descripcion,
                 'fecha_calculo': datetime.now().isoformat(),
                 'venta_diaria_promedio': sanitize_float(pred.venta_diaria_promedio),
                 'venta_diaria_p50': sanitize_float(pred.venta_diaria_p50),
