@@ -46,7 +46,7 @@ export default function ConfiguracionModal({ isOpen, onClose }: Props) {
 
       // Inicializar valores editados
       const initial: Record<string, number> = {}
-      data?.forEach(c => {
+      data?.forEach((c: Configuracion) => {
         initial[c.clave] = c.valor
       })
       setEditedValues(initial)
