@@ -1,12 +1,10 @@
 [build]
   command = "npm run build"
   publish = "out"
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF"
 
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
-
-  [plugins.inputs]
-  disabled = true
+[build.processing]
+  skip_processing = false
 
 [[redirects]]
   from = "/api/predicciones"
