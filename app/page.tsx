@@ -7,6 +7,7 @@ import PrediccionesTable from '@/components/PrediccionesTable'
 import Filtros from '@/components/Filtros'
 import UploadExcel from '@/components/UploadExcel'
 import ConfiguracionModal from '@/components/ConfiguracionModal'
+import SkusExcluidosModal from '@/components/SkusExcluidosModal'
 
 interface Prediccion {
   id: number
@@ -39,10 +40,120 @@ export default function Home() {
     soloAlertas: false
   })
   const [configuracionOpen, setConfiguracionOpen] = useState(false)
+  const [excluidosOpen, setExcluidosOpen] = useState(false)
 
   useEffect(() => {
     cargarPredicciones()
   }, [filtros])
+
+  async function exportarAExcel() {
+    try {
+      // Importar xlsx dinámicamente (solo en cliente)
+      const XLSX = await import('xlsx')
+
+      // Preparar datos para Excel
+      const datosExcel = predicciones.map(p => ({
+        'SKU': p.sku,
+        'Descripción': p.descripcion || '',
+        'Clase': `${p.clasificacion_abc}-${p.clasificacion_xyz}`,
+        'Venta Diaria': p.venta_diaria_p50.toFixed(1),
+        'Precio Unitario': p.precio_unitario,
+        'Stock Actual': p.stock_actual,
+        'Stock Óptimo': p.stock_optimo,
+        'Días Stock': p.dias_stock_actual.toFixed(0),
+        'Tránsito China': p.transito_china,
+        'Sugerencia Reposición': p.sugerencia_reposicion,
+        'Valor Total Sugerencia': p.valor_total_sugerencia,
+        'Coef. Variación': p.coeficiente_variacion.toFixed(2),
+        'Tendencia': p.tendencia,
+        'Modelo': p.modelo_usado,
+        'Alertas': p.alertas ? p.alertas.join(', ') : '',
+        'MAPE %': p.mape_backtesting ? p.mape_backtesting.toFixed(1) : ''
+      }))
+
+      // Crear libro de Excel
+      const wb = XLSX.utils.book_new()
+      const ws = XLSX.utils.json_to_sheet(datosExcel)
+
+      // Ajustar ancho de columnas
+      const colWidths = [
+        { wch: 15 }, // SKU
+        { wch: 40 }, // Descripción
+        { wch: 8 },  // Clase
+        { wch: 12 }, // Venta Diaria
+        { wch: 15 }, // Precio
+        { wch: 12 }, // Stock Actual
+        { wch: 12 }, // Stock Óptimo
+        { wch: 12 }, // Días Stock
+        { wch: 12 }, // Tránsito
+        { wch: 18 }, // Sugerencia
+        { wch: 18 }, // Valor Total
+        { wch: 12 }, // CV
+        { wch: 12 }, // Tendencia
+        { wch: 12 }, // Modelo
+        { wch: 30 }, // Alertas
+        { wch: 10 }  // MAPE
+      ]
+      ws['!cols'] = colWidths
+
+      // Agregar hoja al libro
+      XLSX.utils.book_append_sheet(wb, ws, 'Predicciones')
+
+      // Descargar archivo
+      const fecha = new Date().toISOString().split('T')[0]
+      XLSX.writeFile(wb, `Forecasting_${fecha}.xlsx`)
+
+      alert('✅ Dashboard exportado a Excel correctamente')
+    } catch (error: any) {
+      console.error('Error exportando a Excel:', error)
+      alert('Error al exportar a Excel: ' + error.message)
+    }
+  }
+
+  async function handleExcludeToggle(sku: string, descripcion: string) {
+    try {
+      // Verificar si ya está excluido
+      const { data: existing, error: checkError } = await supabase
+        .from('skus_excluidos')
+        .select('*')
+        .eq('sku', sku)
+        .single()
+
+      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows found
+        throw checkError
+      }
+
+      if (existing) {
+        // Si existe, eliminarlo (reactivar)
+        const { error: deleteError } = await supabase
+          .from('skus_excluidos')
+          .delete()
+          .eq('sku', sku)
+
+        if (deleteError) throw deleteError
+        alert(`✅ SKU ${sku} reactivado en el análisis`)
+      } else {
+        // Si no existe, agregarlo (excluir)
+        const { error: insertError } = await supabase
+          .from('skus_excluidos')
+          .insert({
+            sku,
+            descripcion,
+            motivo: 'Excluido desde dashboard',
+            excluido_por: 'usuario'
+          })
+
+        if (insertError) throw insertError
+        alert(`⚠️ SKU ${sku} excluido del análisis`)
+      }
+
+      // Recargar predicciones
+      await cargarPredicciones()
+    } catch (error: any) {
+      console.error('Error toggle exclusión:', error)
+      alert('Error al cambiar estado de exclusión: ' + error.message)
+    }
+  }
 
   async function cargarPredicciones() {
     setLoading(true)
@@ -103,12 +214,27 @@ export default function Home() {
       {/* Barra de acciones superior */}
       <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
         <UploadExcel />
-        <button
-          onClick={() => setConfiguracionOpen(true)}
-          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
-        >
-          ⚙️ Configuración
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={exportarAExcel}
+            className="px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
+            disabled={predicciones.length === 0}
+          >
+            📊 Exportar Excel
+          </button>
+          <button
+            onClick={() => setExcluidosOpen(true)}
+            className="px-4 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-lg font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
+          >
+            🚫 SKUs Excluidos
+          </button>
+          <button
+            onClick={() => setConfiguracionOpen(true)}
+            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
+          >
+            ⚙️ Configuración
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -141,7 +267,7 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          <PrediccionesTable predicciones={predicciones} />
+          <PrediccionesTable predicciones={predicciones} onExcludeToggle={handleExcludeToggle} />
         )}
       </div>
 
@@ -149,6 +275,13 @@ export default function Home() {
       <ConfiguracionModal
         isOpen={configuracionOpen}
         onClose={() => setConfiguracionOpen(false)}
+      />
+
+      {/* Modal de SKUs Excluidos */}
+      <SkusExcluidosModal
+        isOpen={excluidosOpen}
+        onClose={() => setExcluidosOpen(false)}
+        onReactivar={cargarPredicciones}
       />
     </div>
   )

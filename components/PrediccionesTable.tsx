@@ -21,9 +21,10 @@ interface Prediccion {
 
 interface Props {
   predicciones: Prediccion[]
+  onExcludeToggle: (sku: string, descripcion: string) => Promise<void>
 }
 
-export default function PrediccionesTable({ predicciones }: Props) {
+export default function PrediccionesTable({ predicciones, onExcludeToggle }: Props) {
   const getClaseABCColor = (clase: string) => {
     switch (clase) {
       case 'A': return 'bg-red-100 text-red-800'
@@ -62,6 +63,9 @@ export default function PrediccionesTable({ predicciones }: Props) {
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
+            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Excluir
+            </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               SKU
             </th>
@@ -112,6 +116,14 @@ export default function PrediccionesTable({ predicciones }: Props) {
         <tbody className="bg-white divide-y divide-gray-200">
           {predicciones.map((pred) => (
             <tr key={pred.id} className="hover:bg-gray-50 transition-colors">
+              <td className="px-4 py-4 whitespace-nowrap text-center">
+                <input
+                  type="checkbox"
+                  onChange={() => onExcludeToggle(pred.sku, pred.descripcion)}
+                  className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded cursor-pointer"
+                  title="Excluir este SKU del análisis"
+                />
+              </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <span className="text-sm font-medium text-gray-900">
                   {pred.sku}

@@ -77,6 +77,9 @@ class ForecastPipeline:
         # Cargar matriz de packs
         self.packs_dict = self._cargar_packs()
 
+        # Cargar SKUs excluidos
+        self.skus_excluidos = self._cargar_skus_excluidos()
+
 
     def _cargar_configuracion(self) -> dict:
         """Carga configuración del sistema desde BD con fallbacks"""
@@ -140,6 +143,26 @@ class ForecastPipeline:
         return packs
 
 
+    def _cargar_skus_excluidos(self) -> set:
+        """Carga lista de SKUs excluidos del análisis"""
+        print(f"\n🚫 Cargando SKUs excluidos...")
+
+        try:
+            response = self.supabase.table('skus_excluidos').select('sku').execute()
+
+            if not response.data:
+                print("   ℹ️  No hay SKUs excluidos")
+                return set()
+
+            excluidos = {row['sku'] for row in response.data}
+            print(f"   ✓ {len(excluidos)} SKUs excluidos del análisis")
+            return excluidos
+
+        except Exception as e:
+            print(f"   ⚠️  Error cargando SKUs excluidos: {e}")
+            return set()
+
+
     def cargar_datos_ventas(self, dias_historico: int = 180) -> pd.DataFrame:
         """Carga ventas de los últimos N días desde Supabase con paginación"""
         print(f"\n📥 Cargando ventas de últimos {dias_historico} días...")
@@ -178,6 +201,13 @@ class ForecastPipeline:
 
         print(f"   ✓ {len(df)} registros cargados")
         print(f"   ✓ {df['sku'].nunique()} SKUs únicos")
+
+        # Filtrar SKUs excluidos
+        if self.skus_excluidos:
+            skus_antes = df['sku'].nunique()
+            df = df[~df['sku'].isin(self.skus_excluidos)]
+            skus_despues = df['sku'].nunique()
+            print(f"   ✓ {skus_antes - skus_despues} SKUs excluidos filtrados ({skus_despues} restantes)")
 
         # Expandir packs a SKUs componentes
         if self.packs_dict:
