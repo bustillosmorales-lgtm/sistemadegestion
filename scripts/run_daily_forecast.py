@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 import pandas as pd
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 from supabase import create_client, Client
 
 # Agregar path del proyecto
@@ -226,6 +226,36 @@ class ForecastPipeline:
     def guardar_predicciones(self, predicciones: list):
         """Guarda predicciones en Supabase"""
         print(f"\n💾 Guardando {len(predicciones)} predicciones...")
+
+        # Primero, eliminar predicciones antiguas de hoy para evitar duplicados
+        fecha_hoy = datetime.now().date().isoformat()
+        fecha_manana = (datetime.now().date() + timedelta(days=1)).isoformat()
+
+        print(f"   🗑️  Limpiando predicciones antiguas del {fecha_hoy}...")
+        try:
+            # Contar cuántas hay antes de borrar
+            response_count = self.supabase.table('predicciones') \
+                .select('*', count='exact') \
+                .gte('fecha_calculo', fecha_hoy) \
+                .lt('fecha_calculo', fecha_manana) \
+                .execute()
+
+            count_antiguas = len(response_count.data) if response_count.data else 0
+
+            if count_antiguas > 0:
+                # Eliminar predicciones antiguas de hoy
+                self.supabase.table('predicciones') \
+                    .delete() \
+                    .gte('fecha_calculo', fecha_hoy) \
+                    .lt('fecha_calculo', fecha_manana) \
+                    .execute()
+
+                print(f"   ✓ {count_antiguas} predicciones antiguas eliminadas")
+            else:
+                print(f"   ℹ️  No hay predicciones antiguas para hoy")
+        except Exception as e:
+            print(f"   ⚠️  Error limpiando predicciones antiguas: {e}")
+            # Continuar de todos modos
 
         # Convertir predicciones a formato JSON
         registros = []
