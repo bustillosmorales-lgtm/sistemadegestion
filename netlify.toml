@@ -2,6 +2,12 @@
   command = "npm run build"
   publish = "out"
 
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+  [plugins.inputs]
+  disabled = true
+
 [[redirects]]
   from = "/api/predicciones"
   to = "/.netlify/functions/predicciones"
