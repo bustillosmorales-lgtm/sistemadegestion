@@ -359,7 +359,8 @@ class AlgoritmoMLAvanzado:
         transito_china: float,
         precio_unitario: float,
         descripcion: str = "",
-        fecha_ultima_compra: Optional[datetime] = None
+        fecha_ultima_compra: Optional[datetime] = None,
+        compras_df: pd.DataFrame = None
     ) -> Optional[PrediccionAvanzada]:
         """
         Calcula predicción avanzada para un SKU
@@ -406,14 +407,61 @@ class AlgoritmoMLAvanzado:
             venta_diaria_promedio = self.calcular_venta_ponderada_ewma(serie_diaria)
             modelo_usado = 'ewma'
 
-        # 5. CALCULAR ESTADÍSTICAS
-        ventas_no_cero = serie_diaria[serie_diaria > 0]
+        # 4.5. DETECTAR STOCKOUTS INTELIGENTEMENTE
+        dias_con_stock = serie_diaria.index  # Por defecto, todos los días tienen stock
+
+        if compras_df is not None and not compras_df.empty:
+            # Crear serie de compras diarias
+            serie_compras = pd.Series(0.0, index=rango_fechas)
+            for _, row in compras_df.iterrows():
+                fecha_compra = pd.to_datetime(row['fecha'])
+                if fecha_compra in serie_compras.index:
+                    serie_compras[fecha_compra] += row['cantidad']
+
+            # Reconstruir stock día a día: Stock_t = Stock_t-1 + Compras_t - Ventas_t
+            # Empezamos con un stock inicial estimado (primera compra o promedio de ventas * 30 días)
+            if len(serie_compras[serie_compras > 0]) > 0:
+                primera_compra_idx = serie_compras[serie_compras > 0].index[0]
+                primera_compra_cantidad = serie_compras[primera_compra_idx]
+                stock_inicial = primera_compra_cantidad
+            else:
+                # Si no hay compras, asumir 30 días de stock promedio
+                stock_inicial = venta_diaria_promedio * 30
+
+            # Reconstruir stock diario
+            stock_diario = pd.Series(index=rango_fechas, dtype=float)
+            stock_diario.iloc[0] = stock_inicial
+
+            for i in range(1, len(stock_diario)):
+                fecha_actual = stock_diario.index[i]
+                stock_anterior = stock_diario.iloc[i-1]
+                compras_dia = serie_compras.iloc[i]
+                ventas_dia = serie_diaria.iloc[i]
+
+                stock_diario.iloc[i] = stock_anterior + compras_dia - ventas_dia
+
+            # Identificar días con stockout (stock <= 0)
+            dias_con_stock = stock_diario[stock_diario > 0].index
+            dias_stockout = stock_diario[stock_diario <= 0].index
+
+            # Si hay stockouts significativos, excluirlos del análisis
+            if len(dias_stockout) > 0:
+                # Filtrar serie_diaria para calcular estadísticas solo con días que tenían stock
+                serie_diaria_con_stock = serie_diaria[dias_con_stock]
+            else:
+                serie_diaria_con_stock = serie_diaria
+        else:
+            # Si no hay datos de compras, usar toda la serie
+            serie_diaria_con_stock = serie_diaria
+
+        # 5. CALCULAR ESTADÍSTICAS (excluyendo días de stockout)
+        ventas_no_cero = serie_diaria_con_stock[serie_diaria_con_stock > 0]
 
         if len(ventas_no_cero) > 0:
             venta_diaria_p50 = np.percentile(ventas_no_cero, 50)
             venta_diaria_p75 = np.percentile(ventas_no_cero, 75)
             venta_diaria_p90 = np.percentile(ventas_no_cero, 90)
-            desviacion_estandar = serie_diaria.std()
+            desviacion_estandar = serie_diaria_con_stock.std()  # ✅ Ahora excluye stockouts
         else:
             venta_diaria_p50 = venta_diaria_promedio
             venta_diaria_p75 = venta_diaria_promedio
@@ -516,7 +564,8 @@ class AlgoritmoMLAvanzado:
         self,
         ventas_df: pd.DataFrame,
         stock_df: pd.DataFrame,
-        transito_df: pd.DataFrame = None
+        transito_df: pd.DataFrame = None,
+        compras_df: pd.DataFrame = None
     ) -> List[PrediccionAvanzada]:
         """
         Calcula predicciones para todos los SKUs con clasificación ABC-XYZ
@@ -537,6 +586,12 @@ class AlgoritmoMLAvanzado:
         if transito_df is not None and not transito_df.empty:
             transito_dict = transito_df.groupby('sku')['unidades'].sum().to_dict()
 
+        # Preparar datos de compras por SKU
+        compras_por_sku = {}
+        if compras_df is not None and not compras_df.empty:
+            for sku in compras_df['sku'].unique():
+                compras_por_sku[sku] = compras_df[compras_df['sku'] == sku]
+
         # Calcular predicciones individuales
         valores_anuales = {}
         cvs = {}
@@ -546,6 +601,7 @@ class AlgoritmoMLAvanzado:
             transito = transito_dict.get(sku, 0)
             precio = precio_dict.get(sku, 0)
             descripcion = desc_dict.get(sku, '')
+            compras_sku = compras_por_sku.get(sku, pd.DataFrame())
 
             pred = self.calcular_prediccion_sku(
                 sku=sku,
@@ -553,7 +609,8 @@ class AlgoritmoMLAvanzado:
                 stock_actual=stock,
                 transito_china=transito,
                 precio_unitario=precio,
-                descripcion=descripcion
+                descripcion=descripcion,
+                compras_df=compras_sku
             )
 
             if pred and pred.sugerencia_reposicion > 0:

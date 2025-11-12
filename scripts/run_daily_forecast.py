@@ -223,6 +223,42 @@ class ForecastPipeline:
         return df
 
 
+    def cargar_datos_compras(self) -> pd.DataFrame:
+        """Carga historial de compras/reposiciones desde Supabase"""
+        print(f"\n📦 Cargando historial de compras...")
+
+        all_data = []
+        page_size = 1000
+        offset = 0
+
+        while True:
+            response = self.supabase.table('compras') \
+                .select('*') \
+                .range(offset, offset + page_size - 1) \
+                .execute()
+
+            if not response.data or len(response.data) == 0:
+                break
+
+            all_data.extend(response.data)
+
+            if len(response.data) < page_size:
+                break
+
+            offset += page_size
+
+        if not all_data:
+            print("   ℹ️  No se encontraron datos de compras")
+            return pd.DataFrame()
+
+        df = pd.DataFrame(all_data)
+        df['fecha'] = pd.to_datetime(df['fecha'])
+
+        print(f"   ✓ {len(df)} registros de compras desde {df['fecha'].min().date()} hasta {df['fecha'].max().date()}")
+
+        return df
+
+
     def guardar_predicciones(self, predicciones: list):
         """Guarda predicciones en Supabase"""
         print(f"\n💾 Guardando {len(predicciones)} predicciones...")
@@ -415,6 +451,7 @@ class ForecastPipeline:
             ventas_df = self.cargar_datos_ventas()
             stock_df = self.cargar_datos_stock()
             transito_df = self.cargar_datos_transito()
+            compras_df = self.cargar_datos_compras()
 
             if ventas_df.empty:
                 print("❌ No hay datos de ventas. Abortando.")
@@ -425,7 +462,8 @@ class ForecastPipeline:
             predicciones = self.algoritmo.calcular_predicciones_completas(
                 ventas_df=ventas_df,
                 stock_df=stock_df,
-                transito_df=transito_df
+                transito_df=transito_df,
+                compras_df=compras_df
             )
 
             print(f"   ✓ {len(predicciones)} predicciones generadas")
