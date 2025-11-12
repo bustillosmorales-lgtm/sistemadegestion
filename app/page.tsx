@@ -13,12 +13,17 @@ interface Prediccion {
   descripcion: string
   venta_diaria_p50: number
   stock_actual: number
+  stock_optimo: number
   dias_stock_actual: number
+  transito_china: number
   sugerencia_reposicion: number
   valor_total_sugerencia: number
+  precio_unitario: number
+  coeficiente_variacion: number
   clasificacion_abc: string
   clasificacion_xyz: string
   tendencia: string
+  modelo_usado: string
   alertas: string[]
   mape_backtesting: number | null
 }

@@ -4,12 +4,17 @@ interface Prediccion {
   descripcion: string
   venta_diaria_p50: number
   stock_actual: number
+  stock_optimo: number
   dias_stock_actual: number
+  transito_china: number
   sugerencia_reposicion: number
   valor_total_sugerencia: number
+  precio_unitario: number
+  coeficiente_variacion: number
   clasificacion_abc: string
   clasificacion_xyz: string
   tendencia: string
+  modelo_usado: string
   alertas: string[]
   mape_backtesting: number | null
 }
@@ -70,10 +75,19 @@ export default function PrediccionesTable({ predicciones }: Props) {
               Venta/Día
             </th>
             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Precio Unit.
+            </th>
+            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
               Stock Actual
             </th>
             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Stock Óptimo
+            </th>
+            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
               Días Stock
+            </th>
+            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Tránsito 🚢
             </th>
             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
               Sugerencia
@@ -82,7 +96,13 @@ export default function PrediccionesTable({ predicciones }: Props) {
               Valor Total
             </th>
             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              CV
+            </th>
+            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
               Tendencia
+            </th>
+            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Modelo
             </th>
             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
               Alertas
@@ -110,13 +130,22 @@ export default function PrediccionesTable({ predicciones }: Props) {
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">
                 {pred.venta_diaria_p50.toFixed(1)}
               </td>
+              <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-blue-600 font-medium">
+                ${pred.precio_unitario.toLocaleString('es-CL')}
+              </td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">
                 {pred.stock_actual.toLocaleString('es-CL')}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-600">
+                {pred.stock_optimo.toLocaleString('es-CL')}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                 <span className={getDiasStockColor(pred.dias_stock_actual)}>
                   {pred.dias_stock_actual.toFixed(0)} días
                 </span>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-orange-600">
+                {pred.transito_china.toLocaleString('es-CL')}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-semibold text-gray-900">
                 {pred.sugerencia_reposicion.toLocaleString('es-CL')}
@@ -125,8 +154,18 @@ export default function PrediccionesTable({ predicciones }: Props) {
                 ${(pred.valor_total_sugerencia / 1000).toFixed(0)}k
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
+                <span className={pred.coeficiente_variacion > 1 ? 'text-red-600 font-semibold' : pred.coeficiente_variacion > 0.5 ? 'text-yellow-600' : 'text-green-600'} title="Coeficiente de Variación (volatilidad)">
+                  {pred.coeficiente_variacion.toFixed(2)}
+                </span>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
                 <span className={`font-medium ${getTendenciaColor(pred.tendencia)}`}>
                   {getTendenciaTexto(pred.tendencia)}
+                </span>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-center text-xs">
+                <span className="inline-flex px-2 py-1 rounded-full bg-purple-100 text-purple-800 font-medium" title={`Modelo de predicción: ${pred.modelo_usado}`}>
+                  {pred.modelo_usado}
                 </span>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-center">
