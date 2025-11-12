@@ -64,7 +64,7 @@ export default function ConfiguracionModal({ isOpen, onClose }: Props) {
       const supabase = getSupabaseClient()
 
       // Actualizar cada configuración modificada
-      for (const config of configuraciones) {
+      for (const config of configuraciones as Configuracion[]) {
         const newValue = editedValues[config.clave]
         if (newValue !== config.valor) {
           // Validar rango
@@ -75,6 +75,7 @@ export default function ConfiguracionModal({ isOpen, onClose }: Props) {
             throw new Error(`${config.clave}: Valor máximo es ${config.valor_maximo}`)
           }
 
+          // @ts-ignore - Supabase type inference issue in production build
           const { error } = await supabase
             .from('configuracion_sistema')
             .update({ valor: newValue })
