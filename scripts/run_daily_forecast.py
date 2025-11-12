@@ -60,6 +60,34 @@ class ForecastPipeline:
         print(f"   - Días stock deseado: {self.dias_stock_deseado}")
         print(f"   - Nivel de servicio: {self.nivel_servicio * 100}%")
 
+        # Cargar matriz de packs
+        self.packs_dict = self._cargar_packs()
+
+
+    def _cargar_packs(self) -> dict:
+        """Carga la matriz de packs para descomposición"""
+        print(f"\n📦 Cargando matriz de packs...")
+
+        response = self.supabase.table('packs').select('*').execute()
+
+        if not response.data:
+            print("   ℹ️  No hay packs configurados")
+            return {}
+
+        # Crear diccionario: {sku_pack: [(sku_componente, cantidad), ...]}
+        packs = {}
+        for row in response.data:
+            sku_pack = row['sku_pack']
+            sku_comp = row['sku_componente']
+            cantidad = float(row['cantidad'])
+
+            if sku_pack not in packs:
+                packs[sku_pack] = []
+            packs[sku_pack].append((sku_comp, cantidad))
+
+        print(f"   ✓ {len(packs)} packs configurados")
+        return packs
+
 
     def cargar_datos_ventas(self, dias_historico: int = 180) -> pd.DataFrame:
         """Carga ventas de los últimos N días desde Supabase con paginación"""
@@ -100,7 +128,44 @@ class ForecastPipeline:
         print(f"   ✓ {len(df)} registros cargados")
         print(f"   ✓ {df['sku'].nunique()} SKUs únicos")
 
+        # Expandir packs a SKUs componentes
+        if self.packs_dict:
+            df = self._expandir_packs(df)
+
         return df
+
+
+    def _expandir_packs(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Expande las ventas de packs a sus SKUs componentes"""
+        print(f"\n📦 Expandiendo packs a SKUs componentes...")
+
+        ventas_expandidas = []
+        packs_encontrados = 0
+
+        for _, row in df.iterrows():
+            sku = row['sku']
+
+            # Si es un pack, expandir
+            if sku in self.packs_dict:
+                packs_encontrados += 1
+                componentes = self.packs_dict[sku]
+
+                for sku_comp, cantidad in componentes:
+                    row_expandida = row.copy()
+                    row_expandida['sku'] = sku_comp
+                    row_expandida['unidades'] = row['unidades'] * cantidad
+                    ventas_expandidas.append(row_expandida)
+            else:
+                # No es un pack, mantener como está
+                ventas_expandidas.append(row)
+
+        df_expandido = pd.DataFrame(ventas_expandidas)
+
+        print(f"   ✓ {packs_encontrados} registros de packs expandidos")
+        print(f"   ✓ {len(df_expandido)} registros totales después de expansión")
+        print(f"   ✓ {df_expandido['sku'].nunique()} SKUs únicos")
+
+        return df_expandido
 
 
     def cargar_datos_stock(self) -> pd.DataFrame:
@@ -332,6 +397,14 @@ class ForecastPipeline:
             )
 
             print(f"   ✓ {len(predicciones)} predicciones generadas")
+
+            # Filtrar SKUs tipo PACK de las predicciones
+            if predicciones:
+                predicciones_filtradas = [p for p in predicciones if not p.sku.startswith('PACK')]
+                packs_filtrados = len(predicciones) - len(predicciones_filtradas)
+                print(f"   ✓ {packs_filtrados} SKUs tipo PACK filtrados")
+                print(f"   ✓ {len(predicciones_filtradas)} predicciones de SKUs reales")
+                predicciones = predicciones_filtradas
 
             # 3. Guardar resultados
             if predicciones:
