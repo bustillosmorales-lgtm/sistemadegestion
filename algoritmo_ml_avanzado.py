@@ -89,6 +89,10 @@ class AlgoritmoMLAvanzado:
         nivel_servicio: float = 0.95,  # 95% service level
         umbral_intermitencia: float = 0.5,  # 50% días sin venta
         alpha_ewma: float = 0.3,  # Factor de ponderación temporal
+        umbral_abc_a: float = 0.8,  # 80% valor acumulado para clase A
+        umbral_abc_b: float = 0.95,  # 95% valor acumulado para clase B
+        umbral_xyz_x: float = 0.5,  # CV < 0.5 para clase X
+        umbral_xyz_y: float = 1.0,  # CV < 1.0 para clase Y
     ):
         self.dias_stock_deseado = dias_stock_deseado
         self.dias_transito = dias_transito
@@ -96,6 +100,10 @@ class AlgoritmoMLAvanzado:
         self.z_score = stats.norm.ppf(nivel_servicio)  # Z para nivel de servicio
         self.umbral_intermitencia = umbral_intermitencia
         self.alpha_ewma = alpha_ewma
+        self.umbral_abc_a = umbral_abc_a
+        self.umbral_abc_b = umbral_abc_b
+        self.umbral_xyz_x = umbral_xyz_x
+        self.umbral_xyz_y = umbral_xyz_y
 
 
     def detectar_outliers_iqr(self, datos: np.array) -> Tuple[np.array, List[int]]:
@@ -264,11 +272,11 @@ class AlgoritmoMLAvanzado:
 
         for sku, valor in sorted_skus:
             acumulado += valor
-            porcentaje_acumulado = (acumulado / total_valor) * 100
+            porcentaje_acumulado = acumulado / total_valor  # 0-1
 
-            if porcentaje_acumulado <= 80:
+            if porcentaje_acumulado <= self.umbral_abc_a:
                 clasificacion[sku] = 'A'
-            elif porcentaje_acumulado <= 95:
+            elif porcentaje_acumulado <= self.umbral_abc_b:
                 clasificacion[sku] = 'B'
             else:
                 clasificacion[sku] = 'C'
@@ -282,16 +290,14 @@ class AlgoritmoMLAvanzado:
     ) -> Dict[str, str]:
         """
         Clasificación XYZ por variabilidad
-        X: CV < 0.5 (predecible)
-        Y: 0.5 <= CV < 1.0 (variable)
-        Z: CV >= 1.0 (errático)
+        Usa umbrales configurables para determinar categorías
         """
         clasificacion = {}
 
         for sku, cv in coeficientes_variacion.items():
-            if cv < 0.5:
+            if cv < self.umbral_xyz_x:
                 clasificacion[sku] = 'X'
-            elif cv < 1.0:
+            elif cv < self.umbral_xyz_y:
                 clasificacion[sku] = 'Y'
             else:
                 clasificacion[sku] = 'Z'

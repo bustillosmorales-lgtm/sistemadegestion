@@ -6,6 +6,7 @@ import StatsCards from '@/components/StatsCards'
 import PrediccionesTable from '@/components/PrediccionesTable'
 import Filtros from '@/components/Filtros'
 import UploadExcel from '@/components/UploadExcel'
+import ConfiguracionModal from '@/components/ConfiguracionModal'
 
 interface Prediccion {
   id: number
@@ -37,6 +38,7 @@ export default function Home() {
     busqueda: '',
     soloAlertas: false
   })
+  const [configuracionOpen, setConfiguracionOpen] = useState(false)
 
   useEffect(() => {
     cargarPredicciones()
@@ -98,8 +100,16 @@ export default function Home() {
 
   return (
     <div className="space-y-6">
-      {/* Upload Excel */}
-      <UploadExcel />
+      {/* Barra de acciones superior */}
+      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+        <UploadExcel />
+        <button
+          onClick={() => setConfiguracionOpen(true)}
+          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
+        >
+          ⚙️ Configuración
+        </button>
+      </div>
 
       {/* Stats Cards */}
       <StatsCards predicciones={predicciones} />
@@ -134,6 +144,12 @@ export default function Home() {
           <PrediccionesTable predicciones={predicciones} />
         )}
       </div>
+
+      {/* Modal de Configuración */}
+      <ConfiguracionModal
+        isOpen={configuracionOpen}
+        onClose={() => setConfiguracionOpen(false)}
+      />
     </div>
   )
 }

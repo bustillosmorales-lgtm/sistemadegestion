@@ -41,8 +41,6 @@ class ForecastPipeline:
         # Configuración desde variables de entorno
         self.supabase_url = os.getenv('SUPABASE_URL')
         self.supabase_key = os.getenv('SUPABASE_SERVICE_KEY')
-        self.dias_stock_deseado = int(os.getenv('DIAS_STOCK_DESEADO', '90'))
-        self.nivel_servicio = float(os.getenv('NIVEL_SERVICIO', '0.95'))
 
         if not self.supabase_url or not self.supabase_key:
             raise ValueError("Faltan credenciales de Supabase en variables de entorno")
@@ -50,18 +48,71 @@ class ForecastPipeline:
         # Conectar a Supabase
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
 
-        # Inicializar algoritmo
+        # Cargar configuración desde BD (con fallbacks a variables de entorno)
+        config = self._cargar_configuracion()
+
+        # Inicializar algoritmo con configuración
         self.algoritmo = AlgoritmoMLAvanzado(
-            dias_stock_deseado=self.dias_stock_deseado,
-            nivel_servicio=self.nivel_servicio
+            dias_stock_deseado=int(config['dias_stock_deseado']),
+            dias_transito=int(config['dias_transito']),
+            nivel_servicio=config['nivel_servicio'],
+            umbral_intermitencia=config['umbral_intermitencia'],
+            alpha_ewma=config['alpha_ewma'],
+            umbral_abc_a=config['umbral_abc_a'],
+            umbral_abc_b=config['umbral_abc_b'],
+            umbral_xyz_x=config['umbral_xyz_x'],
+            umbral_xyz_y=config['umbral_xyz_y']
         )
 
-        print(f"✅ Pipeline inicializado")
-        print(f"   - Días stock deseado: {self.dias_stock_deseado}")
-        print(f"   - Nivel de servicio: {self.nivel_servicio * 100}%")
+        # Guardar configuración para uso posterior
+        self.config = config
+
+        print(f"✅ Pipeline inicializado con configuración desde BD")
+        print(f"   - Días stock deseado: {config['dias_stock_deseado']}")
+        print(f"   - Días tránsito: {config['dias_transito']}")
+        print(f"   - Nivel de servicio: {config['nivel_servicio'] * 100}%")
+        print(f"   - Umbral intermitencia: {config['umbral_intermitencia']}")
+        print(f"   - Alpha EWMA: {config['alpha_ewma']}")
 
         # Cargar matriz de packs
         self.packs_dict = self._cargar_packs()
+
+
+    def _cargar_configuracion(self) -> dict:
+        """Carga configuración del sistema desde BD con fallbacks"""
+        print(f"\n⚙️  Cargando configuración del sistema...")
+
+        config = {
+            'dias_stock_deseado': int(os.getenv('DIAS_STOCK_DESEADO', '90')),
+            'dias_transito': int(os.getenv('DIAS_TRANSITO', '120')),
+            'nivel_servicio': float(os.getenv('NIVEL_SERVICIO', '0.95')),
+            'umbral_intermitencia': 0.5,
+            'alpha_ewma': 0.3,
+            'umbral_abc_a': 0.8,
+            'umbral_abc_b': 0.95,
+            'umbral_xyz_x': 0.5,
+            'umbral_xyz_y': 1.0,
+            'dias_historico': 180,
+            'iqr_multiplicador': 1.5
+        }
+
+        try:
+            # Intentar cargar desde BD
+            response = self.supabase.table('configuracion_sistema').select('*').execute()
+
+            if response.data:
+                # Convertir array de configs a diccionario
+                for item in response.data:
+                    config[item['clave']] = float(item['valor'])
+                print(f"   ✓ Configuración cargada desde BD ({len(response.data)} parámetros)")
+            else:
+                print(f"   ⚠️  Tabla de configuración vacía, usando valores por defecto")
+
+        except Exception as e:
+            print(f"   ⚠️  No se pudo cargar configuración desde BD: {e}")
+            print(f"   ⚠️  Usando valores por defecto y variables de entorno")
+
+        return config
 
 
     def _cargar_packs(self) -> dict:

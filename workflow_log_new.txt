@@ -1,0 +1,476 @@
+forecast	Set up job	﻿2025-11-11T20:26:21.8416967Z Current runner version: '2.329.0'
+forecast	Set up job	2025-11-11T20:26:21.8440952Z ##[group]Runner Image Provisioner
+forecast	Set up job	2025-11-11T20:26:21.8441933Z Hosted Compute Agent
+forecast	Set up job	2025-11-11T20:26:21.8442546Z Version: 20251016.436
+forecast	Set up job	2025-11-11T20:26:21.8443130Z Commit: 8ab8ac8bfd662a3739dab9fe09456aba92132568
+forecast	Set up job	2025-11-11T20:26:21.8443884Z Build Date: 2025-10-15T20:44:12Z
+forecast	Set up job	2025-11-11T20:26:21.8444505Z ##[endgroup]
+forecast	Set up job	2025-11-11T20:26:21.8445055Z ##[group]Operating System
+forecast	Set up job	2025-11-11T20:26:21.8445602Z Ubuntu
+forecast	Set up job	2025-11-11T20:26:21.8446084Z 24.04.3
+forecast	Set up job	2025-11-11T20:26:21.8446537Z LTS
+forecast	Set up job	2025-11-11T20:26:21.8446985Z ##[endgroup]
+forecast	Set up job	2025-11-11T20:26:21.8447530Z ##[group]Runner Image
+forecast	Set up job	2025-11-11T20:26:21.8448085Z Image: ubuntu-24.04
+forecast	Set up job	2025-11-11T20:26:21.8448769Z Version: 20251102.99.1
+forecast	Set up job	2025-11-11T20:26:21.8449851Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20251102.99/images/ubuntu/Ubuntu2404-Readme.md
+forecast	Set up job	2025-11-11T20:26:21.8451222Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20251102.99
+forecast	Set up job	2025-11-11T20:26:21.8452452Z ##[endgroup]
+forecast	Set up job	2025-11-11T20:26:21.8453534Z ##[group]GITHUB_TOKEN Permissions
+forecast	Set up job	2025-11-11T20:26:21.8455290Z Contents: read
+forecast	Set up job	2025-11-11T20:26:21.8455881Z Metadata: read
+forecast	Set up job	2025-11-11T20:26:21.8456494Z Packages: read
+forecast	Set up job	2025-11-11T20:26:21.8457014Z ##[endgroup]
+forecast	Set up job	2025-11-11T20:26:21.8459150Z Secret source: Actions
+forecast	Set up job	2025-11-11T20:26:21.8459966Z Prepare workflow directory
+forecast	Set up job	2025-11-11T20:26:21.8770963Z Prepare all required actions
+forecast	Set up job	2025-11-11T20:26:21.8807126Z Getting action download info
+forecast	Set up job	2025-11-11T20:26:22.4237612Z Download action repository 'actions/checkout@v4' (SHA:08eba0b27e820071cde6df949e0beb9ba4906955)
+forecast	Set up job	2025-11-11T20:26:22.5167283Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+forecast	Set up job	2025-11-11T20:26:22.5960109Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+forecast	Set up job	2025-11-11T20:26:22.7884397Z Complete job name: forecast
+forecast	Checkout código	﻿2025-11-11T20:26:22.8560323Z ##[group]Run actions/checkout@v4
+forecast	Checkout código	2025-11-11T20:26:22.8561148Z with:
+forecast	Checkout código	2025-11-11T20:26:22.8561648Z   repository: bustillosmorales-lgtm/sistemadegestion
+forecast	Checkout código	2025-11-11T20:26:22.8562394Z   token: ***
+forecast	Checkout código	2025-11-11T20:26:22.8562779Z   ssh-strict: true
+forecast	Checkout código	2025-11-11T20:26:22.8563177Z   ssh-user: git
+forecast	Checkout código	2025-11-11T20:26:22.8563578Z   persist-credentials: true
+forecast	Checkout código	2025-11-11T20:26:22.8564032Z   clean: true
+forecast	Checkout código	2025-11-11T20:26:22.8564441Z   sparse-checkout-cone-mode: true
+forecast	Checkout código	2025-11-11T20:26:22.8564925Z   fetch-depth: 1
+forecast	Checkout código	2025-11-11T20:26:22.8565304Z   fetch-tags: false
+forecast	Checkout código	2025-11-11T20:26:22.8565706Z   show-progress: true
+forecast	Checkout código	2025-11-11T20:26:22.8566115Z   lfs: false
+forecast	Checkout código	2025-11-11T20:26:22.8566484Z   submodules: false
+forecast	Checkout código	2025-11-11T20:26:22.8566897Z   set-safe-directory: true
+forecast	Checkout código	2025-11-11T20:26:22.8567526Z ##[endgroup]
+forecast	Checkout código	2025-11-11T20:26:22.9615471Z Syncing repository: bustillosmorales-lgtm/sistemadegestion
+forecast	Checkout código	2025-11-11T20:26:22.9617483Z ##[group]Getting Git version info
+forecast	Checkout código	2025-11-11T20:26:22.9618272Z Working directory is '/home/runner/work/sistemadegestion/sistemadegestion'
+forecast	Checkout código	2025-11-11T20:26:22.9619653Z [command]/usr/bin/git version
+forecast	Checkout código	2025-11-11T20:26:22.9745479Z git version 2.51.2
+forecast	Checkout código	2025-11-11T20:26:22.9771732Z ##[endgroup]
+forecast	Checkout código	2025-11-11T20:26:22.9792028Z Temporarily overriding HOME='/home/runner/work/_temp/0349daaa-6f4e-4add-a278-e27080066a8a' before making global git config changes
+forecast	Checkout código	2025-11-11T20:26:22.9793466Z Adding repository directory to the temporary git global config as a safe directory
+forecast	Checkout código	2025-11-11T20:26:22.9796861Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/sistemadegestion/sistemadegestion
+forecast	Checkout código	2025-11-11T20:26:22.9832172Z Deleting the contents of '/home/runner/work/sistemadegestion/sistemadegestion'
+forecast	Checkout código	2025-11-11T20:26:22.9835631Z ##[group]Initializing the repository
+forecast	Checkout código	2025-11-11T20:26:22.9839625Z [command]/usr/bin/git init /home/runner/work/sistemadegestion/sistemadegestion
+forecast	Checkout código	2025-11-11T20:26:22.9948227Z hint: Using 'master' as the name for the initial branch. This default branch name
+forecast	Checkout código	2025-11-11T20:26:22.9950157Z hint: is subject to change. To configure the initial branch name to use in all
+forecast	Checkout código	2025-11-11T20:26:22.9952307Z hint: of your new repositories, which will suppress this warning, call:
+forecast	Checkout código	2025-11-11T20:26:22.9953877Z hint:
+forecast	Checkout código	2025-11-11T20:26:22.9954989Z hint: 	git config --global init.defaultBranch <name>
+forecast	Checkout código	2025-11-11T20:26:22.9955886Z hint:
+forecast	Checkout código	2025-11-11T20:26:22.9956552Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+forecast	Checkout código	2025-11-11T20:26:22.9957655Z hint: 'development'. The just-created branch can be renamed via this command:
+forecast	Checkout código	2025-11-11T20:26:22.9958755Z hint:
+forecast	Checkout código	2025-11-11T20:26:22.9959246Z hint: 	git branch -m <name>
+forecast	Checkout código	2025-11-11T20:26:22.9960048Z hint:
+forecast	Checkout código	2025-11-11T20:26:22.9960781Z hint: Disable this message with "git config set advice.defaultBranchName false"
+forecast	Checkout código	2025-11-11T20:26:22.9961863Z Initialized empty Git repository in /home/runner/work/sistemadegestion/sistemadegestion/.git/
+forecast	Checkout código	2025-11-11T20:26:22.9965164Z [command]/usr/bin/git remote add origin https://github.com/bustillosmorales-lgtm/sistemadegestion
+forecast	Checkout código	2025-11-11T20:26:22.9998767Z ##[endgroup]
+forecast	Checkout código	2025-11-11T20:26:22.9999500Z ##[group]Disabling automatic garbage collection
+forecast	Checkout código	2025-11-11T20:26:23.0003106Z [command]/usr/bin/git config --local gc.auto 0
+forecast	Checkout código	2025-11-11T20:26:23.0032507Z ##[endgroup]
+forecast	Checkout código	2025-11-11T20:26:23.0033215Z ##[group]Setting up auth
+forecast	Checkout código	2025-11-11T20:26:23.0039371Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+forecast	Checkout código	2025-11-11T20:26:23.0068263Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+forecast	Checkout código	2025-11-11T20:26:23.0407012Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+forecast	Checkout código	2025-11-11T20:26:23.0437043Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+forecast	Checkout código	2025-11-11T20:26:23.0656608Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+forecast	Checkout código	2025-11-11T20:26:23.0690611Z ##[endgroup]
+forecast	Checkout código	2025-11-11T20:26:23.0698744Z ##[group]Fetching the repository
+forecast	Checkout código	2025-11-11T20:26:23.0701265Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +0d41faf6cafb9d3657dc2b8d09379c5f0d075b23:refs/remotes/origin/main
+forecast	Checkout código	2025-11-11T20:26:26.4973703Z From https://github.com/bustillosmorales-lgtm/sistemadegestion
+forecast	Checkout código	2025-11-11T20:26:26.4974683Z  * [new ref]         0d41faf6cafb9d3657dc2b8d09379c5f0d075b23 -> origin/main
+forecast	Checkout código	2025-11-11T20:26:26.5005173Z ##[endgroup]
+forecast	Checkout código	2025-11-11T20:26:26.5005645Z ##[group]Determining the checkout info
+forecast	Checkout código	2025-11-11T20:26:26.5007514Z ##[endgroup]
+forecast	Checkout código	2025-11-11T20:26:26.5012783Z [command]/usr/bin/git sparse-checkout disable
+forecast	Checkout código	2025-11-11T20:26:26.5053132Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+forecast	Checkout código	2025-11-11T20:26:26.5079638Z ##[group]Checking out the ref
+forecast	Checkout código	2025-11-11T20:26:26.5083176Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+forecast	Checkout código	2025-11-11T20:26:26.7712623Z Switched to a new branch 'main'
+forecast	Checkout código	2025-11-11T20:26:26.7713412Z branch 'main' set up to track 'origin/main'.
+forecast	Checkout código	2025-11-11T20:26:26.7720944Z ##[endgroup]
+forecast	Checkout código	2025-11-11T20:26:26.7760105Z [command]/usr/bin/git log -1 --format=%H
+forecast	Checkout código	2025-11-11T20:26:26.7781814Z 0d41faf6cafb9d3657dc2b8d09379c5f0d075b23
+forecast	Setup Python	﻿2025-11-11T20:26:26.8007372Z ##[group]Run actions/setup-python@v5
+forecast	Setup Python	2025-11-11T20:26:26.8007753Z with:
+forecast	Setup Python	2025-11-11T20:26:26.8007980Z   python-version: 3.11
+forecast	Setup Python	2025-11-11T20:26:26.8008217Z   cache: pip
+forecast	Setup Python	2025-11-11T20:26:26.8008634Z   check-latest: false
+forecast	Setup Python	2025-11-11T20:26:26.8009038Z   token: ***
+forecast	Setup Python	2025-11-11T20:26:26.8009278Z   update-environment: true
+forecast	Setup Python	2025-11-11T20:26:26.8009548Z   allow-prereleases: false
+forecast	Setup Python	2025-11-11T20:26:26.8009804Z   freethreaded: false
+forecast	Setup Python	2025-11-11T20:26:26.8010036Z ##[endgroup]
+forecast	Setup Python	2025-11-11T20:26:26.9674235Z ##[group]Installed versions
+forecast	Setup Python	2025-11-11T20:26:26.9809216Z Successfully set up CPython (3.11.14)
+forecast	Setup Python	2025-11-11T20:26:26.9810761Z ##[endgroup]
+forecast	Setup Python	2025-11-11T20:26:27.0480711Z [command]/opt/hostedtoolcache/Python/3.11.14/x64/bin/pip cache dir
+forecast	Setup Python	2025-11-11T20:26:27.3534777Z /home/runner/.cache/pip
+forecast	Setup Python	2025-11-11T20:26:27.7427261Z Cache hit for: setup-python-Linux-x64-24.04-Ubuntu-python-3.11.14-pip-283d869bdd9a0b37f3071f36adf55cbaf885731b455071a5902525ec744c62c5
+forecast	Setup Python	2025-11-11T20:26:29.0455998Z Received 0 of 80037229 (0.0%), 0.0 MBs/sec
+forecast	Setup Python	2025-11-11T20:26:29.8000928Z Received 80037229 of 80037229 (100.0%), 43.5 MBs/sec
+forecast	Setup Python	2025-11-11T20:26:29.8001745Z Cache Size: ~76 MB (80037229 B)
+forecast	Setup Python	2025-11-11T20:26:29.8069511Z [command]/usr/bin/tar -xf /home/runner/work/_temp/ffc0988a-7a1b-4caf-9b1e-3c87a1538a57/cache.tzst -P -C /home/runner/work/sistemadegestion/sistemadegestion --use-compress-program unzstd
+forecast	Setup Python	2025-11-11T20:26:29.9365517Z Cache restored successfully
+forecast	Setup Python	2025-11-11T20:26:29.9532276Z Cache restored from key: setup-python-Linux-x64-24.04-Ubuntu-python-3.11.14-pip-283d869bdd9a0b37f3071f36adf55cbaf885731b455071a5902525ec744c62c5
+forecast	Instalar dependencias	﻿2025-11-11T20:26:29.9695157Z ##[group]Run pip install --upgrade pip
+forecast	Instalar dependencias	2025-11-11T20:26:29.9695580Z [36;1mpip install --upgrade pip[0m
+forecast	Instalar dependencias	2025-11-11T20:26:29.9696014Z [36;1mpip install pandas numpy scipy supabase python-dotenv openpyxl[0m
+forecast	Instalar dependencias	2025-11-11T20:26:29.9735615Z shell: /usr/bin/bash -e {0}
+forecast	Instalar dependencias	2025-11-11T20:26:29.9735916Z env:
+forecast	Instalar dependencias	2025-11-11T20:26:29.9736181Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.14/x64
+forecast	Instalar dependencias	2025-11-11T20:26:29.9736644Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib/pkgconfig
+forecast	Instalar dependencias	2025-11-11T20:26:29.9737063Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+forecast	Instalar dependencias	2025-11-11T20:26:29.9737455Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+forecast	Instalar dependencias	2025-11-11T20:26:29.9737847Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+forecast	Instalar dependencias	2025-11-11T20:26:29.9738241Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib
+forecast	Instalar dependencias	2025-11-11T20:26:29.9738772Z ##[endgroup]
+forecast	Instalar dependencias	2025-11-11T20:26:30.5481077Z Requirement already satisfied: pip in /opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages (25.3)
+forecast	Instalar dependencias	2025-11-11T20:26:31.1665897Z Collecting pandas
+forecast	Instalar dependencias	2025-11-11T20:26:31.1681298Z   Using cached pandas-2.3.3-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl.metadata (91 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:31.3586055Z Collecting numpy
+forecast	Instalar dependencias	2025-11-11T20:26:31.3602491Z   Using cached numpy-2.3.4-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (62 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:31.4748166Z Collecting scipy
+forecast	Instalar dependencias	2025-11-11T20:26:31.4763283Z   Using cached scipy-1.16.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (62 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:31.5111272Z Collecting supabase
+forecast	Instalar dependencias	2025-11-11T20:26:31.5126074Z   Using cached supabase-2.24.0-py3-none-any.whl.metadata (4.6 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:31.5273605Z Collecting python-dotenv
+forecast	Instalar dependencias	2025-11-11T20:26:31.5287343Z   Using cached python_dotenv-1.2.1-py3-none-any.whl.metadata (25 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:31.5501528Z Collecting openpyxl
+forecast	Instalar dependencias	2025-11-11T20:26:31.5503086Z   Using cached openpyxl-3.1.5-py2.py3-none-any.whl.metadata (2.5 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:31.5626832Z Collecting python-dateutil>=2.8.2 (from pandas)
+forecast	Instalar dependencias	2025-11-11T20:26:31.5640017Z   Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:31.5974440Z Collecting pytz>=2020.1 (from pandas)
+forecast	Instalar dependencias	2025-11-11T20:26:31.5987405Z   Using cached pytz-2025.2-py2.py3-none-any.whl.metadata (22 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:31.6107577Z Collecting tzdata>=2022.7 (from pandas)
+forecast	Instalar dependencias	2025-11-11T20:26:31.6120518Z   Using cached tzdata-2025.2-py2.py3-none-any.whl.metadata (1.4 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:31.6448053Z Collecting realtime==2.24.0 (from supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:31.6461116Z   Using cached realtime-2.24.0-py3-none-any.whl.metadata (7.0 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:31.6597400Z Collecting supabase-functions==2.24.0 (from supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:31.6610441Z   Using cached supabase_functions-2.24.0-py3-none-any.whl.metadata (2.4 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:31.6749625Z Collecting storage3==2.24.0 (from supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:31.6762427Z   Using cached storage3-2.24.0-py3-none-any.whl.metadata (2.1 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:31.6889853Z Collecting supabase-auth==2.24.0 (from supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:31.6902588Z   Using cached supabase_auth-2.24.0-py3-none-any.whl.metadata (6.4 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:31.7041520Z Collecting postgrest==2.24.0 (from supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:31.7054130Z   Using cached postgrest-2.24.0-py3-none-any.whl.metadata (3.4 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:31.7401983Z Collecting httpx<0.29,>=0.26 (from supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:31.7415055Z   Using cached httpx-0.28.1-py3-none-any.whl.metadata (7.1 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:31.7530021Z Collecting deprecation>=2.1.0 (from postgrest==2.24.0->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:31.7542805Z   Using cached deprecation-2.1.0-py2.py3-none-any.whl.metadata (4.6 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:31.8763379Z Collecting pydantic<3.0,>=1.9 (from postgrest==2.24.0->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:31.8777118Z   Using cached pydantic-2.12.4-py3-none-any.whl.metadata (89 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:32.1087328Z Collecting yarl>=1.20.1 (from postgrest==2.24.0->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:32.1102754Z   Using cached yarl-1.22.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (75 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:32.1471570Z Collecting typing-extensions>=4.14.0 (from realtime==2.24.0->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:32.1484494Z   Using cached typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:32.2482961Z Collecting websockets<16,>=11 (from realtime==2.24.0->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:32.2497141Z   Using cached websockets-15.0.1-cp311-cp311-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.8 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:32.2855546Z Collecting pyjwt>=2.10.1 (from pyjwt[crypto]>=2.10.1->supabase-auth==2.24.0->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:32.2868463Z   Using cached PyJWT-2.10.1-py3-none-any.whl.metadata (4.0 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:32.2982804Z Collecting strenum>=0.4.15 (from supabase-functions==2.24.0->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:32.2995092Z   Using cached StrEnum-0.4.15-py3-none-any.whl.metadata (5.3 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:32.3161437Z Collecting anyio (from httpx<0.29,>=0.26->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:32.3174531Z   Using cached anyio-4.11.0-py3-none-any.whl.metadata (4.1 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:32.3343385Z Collecting certifi (from httpx<0.29,>=0.26->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:32.3356464Z   Using cached certifi-2025.10.5-py3-none-any.whl.metadata (2.5 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:32.3509696Z Collecting httpcore==1.* (from httpx<0.29,>=0.26->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:32.3522985Z   Using cached httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:32.3644274Z Collecting idna (from httpx<0.29,>=0.26->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:32.3657302Z   Using cached idna-3.11-py3-none-any.whl.metadata (8.4 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:32.3753917Z Collecting h11>=0.16 (from httpcore==1.*->httpx<0.29,>=0.26->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:32.3767043Z   Using cached h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:32.3919741Z Collecting h2<5,>=3 (from httpx[http2]<0.29,>=0.26->postgrest==2.24.0->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:32.3932696Z   Using cached h2-4.3.0-py3-none-any.whl.metadata (5.1 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:32.4042644Z Collecting hyperframe<7,>=6.1 (from h2<5,>=3->httpx[http2]<0.29,>=0.26->postgrest==2.24.0->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:32.4055858Z   Using cached hyperframe-6.1.0-py3-none-any.whl.metadata (4.3 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:32.4148915Z Collecting hpack<5,>=4.1 (from h2<5,>=3->httpx[http2]<0.29,>=0.26->postgrest==2.24.0->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:32.4161840Z   Using cached hpack-4.1.0-py3-none-any.whl.metadata (4.6 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:32.4259028Z Collecting annotated-types>=0.6.0 (from pydantic<3.0,>=1.9->postgrest==2.24.0->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:32.4271705Z   Using cached annotated_types-0.7.0-py3-none-any.whl.metadata (15 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.0641451Z Collecting pydantic-core==2.41.5 (from pydantic<3.0,>=1.9->postgrest==2.24.0->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:33.0656609Z   Using cached pydantic_core-2.41.5-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (7.3 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.0762784Z Collecting typing-inspection>=0.4.2 (from pydantic<3.0,>=1.9->postgrest==2.24.0->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:33.0775967Z   Using cached typing_inspection-0.4.2-py3-none-any.whl.metadata (2.6 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.0870940Z Collecting et-xmlfile (from openpyxl)
+forecast	Instalar dependencias	2025-11-11T20:26:33.0884739Z   Using cached et_xmlfile-2.0.0-py3-none-any.whl.metadata (2.7 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.1026788Z Collecting packaging (from deprecation>=2.1.0->postgrest==2.24.0->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:33.1040226Z   Using cached packaging-25.0-py3-none-any.whl.metadata (3.3 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.3215713Z Collecting cryptography>=3.4.0 (from pyjwt[crypto]>=2.10.1->supabase-auth==2.24.0->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:33.3230634Z   Using cached cryptography-46.0.3-cp311-abi3-manylinux_2_34_x86_64.whl.metadata (5.7 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.4200724Z Collecting cffi>=2.0.0 (from cryptography>=3.4.0->pyjwt[crypto]>=2.10.1->supabase-auth==2.24.0->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:33.4214245Z   Using cached cffi-2.0.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (2.6 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.4316506Z Collecting pycparser (from cffi>=2.0.0->cryptography>=3.4.0->pyjwt[crypto]>=2.10.1->supabase-auth==2.24.0->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:33.4329404Z   Using cached pycparser-2.23-py3-none-any.whl.metadata (993 bytes)
+forecast	Instalar dependencias	2025-11-11T20:26:33.4445441Z Collecting six>=1.5 (from python-dateutil>=2.8.2->pandas)
+forecast	Instalar dependencias	2025-11-11T20:26:33.4458783Z   Using cached six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.6706246Z Collecting multidict>=4.0 (from yarl>=1.20.1->postgrest==2.24.0->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:33.6721625Z   Using cached multidict-6.7.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (5.3 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.7778508Z Collecting propcache>=0.2.1 (from yarl>=1.20.1->postgrest==2.24.0->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:33.7793904Z   Using cached propcache-0.4.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (13 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.7952289Z Collecting sniffio>=1.1 (from anyio->httpx<0.29,>=0.26->supabase)
+forecast	Instalar dependencias	2025-11-11T20:26:33.7965361Z   Using cached sniffio-1.3.1-py3-none-any.whl.metadata (3.9 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8085093Z Using cached pandas-2.3.3-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (12.8 MB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8188888Z Using cached numpy-2.3.4-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (16.9 MB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8321115Z Using cached scipy-1.16.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (35.9 MB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8583646Z Using cached supabase-2.24.0-py3-none-any.whl (16 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8596165Z Using cached postgrest-2.24.0-py3-none-any.whl (21 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8609035Z Using cached realtime-2.24.0-py3-none-any.whl (22 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8621875Z Using cached storage3-2.24.0-py3-none-any.whl (19 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8634729Z Using cached supabase_auth-2.24.0-py3-none-any.whl (48 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8647648Z Using cached supabase_functions-2.24.0-py3-none-any.whl (8.5 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8660008Z Using cached httpx-0.28.1-py3-none-any.whl (73 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8672887Z Using cached httpcore-1.0.9-py3-none-any.whl (78 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8686600Z Using cached h2-4.3.0-py3-none-any.whl (61 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8699856Z Using cached hpack-4.1.0-py3-none-any.whl (34 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8712775Z Using cached hyperframe-6.1.0-py3-none-any.whl (13 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8725683Z Using cached pydantic-2.12.4-py3-none-any.whl (463 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8742033Z Using cached pydantic_core-2.41.5-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.1 MB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8769626Z Using cached websockets-15.0.1-cp311-cp311-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (182 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8783385Z Using cached python_dotenv-1.2.1-py3-none-any.whl (21 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8796270Z Using cached openpyxl-3.1.5-py2.py3-none-any.whl (250 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8810786Z Using cached annotated_types-0.7.0-py3-none-any.whl (13 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8823595Z Using cached deprecation-2.1.0-py2.py3-none-any.whl (11 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8836347Z Using cached h11-0.16.0-py3-none-any.whl (37 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8849197Z Using cached PyJWT-2.10.1-py3-none-any.whl (22 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8862356Z Using cached cryptography-46.0.3-cp311-abi3-manylinux_2_34_x86_64.whl (4.5 MB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8907317Z Using cached cffi-2.0.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (215 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8921777Z Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8935994Z Using cached pytz-2025.2-py2.py3-none-any.whl (509 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8952321Z Using cached six-1.17.0-py2.py3-none-any.whl (11 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8965123Z Using cached StrEnum-0.4.15-py3-none-any.whl (8.9 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8978108Z Using cached typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.8991366Z Using cached typing_inspection-0.4.2-py3-none-any.whl (14 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.9004273Z Using cached tzdata-2025.2-py2.py3-none-any.whl (347 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.9020177Z Using cached yarl-1.22.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (365 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.9035353Z Using cached idna-3.11-py3-none-any.whl (71 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.9049321Z Using cached multidict-6.7.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (246 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.9064065Z Using cached propcache-0.4.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (210 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.9077895Z Using cached anyio-4.11.0-py3-none-any.whl (109 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.9091664Z Using cached sniffio-1.3.1-py3-none-any.whl (10 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.9104479Z Using cached certifi-2025.10.5-py3-none-any.whl (163 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.9118523Z Using cached et_xmlfile-2.0.0-py3-none-any.whl (18 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.9131451Z Using cached packaging-25.0-py3-none-any.whl (66 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:33.9144624Z Using cached pycparser-2.23-py3-none-any.whl (118 kB)
+forecast	Instalar dependencias	2025-11-11T20:26:34.1272139Z Installing collected packages: strenum, pytz, websockets, tzdata, typing-extensions, sniffio, six, python-dotenv, pyjwt, pycparser, propcache, packaging, numpy, multidict, idna, hyperframe, hpack, h11, et-xmlfile, certifi, annotated-types, yarl, typing-inspection, scipy, python-dateutil, pydantic-core, openpyxl, httpcore, h2, deprecation, cffi, anyio, pydantic, pandas, httpx, cryptography, realtime, supabase-functions, supabase-auth, storage3, postgrest, supabase
+forecast	Instalar dependencias	2025-11-11T20:26:45.3743080Z 
+forecast	Instalar dependencias	2025-11-11T20:26:45.3768992Z Successfully installed annotated-types-0.7.0 anyio-4.11.0 certifi-2025.10.5 cffi-2.0.0 cryptography-46.0.3 deprecation-2.1.0 et-xmlfile-2.0.0 h11-0.16.0 h2-4.3.0 hpack-4.1.0 httpcore-1.0.9 httpx-0.28.1 hyperframe-6.1.0 idna-3.11 multidict-6.7.0 numpy-2.3.4 openpyxl-3.1.5 packaging-25.0 pandas-2.3.3 postgrest-2.24.0 propcache-0.4.1 pycparser-2.23 pydantic-2.12.4 pydantic-core-2.41.5 pyjwt-2.10.1 python-dateutil-2.9.0.post0 python-dotenv-1.2.1 pytz-2025.2 realtime-2.24.0 scipy-1.16.3 six-1.17.0 sniffio-1.3.1 storage3-2.24.0 strenum-0.4.15 supabase-2.24.0 supabase-auth-2.24.0 supabase-functions-2.24.0 typing-extensions-4.15.0 typing-inspection-0.4.2 tzdata-2025.2 websockets-15.0.1 yarl-1.22.0
+forecast	Ejecutar forecasting	﻿2025-11-11T20:26:45.7487668Z ##[group]Run python scripts/run_daily_forecast.py
+forecast	Ejecutar forecasting	2025-11-11T20:26:45.7488067Z [36;1mpython scripts/run_daily_forecast.py[0m
+forecast	Ejecutar forecasting	2025-11-11T20:26:45.7522131Z shell: /usr/bin/bash -e {0}
+forecast	Ejecutar forecasting	2025-11-11T20:26:45.7522378Z env:
+forecast	Ejecutar forecasting	2025-11-11T20:26:45.7522637Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.14/x64
+forecast	Ejecutar forecasting	2025-11-11T20:26:45.7523062Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib/pkgconfig
+forecast	Ejecutar forecasting	2025-11-11T20:26:45.7523469Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+forecast	Ejecutar forecasting	2025-11-11T20:26:45.7523823Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+forecast	Ejecutar forecasting	2025-11-11T20:26:45.7524182Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+forecast	Ejecutar forecasting	2025-11-11T20:26:45.7524548Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib
+forecast	Ejecutar forecasting	2025-11-11T20:26:45.7525038Z   SUPABASE_URL: ***
+forecast	Ejecutar forecasting	2025-11-11T20:26:45.7526612Z   SUPABASE_SERVICE_KEY: ***
+forecast	Ejecutar forecasting	2025-11-11T20:26:45.7526854Z   DIAS_STOCK_DESEADO: 90
+forecast	Ejecutar forecasting	2025-11-11T20:26:45.7527067Z   NIVEL_SERVICIO: 0.95
+forecast	Ejecutar forecasting	2025-11-11T20:26:45.7527267Z ##[endgroup]
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4418715Z ✅ Pipeline inicializado
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4419480Z    - Días stock deseado: 90
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4419965Z    - Nivel de servicio: 95.0%
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4420271Z 
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4420446Z ============================================================
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4421120Z 🚀 INICIANDO FORECASTING DIARIO
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4421648Z ============================================================
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4422221Z Fecha: 2025-11-11 20:26:46
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4422529Z 
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4422868Z 📥 Cargando ventas de últimos 180 días...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4423562Z    ✓ Descargados 1000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4424182Z    ✓ Descargados 2000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4424684Z    ✓ Descargados 3000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4425290Z    ✓ Descargados 4000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4425795Z    ✓ Descargados 5000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4426303Z    ✓ Descargados 6000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4426827Z    ✓ Descargados 7000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4427336Z    ✓ Descargados 8000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4427939Z    ✓ Descargados 9000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4428735Z    ✓ Descargados 10000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4429325Z    ✓ Descargados 11000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4429718Z    ✓ Descargados 12000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4430107Z    ✓ Descargados 13000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4430489Z    ✓ Descargados 14000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4430871Z    ✓ Descargados 15000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4431250Z    ✓ Descargados 16000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4431632Z    ✓ Descargados 17000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4432044Z    ✓ Descargados 18000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4432433Z    ✓ Descargados 19000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4432820Z    ✓ Descargados 20000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4433202Z    ✓ Descargados 21000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4433583Z    ✓ Descargados 22000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4433968Z    ✓ Descargados 23000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4434362Z    ✓ Descargados 24000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4434738Z    ✓ Descargados 25000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4435034Z    ✓ Descargados 26000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4435306Z    ✓ Descargados 27000 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4435566Z    ✓ Descargados 27891 registros...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4435826Z    ✓ 27891 registros cargados
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4436070Z    ✓ 2189 SKUs únicos
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4436191Z 
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4436307Z 📦 Cargando stock actual...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4436541Z    ✓ 6045 SKUs con stock
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4436676Z 
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4436791Z 🚢 Cargando tránsito China...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4437046Z    ✓ 566 registros de tránsito
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4437192Z 
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4437317Z 🔮 Ejecutando algoritmo ML...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4437574Z    ✓ 2057 predicciones generadas
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4437724Z 
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4437852Z 💾 Guardando 2057 predicciones...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4439236Z    ❌ Error guardando batch 1: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4440366Z    ❌ Error guardando batch 2: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4441462Z    ❌ Error guardando batch 3: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4442547Z    ❌ Error guardando batch 4: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4443816Z    ❌ Error guardando batch 5: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4444951Z    ❌ Error guardando batch 6: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4446030Z    ❌ Error guardando batch 7: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4447102Z    ❌ Error guardando batch 8: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4448174Z    ❌ Error guardando batch 9: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4449466Z    ❌ Error guardando batch 10: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4450562Z    ❌ Error guardando batch 11: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4451646Z    ❌ Error guardando batch 12: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4452729Z    ❌ Error guardando batch 13: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4453818Z    ❌ Error guardando batch 14: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4454913Z    ❌ Error guardando batch 15: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4455997Z    ❌ Error guardando batch 16: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4457081Z    ❌ Error guardando batch 17: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4458156Z    ❌ Error guardando batch 18: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4459418Z    ❌ Error guardando batch 19: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4460513Z    ❌ Error guardando batch 20: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4461781Z    ❌ Error guardando batch 21: {'message': "Could not find the 'coeficiente_variacion' column of 'predicciones' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4462513Z    ✅ Predicciones guardadas
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4462658Z 
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4462786Z 📊 Calculando métricas del modelo...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4463502Z    ❌ Error guardando métricas: {'message': "Could not find the 'bias' column of 'metricas_modelo' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4464015Z 
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4464120Z 🚨 Generando alertas...
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4464927Z    ❌ Error guardando alertas: {'message': "Could not find the 'estado' column of 'alertas_inventario' in the schema cache", 'code': 'PGRST204', 'hint': None, 'details': None}
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4465454Z 
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4465545Z ============================================================
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4465836Z ✅ FORECASTING COMPLETADO
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4466058Z ============================================================
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4466231Z 
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4466319Z RESUMEN DE FORECASTING
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4466509Z ----------------------
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4466709Z Fecha: 2025-11-11 20:27:17
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4466950Z Duración: 30.5 segundos
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4467272Z 
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4467400Z PREDICCIONES
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4467717Z - Total SKUs: 2057
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4468136Z - Clasificación A: 489 SKUs
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4468819Z - Clasificación B: 620 SKUs
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4469293Z - Clasificación C: 948 SKUs
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4469569Z 
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4469691Z SUGERENCIAS
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4470030Z - Total unidades: 112,672
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4470431Z - Valor total: $2,319,625,202
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4470706Z 
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4470829Z ALERTAS
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4471255Z - Alertas críticas: 2057
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4471511Z 
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4471660Z TOP 5 POR VALOR
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4471870Z 
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4472027Z 1. 649762436650: $63,109,800 (90 unidades)
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4472475Z 2. R-CIB0100927: $40,822,380 (180 unidades)
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4472936Z 3. R-CIB0100942: $29,294,100 (90 unidades)
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4473383Z 4. R-CIB0100956: $29,069,100 (90 unidades)
+forecast	Ejecutar forecasting	2025-11-11T20:27:17.4473827Z 5. R-MTHY202303: $27,359,100 (90 unidades)
+forecast	Generar reporte	﻿2025-11-11T20:27:17.5868246Z ##[group]Run echo "✅ Forecast completado exitosamente"
+forecast	Generar reporte	2025-11-11T20:27:17.5869153Z [36;1mecho "✅ Forecast completado exitosamente"[0m
+forecast	Generar reporte	2025-11-11T20:27:17.5869618Z [36;1mif [ -f forecast_summary.txt ]; then[0m
+forecast	Generar reporte	2025-11-11T20:27:17.5869961Z [36;1m  cat forecast_summary.txt[0m
+forecast	Generar reporte	2025-11-11T20:27:17.5870221Z [36;1mfi[0m
+forecast	Generar reporte	2025-11-11T20:27:17.5902811Z shell: /usr/bin/bash -e {0}
+forecast	Generar reporte	2025-11-11T20:27:17.5903057Z env:
+forecast	Generar reporte	2025-11-11T20:27:17.5903320Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.14/x64
+forecast	Generar reporte	2025-11-11T20:27:17.5903765Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib/pkgconfig
+forecast	Generar reporte	2025-11-11T20:27:17.5904189Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+forecast	Generar reporte	2025-11-11T20:27:17.5904573Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+forecast	Generar reporte	2025-11-11T20:27:17.5904958Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+forecast	Generar reporte	2025-11-11T20:27:17.5905364Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib
+forecast	Generar reporte	2025-11-11T20:27:17.5905687Z ##[endgroup]
+forecast	Generar reporte	2025-11-11T20:27:17.5957260Z ✅ Forecast completado exitosamente
+forecast	Generar reporte	2025-11-11T20:27:17.5966374Z 
+forecast	Generar reporte	2025-11-11T20:27:17.5966658Z RESUMEN DE FORECASTING
+forecast	Generar reporte	2025-11-11T20:27:17.5967105Z ----------------------
+forecast	Generar reporte	2025-11-11T20:27:17.5967511Z Fecha: 2025-11-11 20:27:17
+forecast	Generar reporte	2025-11-11T20:27:17.5968044Z Duración: 30.5 segundos
+forecast	Generar reporte	2025-11-11T20:27:17.5968534Z 
+forecast	Generar reporte	2025-11-11T20:27:17.5968689Z PREDICCIONES
+forecast	Generar reporte	2025-11-11T20:27:17.5969048Z - Total SKUs: 2057
+forecast	Generar reporte	2025-11-11T20:27:17.5969495Z - Clasificación A: 489 SKUs
+forecast	Generar reporte	2025-11-11T20:27:17.5970010Z - Clasificación B: 620 SKUs
+forecast	Generar reporte	2025-11-11T20:27:17.5970468Z - Clasificación C: 948 SKUs
+forecast	Generar reporte	2025-11-11T20:27:17.5970870Z 
+forecast	Generar reporte	2025-11-11T20:27:17.5971006Z SUGERENCIAS
+forecast	Generar reporte	2025-11-11T20:27:17.5971336Z - Total unidades: 112,672
+forecast	Generar reporte	2025-11-11T20:27:17.5971589Z - Valor total: $2,319,625,202
+forecast	Generar reporte	2025-11-11T20:27:17.5971754Z 
+forecast	Generar reporte	2025-11-11T20:27:17.5971833Z ALERTAS
+forecast	Generar reporte	2025-11-11T20:27:17.5972081Z - Alertas críticas: 2057
+forecast	Generar reporte	2025-11-11T20:27:17.5972241Z 
+forecast	Generar reporte	2025-11-11T20:27:17.5972324Z TOP 5 POR VALOR
+forecast	Generar reporte	2025-11-11T20:27:17.5972451Z 
+forecast	Generar reporte	2025-11-11T20:27:17.5972546Z 1. 649762436650: $63,109,800 (90 unidades)
+forecast	Generar reporte	2025-11-11T20:27:17.5972851Z 2. R-CIB0100927: $40,822,380 (180 unidades)
+forecast	Generar reporte	2025-11-11T20:27:17.5973135Z 3. R-CIB0100942: $29,294,100 (90 unidades)
+forecast	Generar reporte	2025-11-11T20:27:17.5973410Z 4. R-CIB0100956: $29,069,100 (90 unidades)
+forecast	Generar reporte	2025-11-11T20:27:17.5973887Z 5. R-MTHY202303: $27,359,100 (90 unidades)
+forecast	Upload artifacts	﻿2025-11-11T20:27:17.6026718Z ##[group]Run actions/upload-artifact@v4
+forecast	Upload artifacts	2025-11-11T20:27:17.6027000Z with:
+forecast	Upload artifacts	2025-11-11T20:27:17.6027188Z   name: forecast-logs
+forecast	Upload artifacts	2025-11-11T20:27:17.6027412Z   path: logs/*.log
+forecast	Upload artifacts	forecast_summary.txt
+forecast	Upload artifacts	
+forecast	Upload artifacts	2025-11-11T20:27:17.6027660Z   retention-days: 7
+forecast	Upload artifacts	2025-11-11T20:27:17.6027861Z   if-no-files-found: warn
+forecast	Upload artifacts	2025-11-11T20:27:17.6028071Z   compression-level: 6
+forecast	Upload artifacts	2025-11-11T20:27:17.6028264Z   overwrite: false
+forecast	Upload artifacts	2025-11-11T20:27:17.6028711Z   include-hidden-files: false
+forecast	Upload artifacts	2025-11-11T20:27:17.6028933Z env:
+forecast	Upload artifacts	2025-11-11T20:27:17.6029172Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.14/x64
+forecast	Upload artifacts	2025-11-11T20:27:17.6029570Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib/pkgconfig
+forecast	Upload artifacts	2025-11-11T20:27:17.6029971Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+forecast	Upload artifacts	2025-11-11T20:27:17.6030338Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+forecast	Upload artifacts	2025-11-11T20:27:17.6030690Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+forecast	Upload artifacts	2025-11-11T20:27:17.6031047Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib
+forecast	Upload artifacts	2025-11-11T20:27:17.6031360Z ##[endgroup]
+forecast	Upload artifacts	2025-11-11T20:27:17.8142457Z Multiple search paths detected. Calculating the least common ancestor of all paths
+forecast	Upload artifacts	2025-11-11T20:27:17.8146020Z The least common ancestor is /home/runner/work/sistemadegestion/sistemadegestion. This will be the root directory of the artifact
+forecast	Upload artifacts	2025-11-11T20:27:17.8147259Z With the provided path, there will be 1 file uploaded
+forecast	Upload artifacts	2025-11-11T20:27:17.8153488Z Artifact name is valid!
+forecast	Upload artifacts	2025-11-11T20:27:17.8155617Z Root directory input is valid!
+forecast	Upload artifacts	2025-11-11T20:27:18.1277251Z Beginning upload of artifact content to blob storage
+forecast	Upload artifacts	2025-11-11T20:27:18.4927492Z Uploaded bytes 474
+forecast	Upload artifacts	2025-11-11T20:27:18.5892433Z Finished uploading artifact content to blob storage!
+forecast	Upload artifacts	2025-11-11T20:27:18.5895911Z SHA256 digest of uploaded artifact zip is 3b39bdfd2b7a77a7837467a056cf0e958d2cba18ea19ed693af6cfed3f07622d
+forecast	Upload artifacts	2025-11-11T20:27:18.5897670Z Finalizing artifact upload
+forecast	Upload artifacts	2025-11-11T20:27:18.7367959Z Artifact forecast-logs.zip successfully finalized. Artifact ID 4536008567
+forecast	Upload artifacts	2025-11-11T20:27:18.7369807Z Artifact forecast-logs has been successfully uploaded! Final size is 474 bytes. Artifact ID is 4536008567
+forecast	Upload artifacts	2025-11-11T20:27:18.7376261Z Artifact download URL: https://github.com/bustillosmorales-lgtm/sistemadegestion/actions/runs/19277659677/artifacts/4536008567
+forecast	Post Setup Python	﻿2025-11-11T20:27:18.7494112Z Post job cleanup.
+forecast	Post Setup Python	2025-11-11T20:27:18.8980972Z Cache hit occurred on the primary key setup-python-Linux-x64-24.04-Ubuntu-python-3.11.14-pip-283d869bdd9a0b37f3071f36adf55cbaf885731b455071a5902525ec744c62c5, not saving cache.
+forecast	Post Checkout código	﻿2025-11-11T20:27:18.9097190Z Post job cleanup.
+forecast	Post Checkout código	2025-11-11T20:27:19.0052333Z [command]/usr/bin/git version
+forecast	Post Checkout código	2025-11-11T20:27:19.0104816Z git version 2.51.2
+forecast	Post Checkout código	2025-11-11T20:27:19.0166666Z Temporarily overriding HOME='/home/runner/work/_temp/334b4ca6-caeb-4cf6-89a7-99eddbe0076a' before making global git config changes
+forecast	Post Checkout código	2025-11-11T20:27:19.0168519Z Adding repository directory to the temporary git global config as a safe directory
+forecast	Post Checkout código	2025-11-11T20:27:19.0183963Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/sistemadegestion/sistemadegestion
+forecast	Post Checkout código	2025-11-11T20:27:19.0220524Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+forecast	Post Checkout código	2025-11-11T20:27:19.0254292Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+forecast	Post Checkout código	2025-11-11T20:27:19.0499188Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+forecast	Post Checkout código	2025-11-11T20:27:19.0522754Z http.https://github.com/.extraheader
+forecast	Post Checkout código	2025-11-11T20:27:19.0536826Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+forecast	Post Checkout código	2025-11-11T20:27:19.0569752Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+forecast	Complete job	﻿2025-11-11T20:27:19.0940046Z Cleaning up orphan processes
