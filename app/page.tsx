@@ -71,7 +71,7 @@ export default function Home() {
         query = query.ilike('sku', `%${filtros.busqueda}%`)
       }
 
-      const { data, error } = await query.limit(100)
+      const { data, error } = await query.limit(5000)
 
       if (error) throw error
 
