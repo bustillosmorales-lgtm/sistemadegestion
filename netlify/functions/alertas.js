@@ -1,25 +1,24 @@
 /**
- * Netlify Function: Obtener alertas de inventario
+ * Netlify Function: Obtener alertas de inventario (SEGURA)
  * GET /api/alertas
+ * Requiere autenticación JWT
  */
 
 const { createClient } = require('@supabase/supabase-js');
+const { verifyAuth, getCorsHeaders } = require('./lib/auth');
+const { alertasQuerySchema, validateInput } = require('./lib/validation');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
 );
 
-const headers = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Content-Type': 'application/json'
-};
-
 exports.handler = async (event, context) => {
+  const origin = event.headers.origin || '';
+  const headers = getCorsHeaders(origin);
+
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers, body: '' };
+    return { statusCode: 200, headers, ...rateLimitHeaders, body: '' };
   }
 
   if (event.httpMethod !== 'GET') {
@@ -30,11 +29,55 @@ exports.handler = async (event, context) => {
     };
   }
 
+    // Verificar autenticación
+  const auth = await verifyAuth(event);
+  if (!auth.authenticated) {
+    const statusCode = auth.rateLimitExceeded ? 429 : 401;
+    return {
+      statusCode,
+      headers: {
+        ...headers,
+        ...(auth.rateLimit ? {
+          'X-RateLimit-Limit': auth.rateLimit.limit,
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': auth.rateLimit.resetIn,
+          'Retry-After': auth.retryAfter
+        } : {})
+      },
+      body: JSON.stringify({
+        success: false,
+        error: auth.error
+      })
+    };
+  }
+
+  // Agregar headers de rate limit a las respuestas
+  const rateLimitHeaders = auth.rateLimit ? {
+    'X-RateLimit-Limit': String(auth.rateLimit.limit),
+    'X-RateLimit-Remaining': String(auth.rateLimit.remaining),
+    'X-RateLimit-Reset': String(auth.rateLimit.resetIn)
+  } : {};)
+    };
+  }
+
   try {
     const params = event.queryStringParameters || {};
-    const tipo_alerta = params.tipo_alerta;
-    const severidad = params.severidad;
-    const estado = params.estado || 'activa';
+    const validation = validateInput(alertasQuerySchema, params);
+    if (!validation.success) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({
+          success: false,
+          error: 'Invalid parameters',
+          details: validation.errors
+        })
+      };
+    }
+    const validatedParams = validation.data;
+    const tipo_alerta = validatedParams.tipo_alerta;
+    const severidad = validatedParams.severidad;
+    const estado = validatedParams.estado || 'activa';
 
     let query = supabase
       .from('alertas_inventario')
@@ -66,7 +109,7 @@ exports.handler = async (event, context) => {
 
     return {
       statusCode: 200,
-      headers,
+      headers, ...rateLimitHeaders,
       body: JSON.stringify({
         success: true,
         resumen,
@@ -75,7 +118,6 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('Error:', error);
     return {
       statusCode: 500,
       headers,
@@ -86,3 +128,5 @@ exports.handler = async (event, context) => {
     };
   }
 };
+
+

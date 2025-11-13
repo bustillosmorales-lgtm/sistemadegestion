@@ -2,6 +2,7 @@ import './globals.css'
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { ClientProviders } from './ClientProviders'
+import { UserMenu } from '@/components/UserMenu'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -40,7 +41,7 @@ export default function RootLayout({
                   <div className="flex items-center space-x-4">
                     <span className="text-sm text-gray-500">
                       {new Date().toLocaleDateString('es-CL')}
-                    </span>
+                    </span><UserMenu />
                   </div>
                 </div>
               </div>
@@ -65,3 +66,4 @@ export default function RootLayout({
     </html>
   )
 }
+

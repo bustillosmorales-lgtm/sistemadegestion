@@ -4,6 +4,7 @@
  */
 
 const { createClient } = require('@supabase/supabase-js');
+const { verifyAuth, getCorsHeaders } = require('./lib/auth');
 const XLSX = require('xlsx');
 
 const supabase = createClient(
@@ -11,17 +12,28 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-const headers = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Content-Type': 'application/json'
-};
+
 
 exports.handler = async (event, context) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '' };
   }
+  const origin = event.headers.origin || '';
+  const headers = getCorsHeaders(origin);
+
+  // Verificar autenticación
+  const auth = await verifyAuth(event);
+  if (!auth.authenticated) {
+    return {
+      statusCode: 401,
+      headers,
+      body: JSON.stringify({
+        success: false,
+        error: 'Unauthorized'
+      })
+    };
+  }
+
 
   if (event.httpMethod !== 'POST') {
     return {
@@ -31,19 +43,15 @@ exports.handler = async (event, context) => {
     };
   }
 
-  try {
-    console.log('=== INICIO PROCESAMIENTO ===');
-    console.log('Event body:', event.body);
+  try {// REMOVED: console.log// REMOVED: console.log
 
-    const { filePath } = JSON.parse(event.body);
-    console.log('FilePath recibido:', filePath);
+    const { filePath } = JSON.parse(event.body);// REMOVED: console.log
 
     if (!filePath) {
       throw new Error('filePath requerido');
     }
 
-    // 1. Descargar archivo de Supabase Storage
-    console.log('Descargando archivo de Storage...');
+    // 1. Descargar archivo de Supabase Storage// REMOVED: console.log
     const { data: fileData, error: downloadError } = await supabase.storage
       .from('excel-uploads')
       .download(filePath);
@@ -51,14 +59,10 @@ exports.handler = async (event, context) => {
     if (downloadError) {
       console.error('Error en download:', downloadError);
       throw new Error(`Error descargando: ${downloadError.message}`);
-    }
+    }// REMOVED: console.log
 
-    console.log('Archivo descargado, tamaño:', fileData?.size || 'desconocido');
-
-    // 2. Leer Excel con opciones optimizadas
-    console.log('Leyendo Excel...');
-    const buffer = Buffer.from(await fileData.arrayBuffer());
-    console.log('Buffer creado, tamaño:', buffer.length);
+    // 2. Leer Excel con opciones optimizadas// REMOVED: console.log
+    const buffer = Buffer.from(await fileData.arrayBuffer());// REMOVED: console.log
 
     // Leer solo estructura del workbook primero
     const workbook = XLSX.read(buffer, {
@@ -80,8 +84,7 @@ exports.handler = async (event, context) => {
     };
 
     // 3. Procesar hoja "ventas"
-    if (workbook.SheetNames.includes('ventas')) {
-      console.log('Procesando ventas...');
+    if (workbook.SheetNames.includes('ventas')) {// REMOVED: console.log
       const ventasSheet = workbook.Sheets['ventas'];
       const ventasData = XLSX.utils.sheet_to_json(ventasSheet, { header: 1 });
 
@@ -117,8 +120,7 @@ exports.handler = async (event, context) => {
       }
 
       // Insertar en lotes de 50 (más pequeños para evitar timeout)
-      if (ventasRegistros.length > 0) {
-        console.log(`Insertando ${ventasRegistros.length} ventas en lotes de 50...`);
+      if (ventasRegistros.length > 0) {// REMOVED: console.log
         for (let i = 0; i < ventasRegistros.length; i += 50) {
           const batch = ventasRegistros.slice(i, i + 50);
           const { error: insertError } = await supabase.from('ventas_historicas').insert(batch);
@@ -128,21 +130,17 @@ exports.handler = async (event, context) => {
           }
           resultados.ventas_cargadas += batch.length;
           // Log progreso cada 500 registros
-          if ((i + 50) % 500 === 0) {
-            console.log(`  → ${resultados.ventas_cargadas} ventas insertadas...`);
+          if ((i + 50) % 500 === 0) {// REMOVED: console.log
           }
-        }
-        console.log(`✓ ${resultados.ventas_cargadas} ventas insertadas`);
+        }// REMOVED: console.log
       }
 
       // Liberar memoria de la hoja procesada
-      delete workbook.Sheets['ventas'];
-      console.log('Memoria de hoja ventas liberada');
+      delete workbook.Sheets['ventas'];// REMOVED: console.log
     }
 
     // 4. Procesar hoja "Stock"
-    if (workbook.SheetNames.includes('Stock')) {
-      console.log('Procesando stock...');
+    if (workbook.SheetNames.includes('Stock')) {// REMOVED: console.log
       const stockSheet = workbook.Sheets['Stock'];
       const stockData = XLSX.utils.sheet_to_json(stockSheet, { header: 1 });
 
@@ -166,8 +164,7 @@ exports.handler = async (event, context) => {
         });
       }
 
-      if (stockRegistros.length > 0) {
-        console.log(`Insertando ${stockRegistros.length} SKUs de stock...`);
+      if (stockRegistros.length > 0) {// REMOVED: console.log
         for (let i = 0; i < stockRegistros.length; i += 50) {
           const batch = stockRegistros.slice(i, i + 50);
           const { error: insertError } = await supabase.from('stock_actual').upsert(batch);
@@ -176,18 +173,15 @@ exports.handler = async (event, context) => {
             throw new Error(`Error insertando stock: ${insertError.message}`);
           }
           resultados.stock_cargado += batch.length;
-        }
-        console.log(`✓ ${resultados.stock_cargado} SKUs de stock insertados`);
+        }// REMOVED: console.log
       }
 
       // Liberar memoria
-      delete workbook.Sheets['Stock'];
-      console.log('Memoria de hoja Stock liberada');
+      delete workbook.Sheets['Stock'];// REMOVED: console.log
     }
 
     // 5. Procesar "transito china"
-    if (workbook.SheetNames.includes('transito china')) {
-      console.log('Procesando tránsito china...');
+    if (workbook.SheetNames.includes('transito china')) {// REMOVED: console.log
       const transitoSheet = workbook.Sheets['transito china'];
       const transitoData = XLSX.utils.sheet_to_json(transitoSheet, { header: 1 });
 
@@ -207,25 +201,21 @@ exports.handler = async (event, context) => {
         });
       }
 
-      if (transitoRegistros.length > 0) {
-        console.log(`Insertando ${transitoRegistros.length} registros de tránsito...`);
+      if (transitoRegistros.length > 0) {// REMOVED: console.log
         const { error: insertError } = await supabase.from('transito_china').insert(transitoRegistros);
         if (insertError) {
           console.error('Error insertando tránsito:', insertError);
           throw new Error(`Error insertando tránsito: ${insertError.message}`);
         }
-        resultados.transito_cargado = transitoRegistros.length;
-        console.log(`✓ ${resultados.transito_cargado} registros de tránsito insertados`);
+        resultados.transito_cargado = transitoRegistros.length;// REMOVED: console.log
       }
 
       // Liberar memoria
-      delete workbook.Sheets['transito china'];
-      console.log('Memoria de hoja transito liberada');
+      delete workbook.Sheets['transito china'];// REMOVED: console.log
     }
 
     // 6. Procesar "compras"
-    if (workbook.SheetNames.includes('compras')) {
-      console.log('Procesando compras...');
+    if (workbook.SheetNames.includes('compras')) {// REMOVED: console.log
       const comprasSheet = workbook.Sheets['compras'];
       const comprasData = XLSX.utils.sheet_to_json(comprasSheet, { header: 1 });
 
@@ -244,8 +234,7 @@ exports.handler = async (event, context) => {
         });
       }
 
-      if (comprasRegistros.length > 0) {
-        console.log(`Insertando ${comprasRegistros.length} compras...`);
+      if (comprasRegistros.length > 0) {// REMOVED: console.log
         for (let i = 0; i < comprasRegistros.length; i += 50) {
           const batch = comprasRegistros.slice(i, i + 50);
           const { error: insertError } = await supabase.from('compras_historicas').insert(batch);
@@ -254,18 +243,15 @@ exports.handler = async (event, context) => {
             throw new Error(`Error insertando compras: ${insertError.message}`);
           }
           resultados.compras_cargadas += batch.length;
-        }
-        console.log(`✓ ${resultados.compras_cargadas} compras insertadas`);
+        }// REMOVED: console.log
       }
 
       // Liberar memoria
-      delete workbook.Sheets['compras'];
-      console.log('Memoria de hoja compras liberada');
+      delete workbook.Sheets['compras'];// REMOVED: console.log
     }
 
     // 7. Procesar "Packs"
-    if (workbook.SheetNames.includes('Packs')) {
-      console.log('Procesando packs...');
+    if (workbook.SheetNames.includes('Packs')) {// REMOVED: console.log
       const packsSheet = workbook.Sheets['Packs'];
       const packsData = XLSX.utils.sheet_to_json(packsSheet, { header: 1 });
 
@@ -286,25 +272,21 @@ exports.handler = async (event, context) => {
         });
       }
 
-      if (packsRegistros.length > 0) {
-        console.log(`Insertando ${packsRegistros.length} packs...`);
+      if (packsRegistros.length > 0) {// REMOVED: console.log
         const { error: insertError } = await supabase.from('packs').insert(packsRegistros);
         if (insertError) {
           console.error('Error insertando packs:', insertError);
           throw new Error(`Error insertando packs: ${insertError.message}`);
         }
-        resultados.packs_cargados = packsRegistros.length;
-        console.log(`✓ ${resultados.packs_cargados} packs insertados`);
+        resultados.packs_cargados = packsRegistros.length;// REMOVED: console.log
       }
 
       // Liberar memoria
-      delete workbook.Sheets['Packs'];
-      console.log('Memoria de hoja Packs liberada');
+      delete workbook.Sheets['Packs'];// REMOVED: console.log
     }
 
     // 8. Procesar "desconsiderar" (opcional)
-    if (workbook.SheetNames.includes('desconsiderar')) {
-      console.log('Procesando desconsiderar...');
+    if (workbook.SheetNames.includes('desconsiderar')) {// REMOVED: console.log
       const descSheet = workbook.Sheets['desconsiderar'];
       const descData = XLSX.utils.sheet_to_json(descSheet, { header: 1 });
 
@@ -319,20 +301,17 @@ exports.handler = async (event, context) => {
         descRegistros.push({ sku });
       }
 
-      if (descRegistros.length > 0) {
-        console.log(`Insertando ${descRegistros.length} SKUs a desconsiderar...`);
+      if (descRegistros.length > 0) {// REMOVED: console.log
         const { error: insertError } = await supabase.from('skus_desconsiderar').insert(descRegistros);
         if (insertError) {
           console.error('Error insertando desconsiderar:', insertError);
           throw new Error(`Error insertando desconsiderar: ${insertError.message}`);
         }
-        resultados.desconsiderar_cargados = descRegistros.length;
-        console.log(`✓ ${resultados.desconsiderar_cargados} SKUs desconsiderar insertados`);
+        resultados.desconsiderar_cargados = descRegistros.length;// REMOVED: console.log
       }
 
       // Liberar memoria
-      delete workbook.Sheets['desconsiderar'];
-      console.log('Memoria de hoja desconsiderar liberada');
+      delete workbook.Sheets['desconsiderar'];// REMOVED: console.log
     }
 
     // 9. Eliminar archivo temporal de storage
@@ -348,8 +327,7 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('Error:', error);
-    return {
+return {
       statusCode: 500,
       headers,
       body: JSON.stringify({
@@ -378,3 +356,5 @@ function excelDateToJSDate(excelDate) {
 
   return null;
 }
+
+

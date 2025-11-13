@@ -1,10 +1,12 @@
 /**
- * Netlify Function: Obtener predicciones de inventario
+ * Netlify Function: Obtener predicciones de inventario (SEGURA)
  * GET /api/predicciones
- * GET /api/predicciones/:sku
+ * Requiere autenticación JWT
  */
 
 const { createClient } = require('@supabase/supabase-js');
+const { verifyAuth, getCorsHeaders } = require('./lib/auth');
+const { prediccionesQuerySchema, validateInput } = require('./lib/validation');
 
 // Inicializar Supabase
 const supabase = createClient(
@@ -12,20 +14,15 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY
 );
 
-// Headers CORS
-const headers = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Content-Type': 'application/json'
-};
-
 exports.handler = async (event, context) => {
+  const origin = event.headers.origin || '';
+  const headers = getCorsHeaders(origin);
+
   // Manejar preflight CORS
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
-      headers,
+      headers, ...rateLimitHeaders,
       body: ''
     };
   }
@@ -39,13 +36,58 @@ exports.handler = async (event, context) => {
     };
   }
 
+    // Verificar autenticación
+  const auth = await verifyAuth(event);
+  if (!auth.authenticated) {
+    const statusCode = auth.rateLimitExceeded ? 429 : 401;
+    return {
+      statusCode,
+      headers: {
+        ...headers,
+        ...(auth.rateLimit ? {
+          'X-RateLimit-Limit': auth.rateLimit.limit,
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': auth.rateLimit.resetIn,
+          'Retry-After': auth.retryAfter
+        } : {})
+      },
+      body: JSON.stringify({
+        success: false,
+        error: auth.error
+      })
+    };
+  }
+
+  // Agregar headers de rate limit a las respuestas
+  const rateLimitHeaders = auth.rateLimit ? {
+    'X-RateLimit-Limit': String(auth.rateLimit.limit),
+    'X-RateLimit-Remaining': String(auth.rateLimit.remaining),
+    'X-RateLimit-Reset': String(auth.rateLimit.resetIn)
+  } : {};)
+    };
+  }
+
   try {
     // Parsear query params
     const params = event.queryStringParameters || {};
-    const sku = params.sku;
-    const clasificacion_abc = params.clasificacion_abc;
-    const limit = parseInt(params.limit || '100');
-    const offset = parseInt(params.offset || '0');
+    // Validar query params
+    const validation = validateInput(prediccionesQuerySchema, params);
+    if (!validation.success) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({
+          success: false,
+          error: 'Invalid parameters',
+          details: validation.errors
+        })
+      };
+    }
+    const validatedParams = validation.data;
+    const sku = validatedParams.sku;
+    const clasificacion_abc = validatedParams.clasificacion_abc;
+    const limit = validatedParams.limit || 100;
+    const offset = validatedParams.offset || 0;
 
     // Construir query
     let query = supabase
@@ -87,7 +129,7 @@ exports.handler = async (event, context) => {
     // Respuesta exitosa
     return {
       statusCode: 200,
-      headers,
+      headers, ...rateLimitHeaders,
       body: JSON.stringify({
         success: true,
         data: data || [],
@@ -102,8 +144,6 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('Error:', error);
-
     return {
       statusCode: 500,
       headers,
@@ -114,3 +154,5 @@ exports.handler = async (event, context) => {
     };
   }
 };
+
+
