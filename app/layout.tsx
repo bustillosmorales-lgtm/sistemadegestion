@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { ClientProviders } from './ClientProviders'
 import { UserMenu } from '@/components/UserMenu'
+import { AuthGuard } from '@/components/AuthGuard'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -28,7 +29,8 @@ export default function RootLayout({
     <html lang="es">
       <body className={inter.className}>
         <ClientProviders>
-          <div className="min-h-screen bg-gray-50">
+          <AuthGuard>
+            <div className="min-h-screen bg-gray-50">
             {/* Header */}
             <header className="bg-white border-b border-gray-200">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -60,7 +62,8 @@ export default function RootLayout({
                 </p>
               </div>
             </footer>
-          </div>
+            </div>
+          </AuthGuard>
         </ClientProviders>
       </body>
     </html>
