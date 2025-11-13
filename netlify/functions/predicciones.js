@@ -22,7 +22,7 @@ exports.handler = async (event, context) => {
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
-      headers, ...rateLimitHeaders,
+      headers,
       body: ''
     };
   }
@@ -36,7 +36,7 @@ exports.handler = async (event, context) => {
     };
   }
 
-    // Verificar autenticación
+  // Verificar autenticación
   const auth = await verifyAuth(event);
   if (!auth.authenticated) {
     const statusCode = auth.rateLimitExceeded ? 429 : 401;
@@ -45,10 +45,10 @@ exports.handler = async (event, context) => {
       headers: {
         ...headers,
         ...(auth.rateLimit ? {
-          'X-RateLimit-Limit': auth.rateLimit.limit,
+          'X-RateLimit-Limit': String(auth.rateLimit.limit),
           'X-RateLimit-Remaining': '0',
-          'X-RateLimit-Reset': auth.rateLimit.resetIn,
-          'Retry-After': auth.retryAfter
+          'X-RateLimit-Reset': String(auth.rateLimit.resetIn),
+          'Retry-After': String(auth.retryAfter || 60)
         } : {})
       },
       body: JSON.stringify({
@@ -63,19 +63,18 @@ exports.handler = async (event, context) => {
     'X-RateLimit-Limit': String(auth.rateLimit.limit),
     'X-RateLimit-Remaining': String(auth.rateLimit.remaining),
     'X-RateLimit-Reset': String(auth.rateLimit.resetIn)
-  } : {};)
-    };
-  }
+  } : {};
 
   try {
     // Parsear query params
     const params = event.queryStringParameters || {};
+    
     // Validar query params
     const validation = validateInput(prediccionesQuerySchema, params);
     if (!validation.success) {
       return {
         statusCode: 400,
-        headers,
+        headers: { ...headers, ...rateLimitHeaders },
         body: JSON.stringify({
           success: false,
           error: 'Invalid parameters',
@@ -84,6 +83,7 @@ exports.handler = async (event, context) => {
       };
     }
     const validatedParams = validation.data;
+
     const sku = validatedParams.sku;
     const clasificacion_abc = validatedParams.clasificacion_abc;
     const limit = validatedParams.limit || 100;
@@ -129,7 +129,7 @@ exports.handler = async (event, context) => {
     // Respuesta exitosa
     return {
       statusCode: 200,
-      headers, ...rateLimitHeaders,
+      headers: { ...headers, ...rateLimitHeaders },
       body: JSON.stringify({
         success: true,
         data: data || [],
@@ -146,7 +146,7 @@ exports.handler = async (event, context) => {
   } catch (error) {
     return {
       statusCode: 500,
-      headers,
+      headers: { ...headers, ...rateLimitHeaders },
       body: JSON.stringify({
         success: false,
         error: error.message
@@ -154,5 +154,3 @@ exports.handler = async (event, context) => {
     };
   }
 };
-
-

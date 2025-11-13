@@ -56,44 +56,15 @@ async function verifyAuth(event) {
       error: 'Authentication failed'
     };
   }
-};
-  }
-
-  const token = authHeader.replace('Bearer ', '');
-
-  try {
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_ANON_KEY
-    );
-
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-
-    if (error || !user) {
-      return {
-        authenticated: false,
-        error: 'Invalid or expired token'
-      };
-    }
-
-    return {
-      authenticated: true,
-      user
-    };
-  } catch (error) {
-    return {
-      authenticated: false,
-      error: 'Authentication failed'
-    };
-  }
 }
 
-// Headers CORS seguros (se configurará el dominio específico después)
+// Headers CORS seguros
 function getCorsHeaders(origin) {
   const allowedOrigins = [
     process.env.NEXT_PUBLIC_SITE_URL,
+    'http://localhost:3000',
     'https://localhost:3000',
-    /\.netlify\.app$/  // Permitir subdominios de Netlify
+    /\.netlify\.app$/
   ];
 
   // Verificar si el origin está permitido
@@ -120,4 +91,3 @@ module.exports = {
   verifyAuth,
   getCorsHeaders
 };
-

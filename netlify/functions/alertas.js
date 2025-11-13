@@ -18,7 +18,7 @@ exports.handler = async (event, context) => {
   const headers = getCorsHeaders(origin);
 
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers, ...rateLimitHeaders, body: '' };
+    return { statusCode: 200, headers, body: '' };
   }
 
   if (event.httpMethod !== 'GET') {
@@ -29,7 +29,7 @@ exports.handler = async (event, context) => {
     };
   }
 
-    // Verificar autenticación
+  // Verificar autenticación
   const auth = await verifyAuth(event);
   if (!auth.authenticated) {
     const statusCode = auth.rateLimitExceeded ? 429 : 401;
@@ -38,10 +38,10 @@ exports.handler = async (event, context) => {
       headers: {
         ...headers,
         ...(auth.rateLimit ? {
-          'X-RateLimit-Limit': auth.rateLimit.limit,
+          'X-RateLimit-Limit': String(auth.rateLimit.limit),
           'X-RateLimit-Remaining': '0',
-          'X-RateLimit-Reset': auth.rateLimit.resetIn,
-          'Retry-After': auth.retryAfter
+          'X-RateLimit-Reset': String(auth.rateLimit.resetIn),
+          'Retry-After': String(auth.retryAfter || 60)
         } : {})
       },
       body: JSON.stringify({
@@ -51,22 +51,21 @@ exports.handler = async (event, context) => {
     };
   }
 
-  // Agregar headers de rate limit a las respuestas
+  // Agregar headers de rate limit
   const rateLimitHeaders = auth.rateLimit ? {
     'X-RateLimit-Limit': String(auth.rateLimit.limit),
     'X-RateLimit-Remaining': String(auth.rateLimit.remaining),
     'X-RateLimit-Reset': String(auth.rateLimit.resetIn)
-  } : {};)
-    };
-  }
+  } : {};
 
   try {
     const params = event.queryStringParameters || {};
+    
     const validation = validateInput(alertasQuerySchema, params);
     if (!validation.success) {
       return {
         statusCode: 400,
-        headers,
+        headers: { ...headers, ...rateLimitHeaders },
         body: JSON.stringify({
           success: false,
           error: 'Invalid parameters',
@@ -75,6 +74,7 @@ exports.handler = async (event, context) => {
       };
     }
     const validatedParams = validation.data;
+
     const tipo_alerta = validatedParams.tipo_alerta;
     const severidad = validatedParams.severidad;
     const estado = validatedParams.estado || 'activa';
@@ -109,7 +109,7 @@ exports.handler = async (event, context) => {
 
     return {
       statusCode: 200,
-      headers, ...rateLimitHeaders,
+      headers: { ...headers, ...rateLimitHeaders },
       body: JSON.stringify({
         success: true,
         resumen,
@@ -120,7 +120,7 @@ exports.handler = async (event, context) => {
   } catch (error) {
     return {
       statusCode: 500,
-      headers,
+      headers: { ...headers, ...rateLimitHeaders },
       body: JSON.stringify({
         success: false,
         error: error.message
@@ -128,5 +128,3 @@ exports.handler = async (event, context) => {
     };
   }
 };
-
-

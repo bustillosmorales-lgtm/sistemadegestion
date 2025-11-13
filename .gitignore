@@ -38,3 +38,9 @@ yarn-error.log*
 
 # netlify
 .netlify
+
+# Archivos con credenciales sensibles
+CONFIGURAR_GITHUB_SECRETS.md
+SECRETOS_GITHUB.txt
+SETUP_ML_INFRASTRUCTURE.md
+REPORTE_ANALISIS_SEGURIDAD.md
