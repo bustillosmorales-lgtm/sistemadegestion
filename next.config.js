@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
+  // REMOVIDO: output: 'export' - Ahora usa SSR para que el middleware funcione
   images: {
     unoptimized: true
   },
