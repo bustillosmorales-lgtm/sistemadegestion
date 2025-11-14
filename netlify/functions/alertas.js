@@ -8,9 +8,10 @@ const { createClient } = require('@supabase/supabase-js');
 const { verifyAuth, getCorsHeaders } = require('./lib/auth');
 const { alertasQuerySchema, validateInput } = require('./lib/validation');
 
+// Usar SERVICE_KEY para bypasear límite de 1000 registros
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
+  process.env.SUPABASE_SERVICE_KEY
 );
 
 exports.handler = async (event, context) => {

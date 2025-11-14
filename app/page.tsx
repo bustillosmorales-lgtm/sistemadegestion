@@ -290,12 +290,29 @@ export default function Home() {
         query = query.ilike('sku', `%${filtros.busqueda}%`)
       }
 
-      // Supabase tiene límite por defecto de 1000, necesitamos especificar uno mayor
-      const { data, error } = await query.limit(50000)
+      // Supabase con ANON_KEY tiene límite máximo de 1000 registros
+      // Necesitamos hacer múltiples requests para obtener todos los datos
+      let allData: any[] = []
+      let currentOffset = 0
+      const batchSize = 1000
+      let hasMore = true
 
-      if (error) throw error
+      while (hasMore) {
+        const { data: batch, error } = await query
+          .range(currentOffset, currentOffset + batchSize - 1)
 
-      let resultados = data || []
+        if (error) throw error
+
+        if (batch && batch.length > 0) {
+          allData = [...allData, ...batch]
+          currentOffset += batchSize
+          hasMore = batch.length === batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      let resultados = allData
 
       // Filtrar por alertas en cliente (Supabase no soporta array contains fácilmente)
       if (filtros.soloAlertas) {
