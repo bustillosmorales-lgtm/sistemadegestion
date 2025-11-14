@@ -6,10 +6,10 @@ import { createClient } from './supabase-auth'
 
 export async function apiCall(endpoint: string, options: RequestInit = {}) {
   const supabase = createClient()
-  
+
   // Obtener el token de sesión actual
   const { data: { session } } = await supabase.auth.getSession()
-  
+
   if (!session?.access_token) {
     throw new Error('No authenticated')
   }
@@ -75,5 +75,10 @@ export async function procesarExcel(filePath: string) {
     method: 'POST',
     body: JSON.stringify({ filePath }),
   })
+  return response.json()
+}
+
+export async function fetchDatosBD(tabla: 'ventas' | 'stock' | 'transito' | 'compras' | 'packs' | 'desconsiderar') {
+  const response = await apiCall(`/.netlify/functions/datos-bd?tabla=${tabla}`)
   return response.json()
 }

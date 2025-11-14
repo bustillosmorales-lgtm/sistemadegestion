@@ -48,11 +48,16 @@ export default function Home() {
 
   async function exportarAExcel() {
     try {
-      // Importar xlsx dinámicamente (solo en cliente)
-      const XLSX = await import('xlsx')
+      // Mostrar mensaje de carga
+      const loadingMessage = 'Exportando datos... Por favor espera.'
+      console.log(loadingMessage)
 
-      // Preparar datos para Excel
-      const datosExcel = predicciones.map(p => ({
+      // Importar xlsx y fetchDatosBD dinámicamente
+      const XLSX = await import('xlsx')
+      const { fetchDatosBD } = await import('@/lib/api-client')
+
+      // 1. Preparar datos de predicciones
+      const datosPredicciones = predicciones.map(p => ({
         'SKU': p.sku,
         'Descripción': p.descripcion || '',
         'Clase': `${p.clasificacion_abc}-${p.clasificacion_xyz}`,
@@ -71,39 +76,134 @@ export default function Home() {
         'MAPE %': p.mape_backtesting ? p.mape_backtesting.toFixed(1) : ''
       }))
 
-      // Crear libro de Excel
+      // 2. Obtener datos de la BD para validación
+      console.log('Obteniendo datos de ventas...')
+      const ventasResponse = await fetchDatosBD('ventas')
+      const datosVentas = ventasResponse.data.map((v: any) => ({
+        'Empresa': v.empresa,
+        'Canal': v.canal,
+        'Fecha': v.fecha,
+        'SKU': v.sku,
+        'MLC': v.mlc || '',
+        'Descripción': v.descripcion || '',
+        'Unidades': v.unidades,
+        'Precio': v.precio
+      }))
+
+      console.log('Obteniendo datos de stock...')
+      const stockResponse = await fetchDatosBD('stock')
+      const datosStock = stockResponse.data.map((s: any) => ({
+        'SKU': s.sku,
+        'Descripción': s.descripcion || '',
+        'Bodega C': s.bodega_c || 0,
+        'Bodega D': s.bodega_d || 0,
+        'Bodega E': s.bodega_e || 0,
+        'Bodega F': s.bodega_f || 0,
+        'Bodega H': s.bodega_h || 0,
+        'Bodega J': s.bodega_j || 0
+      }))
+
+      console.log('Obteniendo datos de tránsito...')
+      const transitoResponse = await fetchDatosBD('transito')
+      const datosTransito = transitoResponse.data.map((t: any) => ({
+        'SKU': t.sku,
+        'Unidades': t.unidades,
+        'Estado': t.estado
+      }))
+
+      console.log('Obteniendo datos de compras...')
+      const comprasResponse = await fetchDatosBD('compras')
+      const datosCompras = comprasResponse.data.map((c: any) => ({
+        'SKU': c.sku,
+        'Fecha Compra': c.fecha_compra
+      }))
+
+      console.log('Obteniendo datos de packs...')
+      const packsResponse = await fetchDatosBD('packs')
+      const datosPacks = packsResponse.data.map((p: any) => ({
+        'SKU Pack': p.sku_pack,
+        'SKU Componente': p.sku_componente,
+        'Cantidad': p.cantidad
+      }))
+
+      console.log('Obteniendo datos de SKUs desconsiderados...')
+      const desconsiderarResponse = await fetchDatosBD('desconsiderar')
+      const datosDesconsiderar = desconsiderarResponse.data.map((d: any) => ({
+        'SKU': d.sku
+      }))
+
+      // 3. Crear libro de Excel
       const wb = XLSX.utils.book_new()
-      const ws = XLSX.utils.json_to_sheet(datosExcel)
 
-      // Ajustar ancho de columnas
-      const colWidths = [
-        { wch: 15 }, // SKU
-        { wch: 40 }, // Descripción
-        { wch: 8 },  // Clase
-        { wch: 12 }, // Venta Diaria
-        { wch: 15 }, // Precio
-        { wch: 12 }, // Stock Actual
-        { wch: 12 }, // Stock Óptimo
-        { wch: 12 }, // Días Stock
-        { wch: 12 }, // Tránsito
-        { wch: 18 }, // Sugerencia
-        { wch: 18 }, // Valor Total
-        { wch: 12 }, // CV
-        { wch: 12 }, // Tendencia
-        { wch: 12 }, // Modelo
-        { wch: 30 }, // Alertas
-        { wch: 10 }  // MAPE
+      // Hoja 1: Predicciones (principal)
+      const wsPredicciones = XLSX.utils.json_to_sheet(datosPredicciones)
+      wsPredicciones['!cols'] = [
+        { wch: 15 }, { wch: 40 }, { wch: 8 }, { wch: 12 }, { wch: 15 },
+        { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 18 },
+        { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 30 }, { wch: 10 }
       ]
-      ws['!cols'] = colWidths
+      XLSX.utils.book_append_sheet(wb, wsPredicciones, 'Predicciones')
 
-      // Agregar hoja al libro
-      XLSX.utils.book_append_sheet(wb, ws, 'Predicciones')
+      // Hoja 2: Ventas (para validación)
+      if (datosVentas.length > 0) {
+        const wsVentas = XLSX.utils.json_to_sheet(datosVentas)
+        wsVentas['!cols'] = [
+          { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 },
+          { wch: 40 }, { wch: 10 }, { wch: 12 }
+        ]
+        XLSX.utils.book_append_sheet(wb, wsVentas, 'BD - Ventas')
+      }
 
-      // Descargar archivo
+      // Hoja 3: Stock
+      if (datosStock.length > 0) {
+        const wsStock = XLSX.utils.json_to_sheet(datosStock)
+        wsStock['!cols'] = [
+          { wch: 15 }, { wch: 40 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
+          { wch: 10 }, { wch: 10 }, { wch: 10 }
+        ]
+        XLSX.utils.book_append_sheet(wb, wsStock, 'BD - Stock')
+      }
+
+      // Hoja 4: Tránsito
+      if (datosTransito.length > 0) {
+        const wsTransito = XLSX.utils.json_to_sheet(datosTransito)
+        wsTransito['!cols'] = [{ wch: 15 }, { wch: 10 }, { wch: 15 }]
+        XLSX.utils.book_append_sheet(wb, wsTransito, 'BD - Tránsito')
+      }
+
+      // Hoja 5: Compras
+      if (datosCompras.length > 0) {
+        const wsCompras = XLSX.utils.json_to_sheet(datosCompras)
+        wsCompras['!cols'] = [{ wch: 15 }, { wch: 12 }]
+        XLSX.utils.book_append_sheet(wb, wsCompras, 'BD - Compras')
+      }
+
+      // Hoja 6: Packs
+      if (datosPacks.length > 0) {
+        const wsPacks = XLSX.utils.json_to_sheet(datosPacks)
+        wsPacks['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 10 }]
+        XLSX.utils.book_append_sheet(wb, wsPacks, 'BD - Packs')
+      }
+
+      // Hoja 7: SKUs Desconsiderados
+      if (datosDesconsiderar.length > 0) {
+        const wsDesconsiderar = XLSX.utils.json_to_sheet(datosDesconsiderar)
+        wsDesconsiderar['!cols'] = [{ wch: 15 }]
+        XLSX.utils.book_append_sheet(wb, wsDesconsiderar, 'BD - Desconsiderar')
+      }
+
+      // 4. Descargar archivo
       const fecha = new Date().toISOString().split('T')[0]
-      XLSX.writeFile(wb, `Forecasting_${fecha}.xlsx`)
+      XLSX.writeFile(wb, `Forecasting_Completo_${fecha}.xlsx`)
 
-      alert('✅ Dashboard exportado a Excel correctamente')
+      alert(`✅ Excel exportado correctamente con ${wb.SheetNames.length} pestañas\n\n` +
+            `📊 Incluye predicciones y datos de BD para validación:\n` +
+            `- ${datosVentas.length} ventas\n` +
+            `- ${datosStock.length} SKUs en stock\n` +
+            `- ${datosTransito.length} en tránsito\n` +
+            `- ${datosCompras.length} compras\n` +
+            `- ${datosPacks.length} packs\n` +
+            `- ${datosDesconsiderar.length} desconsiderados`)
     } catch (error: any) {
       console.error('Error exportando a Excel:', error)
       alert('Error al exportar a Excel: ' + error.message)
