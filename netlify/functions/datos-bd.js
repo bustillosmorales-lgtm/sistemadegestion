@@ -3,7 +3,7 @@
  */
 
 const { createClient } = require('@supabase/supabase-js');
-const { verificarAutenticacion } = require('./lib/auth');
+const { verifyAuth, getCorsHeaders } = require('./lib/auth');
 const { handleError } = require('./lib/error-handler');
 
 const supabase = createClient(
@@ -12,29 +12,39 @@ const supabase = createClient(
 );
 
 exports.handler = async (event, context) => {
+  const origin = event.headers.origin || event.headers.Origin || '';
+  const corsHeaders = getCorsHeaders(origin);
+
+  // Manejar preflight OPTIONS
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 204,
+      headers: corsHeaders,
+      body: ''
+    };
+  }
+
   // Solo permitir GET
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      },
+      headers: corsHeaders,
       body: JSON.stringify({ error: 'Method Not Allowed' })
     };
   }
 
   try {
     // Verificar autenticación
-    const authResult = await verificarAutenticacion(event);
-    if (!authResult.success) {
+    const auth = await verifyAuth(event);
+    if (!auth.authenticated) {
+      const statusCode = auth.rateLimitExceeded ? 429 : 401;
       return {
-        statusCode: 401,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
-        },
-        body: JSON.stringify({ error: authResult.error })
+        statusCode,
+        headers: corsHeaders,
+        body: JSON.stringify({
+          error: auth.error,
+          ...(auth.rateLimitExceeded && { retryAfter: auth.retryAfter })
+        })
       };
     }
 
@@ -44,10 +54,7 @@ exports.handler = async (event, context) => {
     if (!tabla) {
       return {
         statusCode: 400,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
-        },
+        headers: corsHeaders,
         body: JSON.stringify({ error: 'Parámetro "tabla" requerido' })
       };
     }
@@ -106,10 +113,7 @@ exports.handler = async (event, context) => {
       default:
         return {
           statusCode: 400,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
-          },
+          headers: corsHeaders,
           body: JSON.stringify({
             error: 'Tabla no válida. Opciones: ventas, stock, transito, compras, packs, desconsiderar'
           })
@@ -129,8 +133,7 @@ exports.handler = async (event, context) => {
     return {
       statusCode: 200,
       headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
+        ...corsHeaders,
         'Cache-Control': 'no-cache'
       },
       body: JSON.stringify({
@@ -142,9 +145,6 @@ exports.handler = async (event, context) => {
 
   } catch (error) {
     console.error('[datos-bd] Error general:', error);
-    return handleError(error, {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*'
-    });
+    return handleError(error, corsHeaders);
   }
 };
