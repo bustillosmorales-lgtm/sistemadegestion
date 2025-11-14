@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { useSupabase } from '@/lib/SupabaseProvider'
+import { createClient } from '@/lib/supabase-auth'
+import { procesarExcel } from '@/lib/api-client'
 
 export default function UploadExcel() {
-  const supabase = useSupabase()
+  const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -24,6 +25,12 @@ export default function UploadExcel() {
     setProgress(['📁 Subiendo archivo a Supabase Storage...'])
 
     try {
+      // Verificar que el usuario está autenticado
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('No hay sesión activa. Por favor inicia sesión nuevamente.')
+      }
+
       // 1. Subir archivo a Supabase Storage
       const timestamp = Date.now()
       // Sanitizar nombre del archivo: remover caracteres especiales y acentos
@@ -50,34 +57,23 @@ export default function UploadExcel() {
       setProgress(prev => [...prev, '✅ Archivo subido correctamente'])
       setProgress(prev => [...prev, '⏳ Procesando Excel (esto puede tardar 1-2 minutos)...'])
 
-      // 2. Llamar a Netlify Function para procesar
-      const response = await fetch('/.netlify/functions/procesar-excel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath })
-      })
+      // 2. Llamar a Netlify Function para procesar (con autenticación automática)
+      const result = await procesarExcel(filePath)
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Error procesando Excel')
-      }
-
-      const result = await response.json()
-
-      // Mostrar resultados
+      // Mostrar resultados (procesamiento en background)
       setProgress(prev => [
         ...prev,
-        '✅ Procesamiento completado',
+        '✅ Archivo enviado exitosamente',
         '',
-        '📊 RESULTADOS:',
-        `✓ Ventas: ${result.ventas_cargadas || 0} registros`,
-        `✓ Stock: ${result.stock_cargado || 0} SKUs`,
-        `✓ Tránsito China: ${result.transito_cargado || 0} registros`,
-        `✓ Compras: ${result.compras_cargadas || 0} registros`,
-        `✓ Packs: ${result.packs_cargados || 0} registros`,
+        '⚡ Procesamiento iniciado en segundo plano',
         '',
-        '🎉 Datos cargados exitosamente!',
-        '💡 Ahora ejecuta el forecasting en GitHub Actions'
+        '📍 El archivo se está procesando en GitHub Actions',
+        '   Esto puede tardar 2-5 minutos dependiendo del tamaño',
+        '',
+        '🔗 Monitorea el progreso en:',
+        result.info || 'GitHub Actions',
+        '',
+        '💡 Una vez completado, ejecuta el forecasting'
       ])
 
       // Limpiar el input

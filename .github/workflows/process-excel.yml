@@ -1,0 +1,40 @@
+name: Process Excel Upload
+
+on:
+  workflow_dispatch:
+    inputs:
+      file_path:
+        description: 'Path to Excel file in Supabase Storage'
+        required: true
+        type: string
+
+jobs:
+  process-excel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          npm install xlsx @supabase/supabase-js
+
+      - name: Process Excel file
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          FILE_PATH: ${{ github.event.inputs.file_path }}
+        run: |
+          node scripts/process-excel.js
+
+      - name: Notify completion
+        if: always()
+        run: |
+          echo "Excel processing completed with status: ${{ job.status }}"
