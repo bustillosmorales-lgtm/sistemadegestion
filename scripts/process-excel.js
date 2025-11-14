@@ -75,13 +75,15 @@ async function processExcel() {
 
         const sku = row[19]?.toString().trim();
         const unidades = parseFloat(row[10]) || 0;
+        const fecha = excelDateToJSDate(row[5]);
 
-        if (!sku || unidades <= 0) continue;
+        // Saltar si falta SKU, unidades o fecha
+        if (!sku || unidades <= 0 || !fecha) continue;
 
         ventasRegistros.push({
           empresa,
           canal,
-          fecha: excelDateToJSDate(row[5]),
+          fecha,
           unidades,
           sku,
           mlc: row[20]?.toString().trim() || '',
