@@ -94,6 +94,11 @@ async function processExcel() {
 
       if (ventasRegistros.length > 0) {
         console.log(`  ⏳ Insertando ${ventasRegistros.length} ventas en lotes de 500...`);
+
+        // Primero limpiar ventas existentes para evitar duplicados
+        await supabase.from('ventas_historicas').delete().eq('empresa', 'TLT');
+        console.log(`  🗑️ Ventas anteriores eliminadas`);
+
         for (let i = 0; i < ventasRegistros.length; i += 500) {
           const batch = ventasRegistros.slice(i, i + 500);
           const { error } = await supabase.from('ventas_historicas').insert(batch);
@@ -165,6 +170,10 @@ async function processExcel() {
 
       if (transitoRegistros.length > 0) {
         console.log(`  ⏳ Insertando ${transitoRegistros.length} registros en tránsito...`);
+
+        // Limpiar tránsito anterior
+        await supabase.from('transito_china').delete().neq('sku', '');
+
         const { error } = await supabase.from('transito_china').insert(transitoRegistros);
         if (error) throw new Error(`Error insertando tránsito: ${error.message}`);
         resultados.transito_cargado = transitoRegistros.length;
@@ -196,6 +205,10 @@ async function processExcel() {
 
       if (comprasRegistros.length > 0) {
         console.log(`  ⏳ Insertando ${comprasRegistros.length} compras en lotes de 500...`);
+
+        // Limpiar compras anteriores
+        await supabase.from('compras_historicas').delete().neq('sku', '');
+
         for (let i = 0; i < comprasRegistros.length; i += 500) {
           const batch = comprasRegistros.slice(i, i + 500);
           const { error } = await supabase.from('compras_historicas').insert(batch);
@@ -233,6 +246,10 @@ async function processExcel() {
 
       if (packsRegistros.length > 0) {
         console.log(`  ⏳ Insertando ${packsRegistros.length} packs...`);
+
+        // Limpiar packs anteriores
+        await supabase.from('packs').delete().neq('sku_pack', '');
+
         const { error } = await supabase.from('packs').insert(packsRegistros);
         if (error) throw new Error(`Error insertando packs: ${error.message}`);
         resultados.packs_cargados = packsRegistros.length;
@@ -260,6 +277,10 @@ async function processExcel() {
 
       if (descRegistros.length > 0) {
         console.log(`  ⏳ Insertando ${descRegistros.length} SKUs a desconsiderar...`);
+
+        // Limpiar SKUs a desconsiderar anteriores
+        await supabase.from('skus_desconsiderar').delete().neq('sku', '');
+
         const { error } = await supabase.from('skus_desconsiderar').insert(descRegistros);
         if (error) throw new Error(`Error insertando desconsiderar: ${error.message}`);
         resultados.desconsiderar_cargados = descRegistros.length;
