@@ -480,7 +480,7 @@ class ForecastPipeline:
                     'severidad': 'critica' if pred.dias_stock_actual < 30 else 'alta',
                     'mensaje': f'Solo {pred.dias_stock_actual:.0f} días de stock restantes',
                     'valor_actual': sanitize_float(pred.dias_stock_actual),
-                    'valor_esperado': sanitize_float(self.dias_stock_deseado),
+                    'valor_esperado': sanitize_float(self.config['dias_stock_deseado']),
                     'estado': 'activa'
                 })
 
@@ -492,7 +492,7 @@ class ForecastPipeline:
                     'severidad': 'media',
                     'mensaje': f'{pred.dias_stock_actual:.0f} días de stock (exceso)',
                     'valor_actual': sanitize_float(pred.dias_stock_actual),
-                    'valor_esperado': sanitize_float(self.dias_stock_deseado),
+                    'valor_esperado': sanitize_float(self.config['dias_stock_deseado']),
                     'estado': 'activa'
                 })
 
