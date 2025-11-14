@@ -374,11 +374,18 @@ async function processExcel() {
 function excelDateToJSDate(excelDate) {
   if (!excelDate) return null;
 
+  // Si ya es un objeto Date (cuando cellDates: true)
+  if (excelDate instanceof Date) {
+    return isNaN(excelDate.getTime()) ? null : excelDate.toISOString().split('T')[0];
+  }
+
+  // Si es string
   if (typeof excelDate === 'string') {
     const date = new Date(excelDate);
     return isNaN(date.getTime()) ? null : date.toISOString().split('T')[0];
   }
 
+  // Si es número (serial de Excel)
   if (typeof excelDate === 'number') {
     const date = new Date((excelDate - 25569) * 86400 * 1000);
     return date.toISOString().split('T')[0];
