@@ -62,7 +62,9 @@ async function processExcel() {
       console.log('🔄 Procesando hoja: ventas');
       const ventasSheet = workbook.Sheets['ventas'];
       const ventasData = XLSX.utils.sheet_to_json(ventasSheet, { header: 1 });
-      const ventasRegistros = [];
+
+      // Usar Map para detectar y consolidar duplicados
+      const ventasUnicas = new Map(); // Key: empresa+canal+fecha+sku, Value: registro
 
       for (let i = 1; i < ventasData.length; i++) {
         const row = ventasData[i];
@@ -80,7 +82,7 @@ async function processExcel() {
         // Saltar si falta SKU, unidades o fecha
         if (!sku || unidades <= 0 || !fecha) continue;
 
-        ventasRegistros.push({
+        const registro = {
           empresa,
           canal,
           fecha,
@@ -89,11 +91,32 @@ async function processExcel() {
           mlc: row[20]?.toString().trim() || '',
           descripcion: row[21]?.toString().trim() || '',
           precio: parseFloat(row[23]) || 0
-        });
+        };
+
+        // Crear clave única para detectar duplicados
+        const key = `${empresa}|${canal}|${fecha}|${sku}`;
+
+        // Si ya existe, sumar unidades (o tomar el más reciente)
+        if (ventasUnicas.has(key)) {
+          const existente = ventasUnicas.get(key);
+          existente.unidades += registro.unidades; // Sumar unidades duplicadas
+        } else {
+          ventasUnicas.set(key, registro);
+        }
+      }
+
+      // Convertir Map a Array (ya sin duplicados)
+      const ventasRegistros = Array.from(ventasUnicas.values());
+
+      const totalOriginal = ventasData.length - 1; // Menos header
+      const duplicadosEliminados = totalOriginal - ventasRegistros.length;
+
+      if (duplicadosEliminados > 0) {
+        console.log(`  🔍 Duplicados consolidados: ${duplicadosEliminados} registros (unidades sumadas)`);
       }
 
       if (ventasRegistros.length > 0) {
-        console.log(`  ⏳ Insertando ${ventasRegistros.length} ventas en lotes de 500...`);
+        console.log(`  ⏳ Insertando ${ventasRegistros.length} ventas únicas en lotes de 500...`);
 
         // Primero limpiar ventas existentes para evitar duplicados
         await supabase.from('ventas_historicas').delete().eq('empresa', 'TLT');
@@ -188,7 +211,9 @@ async function processExcel() {
       console.log('🔄 Procesando hoja: compras');
       const comprasSheet = workbook.Sheets['compras'];
       const comprasData = XLSX.utils.sheet_to_json(comprasSheet, { header: 1 });
-      const comprasRegistros = [];
+
+      // Usar Map para deduplicar (mismo SKU + fecha)
+      const comprasUnicas = new Map();
 
       for (let i = 1; i < comprasData.length; i++) {
         const row = comprasData[i];
@@ -197,11 +222,18 @@ async function processExcel() {
 
         if (!sku || !fecha) continue;
 
-        comprasRegistros.push({
-          sku,
-          fecha_compra: fecha
-        });
+        const key = `${sku}|${fecha}`;
+
+        // Solo agregar si no existe (tomar el primero)
+        if (!comprasUnicas.has(key)) {
+          comprasUnicas.set(key, {
+            sku,
+            fecha_compra: fecha
+          });
+        }
       }
+
+      const comprasRegistros = Array.from(comprasUnicas.values());
 
       if (comprasRegistros.length > 0) {
         console.log(`  ⏳ Insertando ${comprasRegistros.length} compras en lotes de 500...`);
