@@ -40,7 +40,7 @@ export default function UploadExcel() {
                 '✅ PROCESAMIENTO COMPLETADO EXITOSAMENTE',
                 '',
                 '📊 Los datos han sido cargados a la base de datos',
-                '💡 Ahora puedes ejecutar el forecasting'
+                '🔄 Forecasting se ejecutará automáticamente en unos segundos...'
               ])
             } else {
               setProcessingStatus('failed')
