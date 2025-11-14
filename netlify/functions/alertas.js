@@ -83,7 +83,8 @@ exports.handler = async (event, context) => {
       .from('alertas_inventario')
       .select('*')
       .eq('estado', estado)
-      .order('fecha_alerta', { ascending: false });
+      .order('fecha_alerta', { ascending: false })
+      .limit(50000); // Supabase tiene límite por defecto de 1000
 
     if (tipo_alerta) {
       query = query.eq('tipo_alerta', tipo_alerta);

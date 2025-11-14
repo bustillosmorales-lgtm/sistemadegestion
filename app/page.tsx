@@ -290,8 +290,8 @@ export default function Home() {
         query = query.ilike('sku', `%${filtros.busqueda}%`)
       }
 
-      // Sin límite - traer todas las predicciones
-      const { data, error } = await query
+      // Supabase tiene límite por defecto de 1000, necesitamos especificar uno mayor
+      const { data, error } = await query.limit(50000)
 
       if (error) throw error
 
