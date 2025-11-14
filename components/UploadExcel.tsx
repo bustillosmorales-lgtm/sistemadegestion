@@ -328,6 +328,23 @@ export default function UploadExcel() {
           </div>
         )}
 
+        {/* Advertencia importante */}
+        <div className="bg-amber-50 border border-amber-300 rounded-lg p-4">
+          <div className="flex items-start">
+            <span className="text-amber-600 text-xl mr-2">⚠️</span>
+            <div>
+              <h4 className="text-sm font-bold text-amber-900 mb-1">
+                IMPORTANTE: Carga Completa de Datos
+              </h4>
+              <p className="text-sm text-amber-800">
+                El Excel debe contener <strong>TODO el historial de datos</strong>.
+                Al subir un nuevo archivo, <strong>se borrarán TODOS los datos anteriores</strong> de la base de datos
+                y se reemplazarán con la información del Excel.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Instrucciones */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <h4 className="text-sm font-semibold text-blue-900 mb-2">
