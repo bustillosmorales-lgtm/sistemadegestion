@@ -110,17 +110,22 @@ async function processExcel() {
 
       const totalOriginal = ventasData.length - 1; // Menos header
       const duplicadosEliminados = totalOriginal - ventasRegistros.length;
+      const filtrados = totalOriginal - ventasRegistros.length;
+
+      console.log(`  📊 Total filas procesadas: ${totalOriginal}`);
+      console.log(`  📊 Filas válidas (TLT+MELI con fecha): ${ventasRegistros.length}`);
 
       if (duplicadosEliminados > 0) {
         console.log(`  🔍 Duplicados consolidados: ${duplicadosEliminados} registros (unidades sumadas)`);
       }
 
+      // SIEMPRE limpiar ventas anteriores, incluso si no hay registros nuevos
+      console.log(`  🗑️ Limpiando TODAS las ventas anteriores...`);
+      await supabase.from('ventas_historicas').delete().neq('sku', '');
+      console.log(`  ✅ Ventas anteriores eliminadas (carga completa)`);
+
       if (ventasRegistros.length > 0) {
         console.log(`  ⏳ Insertando ${ventasRegistros.length} ventas únicas en lotes de 500...`);
-
-        // Limpiar TODAS las ventas anteriores (el Excel contiene historial completo)
-        await supabase.from('ventas_historicas').delete().neq('sku', '');
-        console.log(`  🗑️ TODAS las ventas anteriores eliminadas (carga completa)`);
 
         for (let i = 0; i < ventasRegistros.length; i += 500) {
           const batch = ventasRegistros.slice(i, i + 500);
@@ -129,6 +134,8 @@ async function processExcel() {
           resultados.ventas_cargadas += batch.length;
           console.log(`  ✓ Ventas: ${resultados.ventas_cargadas}/${ventasRegistros.length}`);
         }
+      } else {
+        console.log(`  ⚠️ Advertencia: 0 ventas válidas encontradas (filtros: empresa=TLT, canal=MELI, con fecha válida)`);
       }
       console.log(`✅ Ventas completadas: ${resultados.ventas_cargadas}`);
     })());
@@ -159,16 +166,19 @@ async function processExcel() {
         });
       }
 
+      // SIEMPRE limpiar stock anterior, incluso si no hay registros nuevos
+      console.log(`  🗑️ Limpiando TODO el stock anterior...`);
+      await supabase.from('stock_actual').delete().neq('sku', '');
+      console.log(`  ✅ Stock anterior eliminado (carga completa)`);
+
       if (stockRegistros.length > 0) {
         console.log(`  ⏳ Insertando ${stockRegistros.length} SKUs...`);
-
-        // Limpiar TODO el stock anterior (el Excel contiene stock completo actual)
-        await supabase.from('stock_actual').delete().neq('sku', '');
-        console.log(`  🗑️ TODO el stock anterior eliminado (carga completa)`);
 
         const { error } = await supabase.from('stock_actual').insert(stockRegistros);
         if (error) throw new Error(`Error insertando stock: ${error.message}`);
         resultados.stock_cargado = stockRegistros.length;
+      } else {
+        console.log(`  ⚠️ Advertencia: 0 SKUs de stock encontrados`);
       }
       console.log(`✅ Stock completado: ${resultados.stock_cargado}`);
     })());
@@ -196,16 +206,19 @@ async function processExcel() {
         });
       }
 
+      // SIEMPRE limpiar tránsito anterior, incluso si no hay registros nuevos
+      console.log(`  🗑️ Limpiando TODO el tránsito anterior...`);
+      await supabase.from('transito_china').delete().neq('sku', '');
+      console.log(`  ✅ Tránsito anterior eliminado (carga completa)`);
+
       if (transitoRegistros.length > 0) {
         console.log(`  ⏳ Insertando ${transitoRegistros.length} registros en tránsito...`);
-
-        // Limpiar TODO el tránsito anterior (el Excel contiene datos completos actuales)
-        await supabase.from('transito_china').delete().neq('sku', '');
-        console.log(`  🗑️ TODO el tránsito anterior eliminado (carga completa)`);
 
         const { error } = await supabase.from('transito_china').insert(transitoRegistros);
         if (error) throw new Error(`Error insertando tránsito: ${error.message}`);
         resultados.transito_cargado = transitoRegistros.length;
+      } else {
+        console.log(`  ⚠️ Advertencia: 0 registros de tránsito encontrados`);
       }
       console.log(`✅ Tránsito completado: ${resultados.transito_cargado}`);
     })());
@@ -241,12 +254,13 @@ async function processExcel() {
 
       const comprasRegistros = Array.from(comprasUnicas.values());
 
+      // SIEMPRE limpiar compras anteriores, incluso si no hay registros nuevos
+      console.log(`  🗑️ Limpiando TODAS las compras anteriores...`);
+      await supabase.from('compras_historicas').delete().neq('sku', '');
+      console.log(`  ✅ Compras anteriores eliminadas (carga completa)`);
+
       if (comprasRegistros.length > 0) {
         console.log(`  ⏳ Insertando ${comprasRegistros.length} compras en lotes de 500...`);
-
-        // Limpiar TODAS las compras anteriores (el Excel contiene historial completo)
-        await supabase.from('compras_historicas').delete().neq('sku', '');
-        console.log(`  🗑️ TODAS las compras anteriores eliminadas (carga completa)`);
 
         for (let i = 0; i < comprasRegistros.length; i += 500) {
           const batch = comprasRegistros.slice(i, i + 500);
@@ -255,6 +269,8 @@ async function processExcel() {
           resultados.compras_cargadas += batch.length;
           console.log(`  ✓ Compras: ${resultados.compras_cargadas}/${comprasRegistros.length}`);
         }
+      } else {
+        console.log(`  ⚠️ Advertencia: 0 compras válidas encontradas`);
       }
       console.log(`✅ Compras completadas: ${resultados.compras_cargadas}`);
     })());
@@ -283,16 +299,19 @@ async function processExcel() {
         });
       }
 
+      // SIEMPRE limpiar packs anteriores, incluso si no hay registros nuevos
+      console.log(`  🗑️ Limpiando TODOS los packs anteriores...`);
+      await supabase.from('packs').delete().neq('sku_pack', '');
+      console.log(`  ✅ Packs anteriores eliminados (carga completa)`);
+
       if (packsRegistros.length > 0) {
         console.log(`  ⏳ Insertando ${packsRegistros.length} packs...`);
-
-        // Limpiar TODOS los packs anteriores (el Excel contiene configuración completa)
-        await supabase.from('packs').delete().neq('sku_pack', '');
-        console.log(`  🗑️ TODOS los packs anteriores eliminados (carga completa)`);
 
         const { error } = await supabase.from('packs').insert(packsRegistros);
         if (error) throw new Error(`Error insertando packs: ${error.message}`);
         resultados.packs_cargados = packsRegistros.length;
+      } else {
+        console.log(`  ⚠️ Advertencia: 0 packs encontrados`);
       }
       console.log(`✅ Packs completados: ${resultados.packs_cargados}`);
     })());
@@ -315,16 +334,19 @@ async function processExcel() {
         descRegistros.push({ sku });
       }
 
+      // SIEMPRE limpiar SKUs a desconsiderar anteriores, incluso si no hay registros nuevos
+      console.log(`  🗑️ Limpiando TODOS los SKUs a desconsiderar anteriores...`);
+      await supabase.from('skus_desconsiderar').delete().neq('sku', '');
+      console.log(`  ✅ SKUs a desconsiderar anteriores eliminados (carga completa)`);
+
       if (descRegistros.length > 0) {
         console.log(`  ⏳ Insertando ${descRegistros.length} SKUs a desconsiderar...`);
-
-        // Limpiar TODOS los SKUs a desconsiderar anteriores (el Excel contiene lista completa)
-        await supabase.from('skus_desconsiderar').delete().neq('sku', '');
-        console.log(`  🗑️ TODOS los SKUs a desconsiderar anteriores eliminados (carga completa)`);
 
         const { error } = await supabase.from('skus_desconsiderar').insert(descRegistros);
         if (error) throw new Error(`Error insertando desconsiderar: ${error.message}`);
         resultados.desconsiderar_cargados = descRegistros.length;
+      } else {
+        console.log(`  ⚠️ Advertencia: 0 SKUs a desconsiderar encontrados`);
       }
       console.log(`✅ Desconsiderar completado: ${resultados.desconsiderar_cargados}`);
     })());
