@@ -4,7 +4,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { verificarAutenticacion } = require('./lib/auth');
-const { manejarError } = require('./lib/error-handler');
+const { handleError } = require('./lib/error-handler');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -14,7 +14,14 @@ const supabase = createClient(
 exports.handler = async (event, context) => {
   // Solo permitir GET
   if (event.httpMethod !== 'GET') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
+    return {
+      statusCode: 405,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
+      body: JSON.stringify({ error: 'Method Not Allowed' })
+    };
   }
 
   try {
@@ -23,30 +30,40 @@ exports.handler = async (event, context) => {
     if (!authResult.success) {
       return {
         statusCode: 401,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
         body: JSON.stringify({ error: authResult.error })
       };
     }
 
-    const { searchParams } = new URL(event.rawUrl);
-    const tabla = searchParams.get('tabla');
+    // Obtener parámetro de query string
+    const tabla = event.queryStringParameters?.tabla;
 
     if (!tabla) {
       return {
         statusCode: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
         body: JSON.stringify({ error: 'Parámetro "tabla" requerido' })
       };
     }
 
+    console.log(`[datos-bd] Solicitando tabla: ${tabla}`);
+
     let query;
-    let campos;
 
     switch (tabla) {
       case 'ventas':
+        // Reducir a 2000 para evitar timeout
         query = supabase
           .from('ventas_historicas')
           .select('empresa, canal, fecha, sku, mlc, descripcion, unidades, precio')
           .order('fecha', { ascending: false })
-          .limit(10000); // Últimos 10k registros para no sobrecargar
+          .limit(2000);
         break;
 
       case 'stock':
@@ -64,11 +81,12 @@ exports.handler = async (event, context) => {
         break;
 
       case 'compras':
+        // Reducir a 2000 para evitar timeout
         query = supabase
           .from('compras_historicas')
           .select('sku, fecha_compra')
           .order('fecha_compra', { ascending: false })
-          .limit(10000);
+          .limit(2000);
         break;
 
       case 'packs':
@@ -88,32 +106,45 @@ exports.handler = async (event, context) => {
       default:
         return {
           statusCode: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          },
           body: JSON.stringify({
             error: 'Tabla no válida. Opciones: ventas, stock, transito, compras, packs, desconsiderar'
           })
         };
     }
 
+    console.log(`[datos-bd] Ejecutando query para tabla: ${tabla}`);
     const { data, error } = await query;
 
     if (error) {
+      console.error(`[datos-bd] Error en query:`, error);
       throw error;
     }
+
+    console.log(`[datos-bd] Query exitosa. Registros: ${data?.length || 0}`);
 
     return {
       statusCode: 200,
       headers: {
         'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
         'Cache-Control': 'no-cache'
       },
       body: JSON.stringify({
         tabla,
-        registros: data.length,
-        data
+        registros: data?.length || 0,
+        data: data || []
       })
     };
 
   } catch (error) {
-    return manejarError(error, 'obtener datos BD');
+    console.error('[datos-bd] Error general:', error);
+    return handleError(error, {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*'
+    });
   }
 };
