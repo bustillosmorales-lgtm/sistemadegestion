@@ -86,7 +86,7 @@ exports.handler = async (event, context) => {
 
     const sku = validatedParams.sku;
     const clasificacion_abc = validatedParams.clasificacion_abc;
-    const limit = validatedParams.limit || 100;
+    const limit = validatedParams.limit || 10000; // Aumentar límite por defecto
     const offset = validatedParams.offset || 0;
 
     // Construir query

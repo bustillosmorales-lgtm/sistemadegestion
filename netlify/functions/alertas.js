@@ -83,8 +83,7 @@ exports.handler = async (event, context) => {
       .from('alertas_inventario')
       .select('*')
       .eq('estado', estado)
-      .order('fecha_alerta', { ascending: false })
-      .limit(100);
+      .order('fecha_alerta', { ascending: false });
 
     if (tipo_alerta) {
       query = query.eq('tipo_alerta', tipo_alerta);

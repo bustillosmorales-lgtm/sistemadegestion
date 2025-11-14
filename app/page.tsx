@@ -290,7 +290,8 @@ export default function Home() {
         query = query.ilike('sku', `%${filtros.busqueda}%`)
       }
 
-      const { data, error } = await query.limit(5000)
+      // Sin límite - traer todas las predicciones
+      const { data, error } = await query
 
       if (error) throw error
 
