@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase-auth'
 import { procesarExcel } from '@/lib/api-client'
 
@@ -10,7 +10,94 @@ export default function UploadExcel() {
   const [progress, setProgress] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [processingStatus, setProcessingStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle')
+  const [forecastStatus, setForecastStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle')
   const [runUrl, setRunUrl] = useState<string | null>(null)
+
+  // Solicitar permiso para notificaciones al montar el componente
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+  }, [])
+
+  async function checkForecastingStatus() {
+    setForecastStatus('processing')
+    setProgress(prev => [...prev, '', '⚙️ Ejecutando forecasting...'])
+
+    let attempts = 0
+    const maxAttempts = 20 // 3-4 minutos (20 * 10 segundos)
+
+    const interval = setInterval(async () => {
+      attempts++
+
+      try {
+        // Llamar a GitHub API para obtener el estado del workflow de forecasting
+        const response = await fetch('https://api.github.com/repos/bustillosmorales-lgtm/sistemadegestion/actions/runs?workflow_id=daily_forecast.yml&per_page=1')
+        const data = await response.json()
+
+        if (data.workflow_runs && data.workflow_runs.length > 0) {
+          const latestRun = data.workflow_runs[0]
+          const status = latestRun.status
+          const conclusion = latestRun.conclusion
+
+          if (status === 'completed') {
+            clearInterval(interval)
+
+            if (conclusion === 'success') {
+              setForecastStatus('success')
+              setProgress(prev => [
+                ...prev,
+                '',
+                '🎉 ¡FORECASTING COMPLETADO!',
+                '',
+                '✅ Predicciones generadas y alertas creadas',
+                '📊 Ya puedes empezar a analizar los resultados',
+                '',
+                '💡 Revisa las predicciones y alertas en el dashboard'
+              ])
+
+              // Notificación del navegador (si está permitido)
+              if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('Forecasting Completado', {
+                  body: '¡Ya puedes analizar los resultados!',
+                  icon: '/favicon.ico'
+                })
+              }
+            } else {
+              setForecastStatus('failed')
+              setProgress(prev => [
+                ...prev,
+                '',
+                '❌ El forecasting falló',
+                `🔗 Revisa los detalles en: ${latestRun.html_url}`
+              ])
+            }
+          } else if (status === 'in_progress' || status === 'queued') {
+            setProgress(prev => {
+              const newProgress = [...prev]
+              if (newProgress[newProgress.length - 1].includes('Ejecutando forecasting')) {
+                newProgress[newProgress.length - 1] = `⚙️ Ejecutando forecasting... (${attempts * 10}s)`
+              }
+              return newProgress
+            })
+          }
+        }
+
+        if (attempts >= maxAttempts) {
+          clearInterval(interval)
+          setForecastStatus('failed')
+          setProgress(prev => [
+            ...prev,
+            '',
+            '⏱️ Timeout verificando forecasting',
+            '🔗 Revisa manualmente en GitHub Actions'
+          ])
+        }
+      } catch (err) {
+        console.error('Error checking forecast status:', err)
+      }
+    }, 10000) // Cada 10 segundos
+  }
 
   async function checkProcessingStatus() {
     let attempts = 0
@@ -40,8 +127,13 @@ export default function UploadExcel() {
                 '✅ PROCESAMIENTO COMPLETADO EXITOSAMENTE',
                 '',
                 '📊 Los datos han sido cargados a la base de datos',
-                '🔄 Forecasting se ejecutará automáticamente en unos segundos...'
+                '🔄 Iniciando forecasting automáticamente...'
               ])
+
+              // Iniciar monitoreo del forecasting
+              setTimeout(() => {
+                checkForecastingStatus()
+              }, 15000) // Esperar 15 segundos para que inicie el workflow
             } else {
               setProcessingStatus('failed')
               setProgress(prev => [
@@ -162,7 +254,7 @@ export default function UploadExcel() {
       </h3>
 
       <div className="space-y-4">
-        {/* Estado de procesamiento */}
+        {/* Estado de procesamiento Excel */}
         {processingStatus !== 'idle' && (
           <div className={`border rounded-lg p-4 ${
             processingStatus === 'processing' ? 'bg-yellow-50 border-yellow-200' :
@@ -174,13 +266,13 @@ export default function UploadExcel() {
                 {processingStatus === 'processing' && (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600 mr-2"></div>
-                    <span className="text-sm font-medium text-yellow-800">Procesando en segundo plano...</span>
+                    <span className="text-sm font-medium text-yellow-800">Procesando Excel...</span>
                   </>
                 )}
                 {processingStatus === 'success' && (
                   <>
                     <span className="text-green-600 mr-2">✅</span>
-                    <span className="text-sm font-medium text-green-800">Procesamiento completado</span>
+                    <span className="text-sm font-medium text-green-800">Excel procesado</span>
                   </>
                 )}
                 {processingStatus === 'failed' && (
@@ -200,6 +292,38 @@ export default function UploadExcel() {
                   Ver detalles
                 </a>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Estado de forecasting */}
+        {forecastStatus !== 'idle' && (
+          <div className={`border rounded-lg p-4 ${
+            forecastStatus === 'processing' ? 'bg-blue-50 border-blue-200' :
+            forecastStatus === 'success' ? 'bg-green-50 border-green-200' :
+            'bg-red-50 border-red-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                {forecastStatus === 'processing' && (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                    <span className="text-sm font-medium text-blue-800">Ejecutando forecasting...</span>
+                  </>
+                )}
+                {forecastStatus === 'success' && (
+                  <>
+                    <span className="text-green-600 mr-2">🎉</span>
+                    <span className="text-sm font-medium text-green-800">Forecasting completado - ¡Listo para analizar!</span>
+                  </>
+                )}
+                {forecastStatus === 'failed' && (
+                  <>
+                    <span className="text-red-600 mr-2">❌</span>
+                    <span className="text-sm font-medium text-red-800">Forecasting falló</span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         )}
