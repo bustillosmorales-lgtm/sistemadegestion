@@ -25,11 +25,10 @@ export default function LoginPage() {
 
       if (error) throw error
 
-      router.push('/')
-      router.refresh()
+      // Usar window.location para recarga completa y asegurar propagación de sesión
+      window.location.href = '/'
     } catch (err: any) {
       setError(err.message || 'Error al iniciar sesión')
-    } finally {
       setLoading(false)
     }
   }

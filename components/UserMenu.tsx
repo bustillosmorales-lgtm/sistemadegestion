@@ -28,8 +28,8 @@ export function UserMenu() {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
-    router.push('/login')
-    router.refresh()
+    // Usar window.location para recarga completa y asegurar propagación de logout
+    window.location.href = '/login'
   }
 
   if (!user) return null
