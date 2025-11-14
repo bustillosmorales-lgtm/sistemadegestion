@@ -9,6 +9,74 @@ export default function UploadExcel() {
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [processingStatus, setProcessingStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle')
+  const [runUrl, setRunUrl] = useState<string | null>(null)
+
+  async function checkProcessingStatus() {
+    let attempts = 0
+    const maxAttempts = 30 // 5 minutos (30 * 10 segundos)
+
+    const interval = setInterval(async () => {
+      attempts++
+
+      try {
+        // Llamar a GitHub Actions API para obtener el estado del último workflow
+        const response = await fetch('https://api.github.com/repos/bustillosmorales-lgtm/sistemadegestion/actions/runs?event=workflow_dispatch&per_page=1')
+        const data = await response.json()
+
+        if (data.workflow_runs && data.workflow_runs.length > 0) {
+          const latestRun = data.workflow_runs[0]
+          const status = latestRun.status
+          const conclusion = latestRun.conclusion
+
+          if (status === 'completed') {
+            clearInterval(interval)
+
+            if (conclusion === 'success') {
+              setProcessingStatus('success')
+              setProgress(prev => [
+                ...prev,
+                '',
+                '✅ PROCESAMIENTO COMPLETADO EXITOSAMENTE',
+                '',
+                '📊 Los datos han sido cargados a la base de datos',
+                '💡 Ahora puedes ejecutar el forecasting'
+              ])
+            } else {
+              setProcessingStatus('failed')
+              setProgress(prev => [
+                ...prev,
+                '',
+                '❌ El procesamiento falló',
+                `🔗 Revisa los detalles en: ${latestRun.html_url}`
+              ])
+            }
+          } else if (status === 'in_progress' || status === 'queued') {
+            setProgress(prev => {
+              const newProgress = [...prev]
+              if (newProgress[newProgress.length - 1].includes('Verificando')) {
+                newProgress[newProgress.length - 1] = `   Verificando estado... (${attempts * 10}s)`
+              }
+              return newProgress
+            })
+          }
+        }
+
+        if (attempts >= maxAttempts) {
+          clearInterval(interval)
+          setProcessingStatus('failed')
+          setProgress(prev => [
+            ...prev,
+            '',
+            '⏱️ Timeout verificando estado',
+            '🔗 Revisa manualmente en GitHub Actions'
+          ])
+        }
+      } catch (err) {
+        console.error('Error checking status:', err)
+      }
+    }, 10000) // Cada 10 segundos
+  }
 
   async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -65,19 +133,18 @@ export default function UploadExcel() {
         ...prev,
         '✅ Archivo enviado exitosamente',
         '',
-        '⚡ Procesamiento iniciado en segundo plano',
-        '',
-        '📍 El archivo se está procesando en GitHub Actions',
-        '   Esto puede tardar 2-5 minutos dependiendo del tamaño',
-        '',
-        '🔗 Monitorea el progreso en:',
-        result.info || 'GitHub Actions',
-        '',
-        '💡 Una vez completado, ejecuta el forecasting'
+        '⚡ Procesamiento iniciado en GitHub Actions',
+        '   Verificando estado...'
       ])
+
+      setProcessingStatus('processing')
+      setRunUrl('https://github.com/bustillosmorales-lgtm/sistemadegestion/actions')
 
       // Limpiar el input
       event.target.value = ''
+
+      // Comenzar a verificar el estado cada 10 segundos
+      checkProcessingStatus()
 
     } catch (err: any) {
       console.error('Error:', err)
@@ -95,6 +162,48 @@ export default function UploadExcel() {
       </h3>
 
       <div className="space-y-4">
+        {/* Estado de procesamiento */}
+        {processingStatus !== 'idle' && (
+          <div className={`border rounded-lg p-4 ${
+            processingStatus === 'processing' ? 'bg-yellow-50 border-yellow-200' :
+            processingStatus === 'success' ? 'bg-green-50 border-green-200' :
+            'bg-red-50 border-red-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                {processingStatus === 'processing' && (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600 mr-2"></div>
+                    <span className="text-sm font-medium text-yellow-800">Procesando en segundo plano...</span>
+                  </>
+                )}
+                {processingStatus === 'success' && (
+                  <>
+                    <span className="text-green-600 mr-2">✅</span>
+                    <span className="text-sm font-medium text-green-800">Procesamiento completado</span>
+                  </>
+                )}
+                {processingStatus === 'failed' && (
+                  <>
+                    <span className="text-red-600 mr-2">❌</span>
+                    <span className="text-sm font-medium text-red-800">Procesamiento falló</span>
+                  </>
+                )}
+              </div>
+              {runUrl && (
+                <a
+                  href={runUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-600 hover:text-blue-800 underline"
+                >
+                  Ver detalles
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Instrucciones */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <h4 className="text-sm font-semibold text-blue-900 mb-2">
