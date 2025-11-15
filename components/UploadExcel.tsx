@@ -12,6 +12,7 @@ export default function UploadExcel() {
   const [processingStatus, setProcessingStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle')
   const [forecastStatus, setForecastStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle')
   const [runUrl, setRunUrl] = useState<string | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   // Solicitar permiso para notificaciones al montar el componente
   useEffect(() => {
@@ -248,171 +249,201 @@ export default function UploadExcel() {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">
-        📤 Carga Masiva de Datos
-      </h3>
+    <>
+      {/* Botón compacto para abrir el modal */}
+      <button
+        onClick={() => setIsModalOpen(true)}
+        className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg flex items-center gap-2 transition-colors shadow-sm"
+      >
+        <span>📤</span>
+        <span>Cargar Datos</span>
+        {(processingStatus !== 'idle' || forecastStatus !== 'idle') && (
+          <span className="inline-flex h-2 w-2 rounded-full bg-yellow-300 animate-pulse"></span>
+        )}
+      </button>
 
-      <div className="space-y-4">
-        {/* Estado de procesamiento Excel */}
-        {processingStatus !== 'idle' && (
-          <div className={`border rounded-lg p-4 ${
-            processingStatus === 'processing' ? 'bg-yellow-50 border-yellow-200' :
-            processingStatus === 'success' ? 'bg-green-50 border-green-200' :
-            'bg-red-50 border-red-200'
-          }`}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                {processingStatus === 'processing' && (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600 mr-2"></div>
-                    <span className="text-sm font-medium text-yellow-800">Procesando Excel...</span>
-                  </>
-                )}
-                {processingStatus === 'success' && (
-                  <>
-                    <span className="text-green-600 mr-2">✅</span>
-                    <span className="text-sm font-medium text-green-800">Excel procesado</span>
-                  </>
-                )}
-                {processingStatus === 'failed' && (
-                  <>
-                    <span className="text-red-600 mr-2">❌</span>
-                    <span className="text-sm font-medium text-red-800">Procesamiento falló</span>
-                  </>
-                )}
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Header del modal */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">
+                📤 Carga Masiva de Datos
+              </h3>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl font-bold leading-none"
+                disabled={loading}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Contenido del modal */}
+            <div className="p-6 space-y-4">
+              {/* Estado de procesamiento Excel */}
+              {processingStatus !== 'idle' && (
+                <div className={`border rounded-lg p-4 ${
+                  processingStatus === 'processing' ? 'bg-yellow-50 border-yellow-200' :
+                  processingStatus === 'success' ? 'bg-green-50 border-green-200' :
+                  'bg-red-50 border-red-200'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      {processingStatus === 'processing' && (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600 mr-2"></div>
+                          <span className="text-sm font-medium text-yellow-800">Procesando Excel...</span>
+                        </>
+                      )}
+                      {processingStatus === 'success' && (
+                        <>
+                          <span className="text-green-600 mr-2">✅</span>
+                          <span className="text-sm font-medium text-green-800">Excel procesado</span>
+                        </>
+                      )}
+                      {processingStatus === 'failed' && (
+                        <>
+                          <span className="text-red-600 mr-2">❌</span>
+                          <span className="text-sm font-medium text-red-800">Procesamiento falló</span>
+                        </>
+                      )}
+                    </div>
+                    {runUrl && (
+                      <a
+                        href={runUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:text-blue-800 underline"
+                      >
+                        Ver detalles
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Estado de forecasting */}
+              {forecastStatus !== 'idle' && (
+                <div className={`border rounded-lg p-4 ${
+                  forecastStatus === 'processing' ? 'bg-blue-50 border-blue-200' :
+                  forecastStatus === 'success' ? 'bg-green-50 border-green-200' :
+                  'bg-red-50 border-red-200'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      {forecastStatus === 'processing' && (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                          <span className="text-sm font-medium text-blue-800">Ejecutando forecasting...</span>
+                        </>
+                      )}
+                      {forecastStatus === 'success' && (
+                        <>
+                          <span className="text-green-600 mr-2">🎉</span>
+                          <span className="text-sm font-medium text-green-800">Forecasting completado - ¡Listo para analizar!</span>
+                        </>
+                      )}
+                      {forecastStatus === 'failed' && (
+                        <>
+                          <span className="text-red-600 mr-2">❌</span>
+                          <span className="text-sm font-medium text-red-800">Forecasting falló</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Advertencia importante */}
+              <div className="bg-amber-50 border border-amber-300 rounded-lg p-4">
+                <div className="flex items-start">
+                  <span className="text-amber-600 text-xl mr-2">⚠️</span>
+                  <div>
+                    <h4 className="text-sm font-bold text-amber-900 mb-1">
+                      IMPORTANTE: Carga Completa de Datos
+                    </h4>
+                    <p className="text-sm text-amber-800">
+                      El Excel debe contener <strong>TODO el historial de datos</strong>.
+                      Al subir un nuevo archivo, <strong>se borrarán TODOS los datos anteriores</strong> de la base de datos
+                      y se reemplazarán con la información del Excel.
+                    </p>
+                  </div>
+                </div>
               </div>
-              {runUrl && (
-                <a
-                  href={runUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-blue-600 hover:text-blue-800 underline"
+
+              {/* Instrucciones */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-blue-900 mb-2">
+                  📋 Formato del Excel requerido:
+                </h4>
+                <ul className="text-sm text-blue-800 space-y-1 ml-4 list-disc">
+                  <li>Hoja <strong>"ventas"</strong>: Columnas A=Empresa, B=Canal, F=Fecha, K=Unidades, T=SKU, U=MLC, V=Descripción, X=Precio</li>
+                  <li>Hoja <strong>"Stock"</strong>: Columnas A=SKU, B=Descripción, C-J=Stock por bodega</li>
+                  <li>Hoja <strong>"transito china"</strong>: Columnas D=SKU, H=Total Units</li>
+                  <li>Hoja <strong>"compras"</strong>: Columnas A=SKU, D=Fecha</li>
+                  <li>Hoja <strong>"Packs"</strong>: Columnas A=SKU Pack, B=SKU Componente, C=Cantidad</li>
+                  <li>Hoja <strong>"desconsiderar"</strong> (opcional): Columna A=SKU</li>
+                </ul>
+              </div>
+
+              {/* Input de archivo */}
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition-colors">
+                <input
+                  type="file"
+                  accept=".xlsx,.xlsm,.xls"
+                  onChange={handleFileUpload}
+                  disabled={loading}
+                  className="hidden"
+                  id="excel-upload"
+                />
+                <label
+                  htmlFor="excel-upload"
+                  className={`cursor-pointer ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  Ver detalles
-                </a>
+                  <div className="text-4xl mb-2">📊</div>
+                  <div className="text-sm font-medium text-gray-700">
+                    {loading ? 'Procesando...' : 'Haz click para seleccionar Excel'}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    .xlsx, .xlsm o .xls
+                  </div>
+                </label>
+              </div>
+
+              {/* Error */}
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <p className="text-sm text-red-800">❌ {error}</p>
+                </div>
+              )}
+
+              {/* Progreso */}
+              {progress.length > 0 && (
+                <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2">Log de procesamiento:</h4>
+                  <div className="text-xs text-gray-700 font-mono space-y-1">
+                    {progress.map((msg, idx) => (
+                      <div key={idx}>{msg}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Botón para limpiar log */}
+              {progress.length > 0 && !loading && (
+                <button
+                  onClick={() => setProgress([])}
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  🗑️ Limpiar log
+                </button>
               )}
             </div>
           </div>
-        )}
-
-        {/* Estado de forecasting */}
-        {forecastStatus !== 'idle' && (
-          <div className={`border rounded-lg p-4 ${
-            forecastStatus === 'processing' ? 'bg-blue-50 border-blue-200' :
-            forecastStatus === 'success' ? 'bg-green-50 border-green-200' :
-            'bg-red-50 border-red-200'
-          }`}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                {forecastStatus === 'processing' && (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                    <span className="text-sm font-medium text-blue-800">Ejecutando forecasting...</span>
-                  </>
-                )}
-                {forecastStatus === 'success' && (
-                  <>
-                    <span className="text-green-600 mr-2">🎉</span>
-                    <span className="text-sm font-medium text-green-800">Forecasting completado - ¡Listo para analizar!</span>
-                  </>
-                )}
-                {forecastStatus === 'failed' && (
-                  <>
-                    <span className="text-red-600 mr-2">❌</span>
-                    <span className="text-sm font-medium text-red-800">Forecasting falló</span>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Advertencia importante */}
-        <div className="bg-amber-50 border border-amber-300 rounded-lg p-4">
-          <div className="flex items-start">
-            <span className="text-amber-600 text-xl mr-2">⚠️</span>
-            <div>
-              <h4 className="text-sm font-bold text-amber-900 mb-1">
-                IMPORTANTE: Carga Completa de Datos
-              </h4>
-              <p className="text-sm text-amber-800">
-                El Excel debe contener <strong>TODO el historial de datos</strong>.
-                Al subir un nuevo archivo, <strong>se borrarán TODOS los datos anteriores</strong> de la base de datos
-                y se reemplazarán con la información del Excel.
-              </p>
-            </div>
-          </div>
         </div>
-
-        {/* Instrucciones */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="text-sm font-semibold text-blue-900 mb-2">
-            📋 Formato del Excel requerido:
-          </h4>
-          <ul className="text-sm text-blue-800 space-y-1 ml-4 list-disc">
-            <li>Hoja <strong>"ventas"</strong>: Columnas A=Empresa, B=Canal, F=Fecha, K=Unidades, T=SKU, U=MLC, V=Descripción, X=Precio</li>
-            <li>Hoja <strong>"Stock"</strong>: Columnas A=SKU, B=Descripción, C-J=Stock por bodega</li>
-            <li>Hoja <strong>"transito china"</strong>: Columnas D=SKU, H=Total Units</li>
-            <li>Hoja <strong>"compras"</strong>: Columnas A=SKU, D=Fecha</li>
-            <li>Hoja <strong>"Packs"</strong>: Columnas A=SKU Pack, B=SKU Componente, C=Cantidad</li>
-            <li>Hoja <strong>"desconsiderar"</strong> (opcional): Columna A=SKU</li>
-          </ul>
-        </div>
-
-        {/* Input de archivo */}
-        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition-colors">
-          <input
-            type="file"
-            accept=".xlsx,.xlsm,.xls"
-            onChange={handleFileUpload}
-            disabled={loading}
-            className="hidden"
-            id="excel-upload"
-          />
-          <label
-            htmlFor="excel-upload"
-            className={`cursor-pointer ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-          >
-            <div className="text-4xl mb-2">📊</div>
-            <div className="text-sm font-medium text-gray-700">
-              {loading ? 'Procesando...' : 'Haz click para seleccionar Excel'}
-            </div>
-            <div className="text-xs text-gray-500 mt-1">
-              .xlsx, .xlsm o .xls
-            </div>
-          </label>
-        </div>
-
-        {/* Error */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-sm text-red-800">❌ {error}</p>
-          </div>
-        )}
-
-        {/* Progreso */}
-        {progress.length > 0 && (
-          <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-            <h4 className="text-sm font-semibold text-gray-900 mb-2">Log de procesamiento:</h4>
-            <div className="text-xs text-gray-700 font-mono space-y-1">
-              {progress.map((msg, idx) => (
-                <div key={idx}>{msg}</div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Botón para limpiar log */}
-        {progress.length > 0 && !loading && (
-          <button
-            onClick={() => setProgress([])}
-            className="text-sm text-gray-600 hover:text-gray-900"
-          >
-            🗑️ Limpiar log
-          </button>
-        )}
-      </div>
-    </div>
+      )}
+    </>
   )
 }
