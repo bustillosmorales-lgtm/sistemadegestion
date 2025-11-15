@@ -2,13 +2,13 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useSupabase } from '@/lib/SupabaseProvider'
-import StatsCards from '@/components/StatsCards'
 import PrediccionesTable from '@/components/PrediccionesTable'
 import Filtros from '@/components/Filtros'
 import UploadExcel from '@/components/UploadExcel'
 import ConfiguracionModal from '@/components/ConfiguracionModal'
 import SkusExcluidosModal from '@/components/SkusExcluidosModal'
 import CotizarModal from '@/components/CotizarModal'
+import ResumenModal from '@/components/ResumenModal'
 
 interface Prediccion {
   id: number
@@ -42,6 +42,7 @@ export default function Home() {
   })
   const [configuracionOpen, setConfiguracionOpen] = useState(false)
   const [excluidosOpen, setExcluidosOpen] = useState(false)
+  const [resumenOpen, setResumenOpen] = useState(false)
   const [cotizarModal, setCotizarModal] = useState<{
     isOpen: boolean
     prediccion: Prediccion | null
@@ -317,20 +318,25 @@ export default function Home() {
 
       const latest = latestArray[0]
 
-      // Query con filtros
+      // Query con filtros EN SERVIDOR (mucho más rápido)
       let query = supabase
         .from('predicciones')
         .select('*')
         .eq('fecha_calculo', latest.fecha_calculo)
         .order('valor_total_sugerencia', { ascending: false })
 
-      // Aplicar filtros
+      // Aplicar filtros en servidor
       if (filtros.abc) {
         query = query.eq('clasificacion_abc', filtros.abc)
       }
 
       if (filtros.busqueda) {
         query = query.ilike('sku', `%${filtros.busqueda}%`)
+      }
+
+      // Filtro de alertas en servidor usando not.is
+      if (filtros.soloAlertas) {
+        query = query.not('alertas', 'is', null).neq('alertas', '{}')
       }
 
       // Supabase con ANON_KEY tiene límite máximo de 1000 registros
@@ -355,14 +361,8 @@ export default function Home() {
         }
       }
 
-      let resultados = allData
-
-      // Filtrar por alertas en cliente (Supabase no soporta array contains fácilmente)
-      if (filtros.soloAlertas) {
-        resultados = resultados.filter((p: Prediccion) => p.alertas && p.alertas.length > 0)
-      }
-
-      setPredicciones(resultados)
+      // Todos los filtros se aplican en servidor, datos ya filtrados
+      setPredicciones(allData)
     } catch (error) {
       console.error('Error cargando predicciones:', error)
     } finally {
@@ -377,11 +377,17 @@ export default function Home() {
         <UploadExcel />
         <div className="flex gap-2">
           <button
+            onClick={() => setResumenOpen(true)}
+            className="px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
+          >
+            📊 Resumen Gerencial
+          </button>
+          <button
             onClick={exportarAExcel}
             className="px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
             disabled={predicciones.length === 0}
           >
-            📊 Exportar Excel
+            📄 Exportar Excel
           </button>
           <button
             onClick={() => setExcluidosOpen(true)}
@@ -397,9 +403,6 @@ export default function Home() {
           </button>
         </div>
       </div>
-
-      {/* Stats Cards */}
-      <StatsCards predicciones={predicciones} />
 
       {/* Filtros */}
       <Filtros filtros={filtros} setFiltros={setFiltros} />
@@ -469,6 +472,12 @@ export default function Home() {
           }}
         />
       )}
+
+      {/* Modal de Resumen Gerencial */}
+      <ResumenModal
+        isOpen={resumenOpen}
+        onClose={() => setResumenOpen(false)}
+      />
     </div>
   )
 }
