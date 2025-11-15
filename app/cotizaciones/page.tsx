@@ -8,12 +8,16 @@ interface Cotizacion {
   sku: string
   descripcion: string | null
   cantidad_cotizar: number
-  precio_unitario: number
-  valor_total: number
-  estado: 'pendiente' | 'aprobada' | 'rechazada' | 'recibida'
+  estado: 'pendiente' | 'aprobada' | 'rechazada' | 'recibida' | 'respondida'
   fecha_cotizacion: string
-  fecha_actualizacion: string
   notas: string | null
+  // Campos de respuesta del proveedor
+  costo_proveedor: number | null
+  moneda: string | null
+  cantidad_minima_venta: number | null
+  unidades_por_embalaje: number | null
+  metros_cubicos_embalaje: number | null
+  notas_proveedor: string | null
 }
 
 export default function CotizacionesPage() {
@@ -22,10 +26,20 @@ export default function CotizacionesPage() {
   const [filtroEstado, setFiltroEstado] = useState<string>('')
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editData, setEditData] = useState<{
-    precio_unitario: number
-    estado: string
-    notas: string
-  }>({ precio_unitario: 0, estado: '', notas: '' })
+    costo_proveedor: number
+    moneda: string
+    cantidad_minima_venta: number
+    unidades_por_embalaje: number
+    metros_cubicos_embalaje: number
+    notas_proveedor: string
+  }>({
+    costo_proveedor: 0,
+    moneda: 'USD',
+    cantidad_minima_venta: 1,
+    unidades_por_embalaje: 1,
+    metros_cubicos_embalaje: 0,
+    notas_proveedor: ''
+  })
 
   useEffect(() => {
     cargarCotizaciones()
@@ -67,24 +81,31 @@ export default function CotizacionesPage() {
   function startEdit(cot: Cotizacion) {
     setEditingId(cot.id)
     setEditData({
-      precio_unitario: cot.precio_unitario,
-      estado: cot.estado,
-      notas: cot.notas || ''
+      costo_proveedor: cot.costo_proveedor || 0,
+      moneda: cot.moneda || 'USD',
+      cantidad_minima_venta: cot.cantidad_minima_venta || 1,
+      unidades_por_embalaje: cot.unidades_por_embalaje || 1,
+      metros_cubicos_embalaje: cot.metros_cubicos_embalaje || 0,
+      notas_proveedor: cot.notas_proveedor || ''
     })
   }
 
-  async function saveEdit(id: number) {
+  async function saveResponse(id: number) {
     try {
       await updateCotizacion(id, {
-        precio_unitario: editData.precio_unitario,
-        estado: editData.estado as any,
-        notas: editData.notas.trim() || undefined
+        costo_proveedor: editData.costo_proveedor,
+        moneda: editData.moneda,
+        cantidad_minima_venta: editData.cantidad_minima_venta,
+        unidades_por_embalaje: editData.unidades_por_embalaje,
+        metros_cubicos_embalaje: editData.metros_cubicos_embalaje,
+        notas_proveedor: editData.notas_proveedor.trim() || undefined,
+        estado: 'respondida'
       })
-      alert('Cotización actualizada')
+      alert('✅ Cotización respondida exitosamente')
       setEditingId(null)
       await cargarCotizaciones()
     } catch (error: any) {
-      console.error('Error actualizando:', error)
+      console.error('Error respondiendo:', error)
       alert('Error: ' + error.message)
     }
   }
@@ -96,59 +117,43 @@ export default function CotizacionesPage() {
   const getEstadoColor = (estado: string) => {
     switch (estado) {
       case 'pendiente': return 'bg-yellow-100 text-yellow-800'
-      case 'aprobada': return 'bg-green-100 text-green-800'
+      case 'respondida': return 'bg-green-100 text-green-800'
+      case 'aprobada': return 'bg-blue-100 text-blue-800'
       case 'rechazada': return 'bg-red-100 text-red-800'
-      case 'recibida': return 'bg-blue-100 text-blue-800'
+      case 'recibida': return 'bg-purple-100 text-purple-800'
       default: return 'bg-gray-100 text-gray-800'
     }
   }
 
   const resumen = {
     pendiente: cotizaciones.filter(c => c.estado === 'pendiente').length,
-    aprobada: cotizaciones.filter(c => c.estado === 'aprobada').length,
-    rechazada: cotizaciones.filter(c => c.estado === 'rechazada').length,
-    recibida: cotizaciones.filter(c => c.estado === 'recibida').length,
-    total: cotizaciones.length,
-    valorTotal: cotizaciones.reduce((sum, c) => sum + c.valor_total, 0)
+    respondida: cotizaciones.filter(c => c.estado === 'respondida').length,
+    total: cotizaciones.length
   }
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard de Cotizaciones</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Cotizaciones por Responder</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Gestión de productos en cotización
+          Dashboard del Proveedor
         </p>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-500">Total</p>
           <p className="text-2xl font-bold text-gray-900">{resumen.total}</p>
         </div>
         <div className="bg-yellow-50 rounded-lg shadow p-4">
-          <p className="text-sm text-yellow-600">Pendientes</p>
+          <p className="text-sm text-yellow-600">Por Responder</p>
           <p className="text-2xl font-bold text-yellow-700">{resumen.pendiente}</p>
         </div>
         <div className="bg-green-50 rounded-lg shadow p-4">
-          <p className="text-sm text-green-600">Aprobadas</p>
-          <p className="text-2xl font-bold text-green-700">{resumen.aprobada}</p>
-        </div>
-        <div className="bg-red-50 rounded-lg shadow p-4">
-          <p className="text-sm text-red-600">Rechazadas</p>
-          <p className="text-2xl font-bold text-red-700">{resumen.rechazada}</p>
-        </div>
-        <div className="bg-blue-50 rounded-lg shadow p-4">
-          <p className="text-sm text-blue-600">Recibidas</p>
-          <p className="text-2xl font-bold text-blue-700">{resumen.recibida}</p>
-        </div>
-        <div className="bg-purple-50 rounded-lg shadow p-4">
-          <p className="text-sm text-purple-600">Valor Total</p>
-          <p className="text-xl font-bold text-purple-700">
-            ${(resumen.valorTotal / 1000).toFixed(0)}k
-          </p>
+          <p className="text-sm text-green-600">Respondidas</p>
+          <p className="text-2xl font-bold text-green-700">{resumen.respondida}</p>
         </div>
       </div>
 
@@ -163,9 +168,7 @@ export default function CotizacionesPage() {
           >
             <option value="">Todos</option>
             <option value="pendiente">Pendientes</option>
-            <option value="aprobada">Aprobadas</option>
-            <option value="rechazada">Rechazadas</option>
-            <option value="recibida">Recibidas</option>
+            <option value="respondida">Respondidas</option>
           </select>
         </div>
       </div>
@@ -189,97 +192,146 @@ export default function CotizacionesPage() {
         ) : cotizaciones.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <p className="text-gray-500">No hay cotizaciones.</p>
-            <p className="text-sm text-gray-400 mt-2">
-              Crea cotizaciones desde el dashboard principal.
-            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cantidad</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Precio Unit.</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Valor Total</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Estado</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notas</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cantidad</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notas Cliente</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-blue-600 uppercase">Costo</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-blue-600 uppercase">Moneda</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-blue-600 uppercase">Cant. Mín.</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-blue-600 uppercase">Und/Caja</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-blue-600 uppercase">m³/Caja</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-blue-600 uppercase">Notas Proveedor</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Estado</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {cotizaciones.map((cot) => (
                   <tr key={cot.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {cot.sku}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-700">
+                    <td className="px-4 py-4 text-sm text-gray-700 max-w-xs">
                       {cot.descripcion || '—'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">
+                    <td className="px-4 py-4 whitespace-nowrap text-right text-sm text-gray-900 font-semibold">
                       {cot.cantidad_cotizar.toLocaleString('es-CL')}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                    <td className="px-4 py-4 text-sm text-gray-600 max-w-xs">
+                      {cot.notas || '—'}
+                    </td>
+
+                    {/* Campos de respuesta del proveedor */}
+                    <td className="px-4 py-4 whitespace-nowrap text-right text-sm">
                       {editingId === cot.id ? (
                         <input
                           type="number"
-                          value={editData.precio_unitario}
-                          onChange={(e) => setEditData({ ...editData, precio_unitario: parseFloat(e.target.value) || 0 })}
+                          step="0.01"
+                          value={editData.costo_proveedor}
+                          onChange={(e) => setEditData({ ...editData, costo_proveedor: parseFloat(e.target.value) || 0 })}
                           className="w-24 px-2 py-1 text-right rounded border-gray-300"
+                          placeholder="0.00"
                         />
                       ) : (
                         <span className="text-blue-600 font-medium">
-                          ${cot.precio_unitario.toLocaleString('es-CL')}
+                          {cot.costo_proveedor ? cot.costo_proveedor.toFixed(2) : '—'}
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-semibold text-green-600">
-                      ${cot.valor_total.toLocaleString('es-CL')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
+
+                    <td className="px-4 py-4 whitespace-nowrap text-center text-sm">
                       {editingId === cot.id ? (
                         <select
-                          value={editData.estado}
-                          onChange={(e) => setEditData({ ...editData, estado: e.target.value })}
+                          value={editData.moneda}
+                          onChange={(e) => setEditData({ ...editData, moneda: e.target.value })}
                           className="px-2 py-1 rounded border-gray-300"
                         >
-                          <option value="pendiente">Pendiente</option>
-                          <option value="aprobada">Aprobada</option>
-                          <option value="rechazada">Rechazada</option>
-                          <option value="recibida">Recibida</option>
+                          <option value="USD">USD</option>
+                          <option value="CLP">CLP</option>
+                          <option value="CNY">CNY</option>
+                          <option value="EUR">EUR</option>
                         </select>
                       ) : (
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getEstadoColor(cot.estado)}`}>
-                          {cot.estado}
-                        </span>
+                        cot.moneda || '—'
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(cot.fecha_cotizacion).toLocaleDateString('es-CL')}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
+
+                    <td className="px-4 py-4 whitespace-nowrap text-right text-sm">
                       {editingId === cot.id ? (
                         <input
-                          type="text"
-                          value={editData.notas}
-                          onChange={(e) => setEditData({ ...editData, notas: e.target.value })}
-                          className="w-full px-2 py-1 rounded border-gray-300"
-                          placeholder="Notas..."
+                          type="number"
+                          value={editData.cantidad_minima_venta}
+                          onChange={(e) => setEditData({ ...editData, cantidad_minima_venta: parseInt(e.target.value) || 1 })}
+                          className="w-20 px-2 py-1 text-right rounded border-gray-300"
                         />
                       ) : (
-                        cot.notas || '—'
+                        cot.cantidad_minima_venta || '—'
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
+
+                    <td className="px-4 py-4 whitespace-nowrap text-right text-sm">
+                      {editingId === cot.id ? (
+                        <input
+                          type="number"
+                          value={editData.unidades_por_embalaje}
+                          onChange={(e) => setEditData({ ...editData, unidades_por_embalaje: parseInt(e.target.value) || 1 })}
+                          className="w-20 px-2 py-1 text-right rounded border-gray-300"
+                        />
+                      ) : (
+                        cot.unidades_por_embalaje || '—'
+                      )}
+                    </td>
+
+                    <td className="px-4 py-4 whitespace-nowrap text-right text-sm">
+                      {editingId === cot.id ? (
+                        <input
+                          type="number"
+                          step="0.0001"
+                          value={editData.metros_cubicos_embalaje}
+                          onChange={(e) => setEditData({ ...editData, metros_cubicos_embalaje: parseFloat(e.target.value) || 0 })}
+                          className="w-24 px-2 py-1 text-right rounded border-gray-300"
+                          placeholder="0.0000"
+                        />
+                      ) : (
+                        cot.metros_cubicos_embalaje ? cot.metros_cubicos_embalaje.toFixed(4) : '—'
+                      )}
+                    </td>
+
+                    <td className="px-4 py-4 text-sm max-w-xs">
+                      {editingId === cot.id ? (
+                        <textarea
+                          value={editData.notas_proveedor}
+                          onChange={(e) => setEditData({ ...editData, notas_proveedor: e.target.value })}
+                          className="w-full px-2 py-1 rounded border-gray-300"
+                          rows={2}
+                          placeholder="Notas adicionales..."
+                        />
+                      ) : (
+                        <span className="text-gray-600">{cot.notas_proveedor || '—'}</span>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-4 whitespace-nowrap text-center">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getEstadoColor(cot.estado)}`}>
+                        {cot.estado}
+                      </span>
+                    </td>
+
+                    <td className="px-4 py-4 whitespace-nowrap text-center text-sm">
                       {editingId === cot.id ? (
                         <div className="flex gap-2 justify-center">
                           <button
-                            onClick={() => saveEdit(cot.id)}
-                            className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                            onClick={() => saveResponse(cot.id)}
+                            className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 font-medium"
                           >
-                            Guardar
+                            ✓ Enviar
                           </button>
                           <button
                             onClick={cancelEdit}
@@ -288,21 +340,20 @@ export default function CotizacionesPage() {
                             Cancelar
                           </button>
                         </div>
+                      ) : cot.estado === 'pendiente' ? (
+                        <button
+                          onClick={() => startEdit(cot)}
+                          className="px-4 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium"
+                        >
+                          📋 Responder
+                        </button>
                       ) : (
-                        <div className="flex gap-2 justify-center">
-                          <button
-                            onClick={() => startEdit(cot)}
-                            className="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => handleDelete(cot.id, cot.sku)}
-                            className="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200"
-                          >
-                            Eliminar
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => startEdit(cot)}
+                          className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                        >
+                          Editar
+                        </button>
                       )}
                     </td>
                   </tr>

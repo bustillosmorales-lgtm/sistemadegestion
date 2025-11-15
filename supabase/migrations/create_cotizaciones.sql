@@ -6,10 +6,20 @@ CREATE TABLE IF NOT EXISTS cotizaciones (
   cantidad_cotizar INTEGER NOT NULL CHECK (cantidad_cotizar > 0),
   precio_unitario DECIMAL(12,2) NOT NULL DEFAULT 0,
   valor_total DECIMAL(12,2) GENERATED ALWAYS AS (cantidad_cotizar * precio_unitario) STORED,
-  estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'aprobada', 'rechazada', 'recibida')),
+  estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'aprobada', 'rechazada', 'recibida', 'respondida')),
   fecha_cotizacion TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   fecha_actualizacion TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   notas TEXT,
+
+  -- Campos de respuesta del proveedor
+  costo_proveedor DECIMAL(12,2),
+  moneda TEXT,
+  cantidad_minima_venta INTEGER,
+  unidades_por_embalaje INTEGER,
+  metros_cubicos_embalaje DECIMAL(10,4),
+  fecha_respuesta TIMESTAMP WITH TIME ZONE,
+  notas_proveedor TEXT,
+
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -61,4 +71,9 @@ EXECUTE FUNCTION update_cotizaciones_timestamp();
 
 -- Comentarios
 COMMENT ON TABLE cotizaciones IS 'Tabla de cotizaciones de productos para compra';
-COMMENT ON COLUMN cotizaciones.estado IS 'Estados: pendiente, aprobada, rechazada, recibida';
+COMMENT ON COLUMN cotizaciones.estado IS 'Estados: pendiente, aprobada, rechazada, recibida, respondida';
+COMMENT ON COLUMN cotizaciones.costo_proveedor IS 'Costo cotizado por el proveedor';
+COMMENT ON COLUMN cotizaciones.moneda IS 'Moneda del costo (USD, CLP, etc)';
+COMMENT ON COLUMN cotizaciones.cantidad_minima_venta IS 'Cantidad mínima de venta del proveedor';
+COMMENT ON COLUMN cotizaciones.unidades_por_embalaje IS 'Unidades que vienen por caja/embalaje';
+COMMENT ON COLUMN cotizaciones.metros_cubicos_embalaje IS 'Metros cúbicos por embalaje (para cálculo de flete)';

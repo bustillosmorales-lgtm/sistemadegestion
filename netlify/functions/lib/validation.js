@@ -27,7 +27,7 @@ const procesarExcelBodySchema = z.object({
 
 // Esquema para query params de cotizaciones
 const cotizacionesQuerySchema = z.object({
-  estado: z.enum(['pendiente', 'aprobada', 'rechazada', 'recibida']).optional(),
+  estado: z.enum(['pendiente', 'aprobada', 'rechazada', 'recibida', 'respondida']).optional(),
   sku: z.string().optional(),
 }).strict();
 
@@ -44,8 +44,15 @@ const cotizacionPostSchema = z.object({
 const cotizacionPutSchema = z.object({
   cantidad_cotizar: z.number().int().positive('Cantidad debe ser mayor a 0').optional(),
   precio_unitario: z.number().nonnegative('Precio debe ser mayor o igual a 0').optional(),
-  estado: z.enum(['pendiente', 'aprobada', 'rechazada', 'recibida']).optional(),
+  estado: z.enum(['pendiente', 'aprobada', 'rechazada', 'recibida', 'respondida']).optional(),
   notas: z.string().optional(),
+  // Campos de respuesta del proveedor
+  costo_proveedor: z.number().nonnegative('Costo debe ser mayor o igual a 0').optional(),
+  moneda: z.string().optional(),
+  cantidad_minima_venta: z.number().int().positive('Cantidad mínima debe ser mayor a 0').optional(),
+  unidades_por_embalaje: z.number().int().positive('Unidades por embalaje debe ser mayor a 0').optional(),
+  metros_cubicos_embalaje: z.number().nonnegative('Metros cúbicos debe ser mayor o igual a 0').optional(),
+  notas_proveedor: z.string().optional(),
 }).strict().refine(
   data => Object.keys(data).length > 0,
   { message: 'Al menos un campo debe ser actualizado' }

@@ -52,6 +52,12 @@ export default function RootLayout({
                       >
                         Cotizaciones
                       </a>
+                      <a
+                        href="/cotizaciones-respondidas"
+                        className="text-sm font-medium text-green-700 hover:text-green-600 transition-colors"
+                      >
+                        Respondidas
+                      </a>
                     </nav>
                   </div>
                   <div className="flex items-center space-x-4">
