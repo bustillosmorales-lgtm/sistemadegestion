@@ -411,12 +411,14 @@ export default function Home() {
   async function cargarPredicciones() {
     setLoading(true)
     try {
-      // 1. Obtener SKUs excluidos
-      const { data: skusExcluidosData } = await supabase
-        .from('skus_excluidos')
-        .select('sku')
+      // 1. Obtener SKUs excluidos y SKUs con cotizaciones activas en paralelo
+      const [skusExcluidosData, skusCotizadosData] = await Promise.all([
+        supabase.from('skus_excluidos').select('sku'),
+        supabase.from('cotizaciones').select('sku').eq('estado', 'pendiente')
+      ])
 
-      const skusExcluidosSet = new Set(skusExcluidosData?.map(e => e.sku) || [])
+      const skusExcluidosSet = new Set(skusExcluidosData.data?.map(e => e.sku) || [])
+      const skusCotizadosSet = new Set(skusCotizadosData.data?.map(c => c.sku) || [])
 
       // 2. Obtener última fecha de cálculo
       const { data: latestArray, error: latestError } = await supabase
@@ -477,8 +479,10 @@ export default function Home() {
         }
       }
 
-      // 4. Filtrar SKUs excluidos en cliente (después de obtener datos del servidor)
-      const prediccionesFiltradas = allData.filter(p => !skusExcluidosSet.has(p.sku))
+      // 4. Filtrar SKUs excluidos y cotizados en cliente (después de obtener datos del servidor)
+      const prediccionesFiltradas = allData.filter(p =>
+        !skusExcluidosSet.has(p.sku) && !skusCotizadosSet.has(p.sku)
+      )
 
       setPredicciones(prediccionesFiltradas)
     } catch (error) {
