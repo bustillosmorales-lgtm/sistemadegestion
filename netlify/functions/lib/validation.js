@@ -53,6 +53,10 @@ const cotizacionPutSchema = z.object({
   unidades_por_embalaje: z.number().int().positive('Unidades por embalaje debe ser mayor a 0').optional(),
   metros_cubicos_embalaje: z.number().nonnegative('Metros cúbicos debe ser mayor o igual a 0').optional(),
   notas_proveedor: z.string().optional(),
+  // Campos de seguimiento de contenedores
+  fecha_confirmacion_compra: z.boolean().optional(), // true = marcar con NOW()
+  fecha_carga_contenedor: z.boolean().optional(), // true = marcar con NOW()
+  numero_contenedor: z.string().optional(),
 }).strict().refine(
   data => Object.keys(data).length > 0,
   { message: 'Al menos un campo debe ser actualizado' }

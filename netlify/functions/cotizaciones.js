@@ -180,9 +180,45 @@ exports.handler = async (event, context) => {
       }
       const validatedData = validation.data;
 
+      // Procesar flags de fecha (convertir booleans a timestamps)
+      const updateData = { ...validatedData };
+      if (updateData.fecha_confirmacion_compra === true) {
+        updateData.fecha_confirmacion_compra = new Date().toISOString();
+      } else {
+        delete updateData.fecha_confirmacion_compra;
+      }
+
+      if (updateData.fecha_carga_contenedor === true) {
+        updateData.fecha_carga_contenedor = new Date().toISOString();
+        // Cuando se carga en contenedor y hay número, crear registro en tránsito
+        if (updateData.numero_contenedor) {
+          // Obtener datos de la cotización para crear tránsito
+          const { data: cotizacion } = await supabase
+            .from('cotizaciones')
+            .select('sku, cantidad_cotizar')
+            .eq('id', parseInt(id))
+            .single();
+
+          if (cotizacion) {
+            // Crear registro en transito_china
+            await supabase
+              .from('transito_china')
+              .insert({
+                sku: cotizacion.sku,
+                unidades: cotizacion.cantidad_cotizar,
+                estado: 'en_transito',
+                numero_contenedor: updateData.numero_contenedor,
+                origen: 'cotizacion'
+              });
+          }
+        }
+      } else {
+        delete updateData.fecha_carga_contenedor;
+      }
+
       const { data, error } = await supabase
         .from('cotizaciones')
-        .update(validatedData)
+        .update(updateData)
         .eq('id', parseInt(id))
         .select()
         .single();
