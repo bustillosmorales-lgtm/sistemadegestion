@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { fetchCotizaciones, updateCotizacion, deleteCotizacion } from '@/lib/api-client'
+import ResponderCotizacionesMasivo from '@/components/ResponderCotizacionesMasivo'
 
 interface Cotizacion {
   id: number
@@ -226,6 +227,9 @@ export default function CotizacionesPage() {
           </select>
         </div>
       </div>
+
+      {/* Responder Cotizaciones Masivamente */}
+      <ResponderCotizacionesMasivo onSuccess={cargarCotizaciones} />
 
       {/* Tabla */}
       <div className="bg-white rounded-lg shadow">
