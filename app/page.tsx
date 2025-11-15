@@ -411,7 +411,14 @@ export default function Home() {
   async function cargarPredicciones() {
     setLoading(true)
     try {
-      // Obtener última fecha de cálculo
+      // 1. Obtener SKUs excluidos
+      const { data: skusExcluidosData } = await supabase
+        .from('skus_excluidos')
+        .select('sku')
+
+      const skusExcluidosSet = new Set(skusExcluidosData?.map(e => e.sku) || [])
+
+      // 2. Obtener última fecha de cálculo
       const { data: latestArray, error: latestError } = await supabase
         .from('predicciones')
         .select('fecha_calculo')
@@ -427,7 +434,7 @@ export default function Home() {
 
       const latest = latestArray[0]
 
-      // Query con filtros EN SERVIDOR (mucho más rápido)
+      // 3. Query con filtros EN SERVIDOR (mucho más rápido)
       let query = supabase
         .from('predicciones')
         .select('*')
@@ -470,8 +477,10 @@ export default function Home() {
         }
       }
 
-      // Todos los filtros se aplican en servidor, datos ya filtrados
-      setPredicciones(allData)
+      // 4. Filtrar SKUs excluidos en cliente (después de obtener datos del servidor)
+      const prediccionesFiltradas = allData.filter(p => !skusExcluidosSet.has(p.sku))
+
+      setPredicciones(prediccionesFiltradas)
     } catch (error) {
       console.error('Error cargando predicciones:', error)
     } finally {
