@@ -42,9 +42,37 @@ export default function Home() {
   const [configuracionOpen, setConfiguracionOpen] = useState(false)
   const [excluidosOpen, setExcluidosOpen] = useState(false)
 
+  // Pre-cargar datos de modales para apertura instantánea
+  const [configuraciones, setConfiguraciones] = useState<any[]>([])
+  const [skusExcluidos, setSkusExcluidos] = useState<any[]>([])
+  const [loadingModalData, setLoadingModalData] = useState(true)
+
   useEffect(() => {
     cargarPredicciones()
   }, [filtros])
+
+  // Pre-cargar datos de modales al montar el componente
+  useEffect(() => {
+    cargarDatosModales()
+  }, [])
+
+  async function cargarDatosModales() {
+    setLoadingModalData(true)
+    try {
+      // Cargar configuraciones y SKUs excluidos en paralelo
+      const [configData, excluidosData] = await Promise.all([
+        supabase.from('configuracion_sistema').select('*').order('clave'),
+        supabase.from('skus_excluidos').select('*').order('fecha_exclusion', { ascending: false })
+      ])
+
+      if (configData.data) setConfiguraciones(configData.data)
+      if (excluidosData.data) setSkusExcluidos(excluidosData.data)
+    } catch (error) {
+      console.error('Error pre-cargando datos de modales:', error)
+    } finally {
+      setLoadingModalData(false)
+    }
+  }
 
   async function exportarAExcel() {
     try {
@@ -247,8 +275,11 @@ export default function Home() {
         alert(`⚠️ SKU ${sku} excluido del análisis`)
       }
 
-      // Recargar predicciones
-      await cargarPredicciones()
+      // Recargar predicciones y datos de modales
+      await Promise.all([
+        cargarPredicciones(),
+        cargarDatosModales()
+      ])
     } catch (error: any) {
       console.error('Error toggle exclusión:', error)
       alert('Error al cambiar estado de exclusión: ' + error.message)
@@ -393,13 +424,19 @@ export default function Home() {
       <ConfiguracionModal
         isOpen={configuracionOpen}
         onClose={() => setConfiguracionOpen(false)}
+        configuraciones={configuraciones}
+        onSave={cargarDatosModales}
       />
 
       {/* Modal de SKUs Excluidos */}
       <SkusExcluidosModal
         isOpen={excluidosOpen}
         onClose={() => setExcluidosOpen(false)}
-        onReactivar={cargarPredicciones}
+        skusExcluidos={skusExcluidos}
+        onReactivar={() => {
+          cargarDatosModales()
+          cargarPredicciones()
+        }}
       />
     </div>
   )

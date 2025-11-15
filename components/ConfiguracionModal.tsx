@@ -17,46 +17,24 @@ interface Configuracion {
 interface Props {
   isOpen: boolean
   onClose: () => void
+  configuraciones: Configuracion[]
+  onSave?: () => void
 }
 
-export default function ConfiguracionModal({ isOpen, onClose }: Props) {
-  const [configuraciones, setConfiguraciones] = useState<Configuracion[]>([])
-  const [loading, setLoading] = useState(false)
+export default function ConfiguracionModal({ isOpen, onClose, configuraciones, onSave }: Props) {
   const [saving, setSaving] = useState(false)
   const [editedValues, setEditedValues] = useState<Record<string, number>>({})
 
+  // Inicializar valores editados cuando se reciben las configuraciones
   useEffect(() => {
-    if (isOpen) {
-      cargarConfiguraciones()
-    }
-  }, [isOpen])
-
-  async function cargarConfiguraciones() {
-    setLoading(true)
-    try {
-      const supabase = getSupabaseClient()
-      const { data, error } = await supabase
-        .from('configuracion_sistema')
-        .select('*')
-        .order('clave')
-
-      if (error) throw error
-
-      setConfiguraciones(data || [])
-
-      // Inicializar valores editados
+    if (configuraciones.length > 0) {
       const initial: Record<string, number> = {}
-      data?.forEach((c: Configuracion) => {
+      configuraciones.forEach((c: Configuracion) => {
         initial[c.clave] = c.valor
       })
       setEditedValues(initial)
-    } catch (error: any) {
-      console.error('Error cargando configuraciones:', error)
-      alert('Error cargando configuraciones: ' + error.message)
-    } finally {
-      setLoading(false)
     }
-  }
+  }, [configuraciones])
 
   async function guardarConfiguraciones() {
     setSaving(true)
@@ -86,7 +64,7 @@ export default function ConfiguracionModal({ isOpen, onClose }: Props) {
       }
 
       alert('✅ Configuración guardada correctamente')
-      await cargarConfiguraciones()
+      if (onSave) await onSave()
       onClose()
     } catch (error: any) {
       console.error('Error guardando configuraciones:', error)
@@ -136,11 +114,7 @@ export default function ConfiguracionModal({ isOpen, onClose }: Props) {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          {loading ? (
-            <div className="flex justify-center items-center h-64">
-              <div className="text-gray-500">Cargando configuraciones...</div>
-            </div>
-          ) : configuraciones.length === 0 ? (
+          {configuraciones.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-600 mb-4">No hay configuraciones disponibles.</p>
               <p className="text-sm text-gray-500">
@@ -230,7 +204,7 @@ export default function ConfiguracionModal({ isOpen, onClose }: Props) {
           <button
             onClick={guardarConfiguraciones}
             className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
-            disabled={saving || loading || configuraciones.length === 0}
+            disabled={saving || configuraciones.length === 0}
           >
             {saving ? 'Guardando...' : '💾 Guardar Cambios'}
           </button>

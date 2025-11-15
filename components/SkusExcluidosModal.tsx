@@ -15,42 +15,17 @@ interface SkuExcluido {
 interface Props {
   isOpen: boolean
   onClose: () => void
+  skusExcluidos: SkuExcluido[]
   onReactivar?: () => void
 }
 
-export default function SkusExcluidosModal({ isOpen, onClose, onReactivar }: Props) {
-  const [skus, setSkus] = useState<SkuExcluido[]>([])
-  const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    if (isOpen) {
-      cargarSkusExcluidos()
-    }
-  }, [isOpen])
-
-  async function cargarSkusExcluidos() {
-    setLoading(true)
-    try {
-      const supabase = getSupabaseClient()
-      const { data, error } = await supabase
-        .from('skus_excluidos')
-        .select('*')
-        .order('fecha_exclusion', { ascending: false })
-
-      if (error) throw error
-
-      setSkus(data || [])
-    } catch (error: any) {
-      console.error('Error cargando SKUs excluidos:', error)
-      alert('Error cargando SKUs excluidos: ' + error.message)
-    } finally {
-      setLoading(false)
-    }
-  }
+export default function SkusExcluidosModal({ isOpen, onClose, skusExcluidos, onReactivar }: Props) {
+  const [procesando, setProcesando] = useState(false)
 
   async function reactivarSku(sku: string) {
     if (!confirm(`¿Reactivar SKU ${sku} en el análisis?`)) return
 
+    setProcesando(true)
     try {
       const supabase = getSupabaseClient()
       const { error } = await supabase
@@ -61,11 +36,12 @@ export default function SkusExcluidosModal({ isOpen, onClose, onReactivar }: Pro
       if (error) throw error
 
       alert(`✅ SKU ${sku} reactivado`)
-      await cargarSkusExcluidos()
       if (onReactivar) onReactivar()
     } catch (error: any) {
       console.error('Error reactivando SKU:', error)
       alert('Error reactivando SKU: ' + error.message)
+    } finally {
+      setProcesando(false)
     }
   }
 
@@ -92,11 +68,7 @@ export default function SkusExcluidosModal({ isOpen, onClose, onReactivar }: Pro
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          {loading ? (
-            <div className="flex justify-center items-center h-64">
-              <div className="text-gray-500">Cargando SKUs excluidos...</div>
-            </div>
-          ) : skus.length === 0 ? (
+          {skusExcluidos.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-600 mb-4">No hay SKUs excluidos.</p>
               <p className="text-sm text-gray-500">
@@ -126,7 +98,7 @@ export default function SkusExcluidosModal({ isOpen, onClose, onReactivar }: Pro
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {skus.map((sku) => (
+                  {skusExcluidos.map((sku) => (
                     <tr key={sku.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {sku.sku}
@@ -159,11 +131,12 @@ export default function SkusExcluidosModal({ isOpen, onClose, onReactivar }: Pro
         {/* Footer */}
         <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
           <div className="text-sm text-gray-600">
-            Total: {skus.length} SKU{skus.length !== 1 ? 's' : ''} excluido{skus.length !== 1 ? 's' : ''}
+            Total: {skusExcluidos.length} SKU{skusExcluidos.length !== 1 ? 's' : ''} excluido{skusExcluidos.length !== 1 ? 's' : ''}
           </div>
           <button
             onClick={onClose}
             className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            disabled={procesando}
           >
             Cerrar
           </button>
