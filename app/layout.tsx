@@ -58,6 +58,12 @@ export default function RootLayout({
                       >
                         Respondidas
                       </a>
+                      <a
+                        href="/contenedores"
+                        className="text-sm font-medium text-blue-700 hover:text-blue-600 transition-colors"
+                      >
+                        📦 Contenedores
+                      </a>
                     </nav>
                   </div>
                   <div className="flex items-center space-x-4">

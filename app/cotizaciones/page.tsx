@@ -18,6 +18,10 @@ interface Cotizacion {
   unidades_por_embalaje: number | null
   metros_cubicos_embalaje: number | null
   notas_proveedor: string | null
+  // Campos de seguimiento de contenedores
+  fecha_confirmacion_compra: string | null
+  fecha_carga_contenedor: string | null
+  numero_contenedor: string | null
 }
 
 export default function CotizacionesPage() {
@@ -112,6 +116,38 @@ export default function CotizacionesPage() {
 
   function cancelEdit() {
     setEditingId(null)
+  }
+
+  async function handleConfirmarCompra(id: number, sku: string) {
+    if (!confirm(`¿Confirmar recepción de orden de compra para ${sku}?`)) return
+
+    try {
+      await updateCotizacion(id, {
+        fecha_confirmacion_compra: true as any
+      })
+      alert('✅ Orden de compra confirmada')
+      await cargarCotizaciones()
+    } catch (error: any) {
+      console.error('Error:', error)
+      alert('Error: ' + error.message)
+    }
+  }
+
+  async function handleCargarContenedor(id: number, sku: string) {
+    const numeroContenedor = prompt(`Ingresa el número de contenedor para ${sku}:`)
+    if (!numeroContenedor) return
+
+    try {
+      await updateCotizacion(id, {
+        fecha_carga_contenedor: true as any,
+        numero_contenedor: numeroContenedor.trim()
+      })
+      alert(`✅ Mercadería cargada en contenedor ${numeroContenedor}\n\nSe creó registro automático en Tránsito China.`)
+      await cargarCotizaciones()
+    } catch (error: any) {
+      console.error('Error:', error)
+      alert('Error: ' + error.message)
+    }
   }
 
   const getEstadoColor = (estado: string) => {
@@ -365,6 +401,35 @@ export default function CotizacionesPage() {
                         >
                           📋 Responder
                         </button>
+                      ) : cot.estado === 'aprobada' ? (
+                        <div className="flex flex-col gap-1">
+                          {!cot.fecha_confirmacion_compra ? (
+                            <button
+                              onClick={() => handleConfirmarCompra(cot.id, cot.sku)}
+                              className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs font-medium whitespace-nowrap"
+                              title="Confirmar recepción de orden de compra"
+                            >
+                              ✓ PO Recibida
+                            </button>
+                          ) : (
+                            <span className="text-xs text-green-600 font-medium">
+                              ✓ PO {new Date(cot.fecha_confirmacion_compra).toLocaleDateString('es-CL')}
+                            </span>
+                          )}
+                          {cot.fecha_confirmacion_compra && !cot.fecha_carga_contenedor ? (
+                            <button
+                              onClick={() => handleCargarContenedor(cot.id, cot.sku)}
+                              className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs font-medium whitespace-nowrap"
+                              title="Marcar como cargado en contenedor"
+                            >
+                              📦 Cargar
+                            </button>
+                          ) : cot.fecha_carga_contenedor ? (
+                            <span className="text-xs text-blue-600 font-medium">
+                              📦 {cot.numero_contenedor}
+                            </span>
+                          ) : null}
+                        </div>
                       ) : (
                         <button
                           onClick={() => startEdit(cot)}
