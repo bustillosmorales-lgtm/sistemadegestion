@@ -205,12 +205,26 @@ async function processExcel() {
         // Procesar fecha (puede ser Date object o serial number)
         let fechaContenedor = null;
         if (fechaRaw) {
-          if (fechaRaw instanceof Date) {
-            fechaContenedor = fechaRaw.toISOString().split('T')[0];
-          } else if (typeof fechaRaw === 'number') {
-            fechaContenedor = excelDateToJSDate(fechaRaw);
-          } else if (typeof fechaRaw === 'string') {
-            fechaContenedor = fechaRaw;
+          try {
+            if (fechaRaw instanceof Date) {
+              fechaContenedor = fechaRaw.toISOString().split('T')[0];
+            } else if (typeof fechaRaw === 'number') {
+              fechaContenedor = excelDateToJSDate(fechaRaw);
+            } else if (typeof fechaRaw === 'string') {
+              // Validar formato de fecha string
+              const dateStr = fechaRaw.trim();
+              // Intentar parsear la fecha
+              const parsedDate = new Date(dateStr);
+              if (!isNaN(parsedDate.getTime())) {
+                fechaContenedor = parsedDate.toISOString().split('T')[0];
+              } else {
+                console.warn(`  ⚠️ Fecha inválida en fila ${i}: "${dateStr}" - se omitirá`);
+                fechaContenedor = null;
+              }
+            }
+          } catch (err) {
+            console.warn(`  ⚠️ Error procesando fecha en fila ${i}: ${err.message}`);
+            fechaContenedor = null;
           }
         }
 
