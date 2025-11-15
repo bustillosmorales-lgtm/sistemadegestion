@@ -1,5 +1,7 @@
 'use client'
 
+import { memo } from 'react'
+
 interface Prediccion {
   id: number
   sku: string
@@ -27,7 +29,7 @@ interface Props {
   onCotizar: (prediccion: Prediccion) => void
 }
 
-export default function PrediccionesTable({ predicciones, onExcludeToggle, onCotizar }: Props) {
+function PrediccionesTable({ predicciones, onExcludeToggle, onCotizar }: Props) {
   const getClaseABCColor = (clase: string) => {
     switch (clase) {
       case 'A': return 'bg-red-100 text-red-800'
@@ -214,3 +216,6 @@ export default function PrediccionesTable({ predicciones, onExcludeToggle, onCot
     </div>
   )
 }
+
+// Exportar con memo para evitar re-renders cuando cambia el estado del modal
+export default memo(PrediccionesTable)

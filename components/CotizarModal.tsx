@@ -61,9 +61,10 @@ function CotizarModal({
   }, [sku, descripcion, cantidadCotizar, precioUnitario, notas, onSuccess, onClose])
 
   const handleCantidadChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(e.target.value)
-    if (!isNaN(value)) {
-      setCantidadCotizar(value)
+    const value = e.target.value
+    // Actualizar directamente sin parsear, el parsing se hace al enviar
+    if (value === '' || /^\d+$/.test(value)) {
+      setCantidadCotizar(value === '' ? 0 : parseInt(value))
     }
   }, [])
 

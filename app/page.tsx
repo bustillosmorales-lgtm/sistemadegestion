@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useSupabase } from '@/lib/SupabaseProvider'
 import StatsCards from '@/components/StatsCards'
 import PrediccionesTable from '@/components/PrediccionesTable'
@@ -55,16 +55,7 @@ export default function Home() {
   const [skusExcluidos, setSkusExcluidos] = useState<any[]>([])
   const [loadingModalData, setLoadingModalData] = useState(true)
 
-  useEffect(() => {
-    cargarPredicciones()
-  }, [filtros])
-
-  // Pre-cargar datos de modales al montar el componente
-  useEffect(() => {
-    cargarDatosModales()
-  }, [])
-
-  async function cargarDatosModales() {
+  const cargarDatosModales = useCallback(async () => {
     setLoadingModalData(true)
     try {
       // Cargar configuraciones y SKUs excluidos en paralelo
@@ -80,7 +71,16 @@ export default function Home() {
     } finally {
       setLoadingModalData(false)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    cargarPredicciones()
+  }, [filtros])
+
+  // Pre-cargar datos de modales al montar el componente
+  useEffect(() => {
+    cargarDatosModales()
+  }, [cargarDatosModales])
 
   async function exportarAExcel() {
     try {
@@ -246,11 +246,11 @@ export default function Home() {
     }
   }
 
-  function handleCotizar(prediccion: Prediccion) {
+  const handleCotizar = useCallback((prediccion: Prediccion) => {
     setCotizarModal({ isOpen: true, prediccion })
-  }
+  }, [])
 
-  async function handleExcludeToggle(sku: string, descripcion: string) {
+  const handleExcludeToggle = useCallback(async (sku: string, descripcion: string) => {
     try {
       // Verificar si ya está excluido
       const { data: existing, error: checkError } = await supabase
@@ -296,7 +296,7 @@ export default function Home() {
       console.error('Error toggle exclusión:', error)
       alert('Error al cambiar estado de exclusión: ' + error.message)
     }
-  }
+  }, [supabase, cargarPredicciones, cargarDatosModales])
 
   async function cargarPredicciones() {
     setLoading(true)

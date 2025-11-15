@@ -1,3 +1,5 @@
+import { memo } from 'react'
+
 interface Prediccion {
   sugerencia_reposicion: number
   valor_total_sugerencia: number
@@ -9,7 +11,7 @@ interface Props {
   predicciones: Prediccion[]
 }
 
-export default function StatsCards({ predicciones }: Props) {
+function StatsCards({ predicciones }: Props) {
   const totalSugerencias = predicciones.reduce((sum, p) => sum + p.sugerencia_reposicion, 0)
   const totalValor = predicciones.reduce((sum, p) => sum + p.valor_total_sugerencia, 0)
   const totalAlertas = predicciones.filter(p => p.alertas && p.alertas.length > 0).length
@@ -77,3 +79,5 @@ export default function StatsCards({ predicciones }: Props) {
     </div>
   )
 }
+
+export default memo(StatsCards)

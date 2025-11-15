@@ -1,3 +1,5 @@
+import { memo } from 'react'
+
 interface Props {
   filtros: {
     abc: string
@@ -7,7 +9,7 @@ interface Props {
   setFiltros: (filtros: any) => void
 }
 
-export default function Filtros({ filtros, setFiltros }: Props) {
+function Filtros({ filtros, setFiltros }: Props) {
   return (
     <div className="bg-white rounded-lg shadow p-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -62,3 +64,5 @@ export default function Filtros({ filtros, setFiltros }: Props) {
     </div>
   )
 }
+
+export default memo(Filtros)
