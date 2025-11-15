@@ -11,6 +11,7 @@ import SkusExcluidosModal from '@/components/SkusExcluidosModal'
 import CotizarModal from '@/components/CotizarModal'
 import ResumenModal from '@/components/ResumenModal'
 import CotizarMasivoModal from '@/components/CotizarMasivoModal'
+import CargaMasivaCotizaciones from '@/components/CargaMasivaCotizaciones'
 
 interface Prediccion {
   id: number
@@ -528,6 +529,12 @@ export default function Home() {
 
       {/* Filtros */}
       <Filtros filtros={filtros} setFiltros={setFiltros} />
+
+      {/* Carga Masiva de Cotizaciones */}
+      <CargaMasivaCotizaciones
+        predicciones={predicciones}
+        onSuccess={() => cargarPredicciones()}
+      />
 
       {/* Tabla de Predicciones */}
       <div className="bg-white rounded-lg shadow">
