@@ -1,3 +1,8 @@
+'use client'
+
+import { useState } from 'react'
+import CotizarModal from './CotizarModal'
+
 interface Prediccion {
   id: number
   sku: string
@@ -25,6 +30,13 @@ interface Props {
 }
 
 export default function PrediccionesTable({ predicciones, onExcludeToggle }: Props) {
+  const [cotizarModal, setCotizarModal] = useState<{
+    isOpen: boolean
+    prediccion: Prediccion | null
+  }>({
+    isOpen: false,
+    prediccion: null
+  })
   const getClaseABCColor = (clase: string) => {
     switch (clase) {
       case 'A': return 'bg-red-100 text-red-800'
@@ -65,6 +77,9 @@ export default function PrediccionesTable({ predicciones, onExcludeToggle }: Pro
           <tr>
             <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
               Excluir
+            </th>
+            <th className="px-4 py-3 text-center text-xs font-medium text-blue-600 uppercase tracking-wider">
+              Cotizar
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               SKU
@@ -123,6 +138,15 @@ export default function PrediccionesTable({ predicciones, onExcludeToggle }: Pro
                   className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded cursor-pointer"
                   title="Excluir este SKU del análisis"
                 />
+              </td>
+              <td className="px-4 py-4 whitespace-nowrap text-center">
+                <button
+                  onClick={() => setCotizarModal({ isOpen: true, prediccion: pred })}
+                  className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+                  title="Crear cotización para este producto"
+                >
+                  📋 Cotizar
+                </button>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <span className="text-sm font-medium text-gray-900">
@@ -196,6 +220,21 @@ export default function PrediccionesTable({ predicciones, onExcludeToggle }: Pro
           ))}
         </tbody>
       </table>
+
+      {/* Modal de Cotización */}
+      {cotizarModal.prediccion && (
+        <CotizarModal
+          isOpen={cotizarModal.isOpen}
+          onClose={() => setCotizarModal({ isOpen: false, prediccion: null })}
+          sku={cotizarModal.prediccion.sku}
+          descripcion={cotizarModal.prediccion.descripcion}
+          sugerenciaReposicion={cotizarModal.prediccion.sugerencia_reposicion}
+          precioUnitario={cotizarModal.prediccion.precio_unitario}
+          onSuccess={() => {
+            // Opcional: recargar datos o mostrar mensaje
+          }}
+        />
+      )}
     </div>
   )
 }

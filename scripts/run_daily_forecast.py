@@ -285,23 +285,64 @@ class ForecastPipeline:
 
 
     def cargar_datos_transito(self) -> pd.DataFrame:
-        """Carga tránsito desde China"""
-        print(f"\n🚢 Cargando tránsito China...")
+        """Carga tránsito desde China y cotizaciones aprobadas"""
+        print(f"\n🚢 Cargando tránsito China y cotizaciones...")
 
-        response = self.supabase.table('transito_china') \
+        # 1. Cargar tránsito China
+        response_transito = self.supabase.table('transito_china') \
             .select('*') \
             .filter('estado', 'eq', 'en_transito') \
             .execute()
 
-        if not response.data:
-            print("   ℹ️  No hay tránsito en curso")
+        transito_data = []
+        if response_transito.data:
+            for row in response_transito.data:
+                transito_data.append({
+                    'sku': row['sku'],
+                    'unidades': row['unidades'],
+                    'estado': row['estado']
+                })
+            print(f"   ✓ {len(transito_data)} registros de tránsito China")
+        else:
+            print("   ℹ️  No hay tránsito en curso desde China")
+
+        # 2. Cargar cotizaciones aprobadas (tratadas como tránsito)
+        response_cotizaciones = self.supabase.table('cotizaciones') \
+            .select('*') \
+            .filter('estado', 'eq', 'aprobada') \
+            .execute()
+
+        cotizaciones_data = []
+        if response_cotizaciones.data:
+            for row in response_cotizaciones.data:
+                cotizaciones_data.append({
+                    'sku': row['sku'],
+                    'unidades': row['cantidad_cotizar'],
+                    'estado': 'cotizacion_aprobada'
+                })
+            print(f"   ✓ {len(cotizaciones_data)} cotizaciones aprobadas (como tránsito)")
+        else:
+            print("   ℹ️  No hay cotizaciones aprobadas")
+
+        # 3. Combinar ambas fuentes
+        combined_data = transito_data + cotizaciones_data
+
+        if not combined_data:
+            print("   ℹ️  No hay tránsito ni cotizaciones")
             return pd.DataFrame()
 
-        df = pd.DataFrame(response.data)
+        df = pd.DataFrame(combined_data)
 
-        print(f"   ✓ {len(df)} registros de tránsito")
+        # Agrupar por SKU sumando unidades (en caso de tener tránsito + cotización del mismo SKU)
+        df_agrupado = df.groupby('sku', as_index=False).agg({
+            'unidades': 'sum'
+        })
+        df_agrupado['estado'] = 'combinado'
 
-        return df
+        print(f"   ✓ Total: {len(df_agrupado)} SKUs únicos en tránsito (incluyendo cotizaciones)")
+        print(f"   ✓ Total unidades: {df_agrupado['unidades'].sum()}")
+
+        return df_agrupado
 
 
     def cargar_datos_compras(self) -> pd.DataFrame:

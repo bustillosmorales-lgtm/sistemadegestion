@@ -25,6 +25,32 @@ const procesarExcelBodySchema = z.object({
     .regex(/^uploads\/.*\.(xlsx|xls)$/i, 'El archivo debe ser un Excel válido'),
 }).strict();
 
+// Esquema para query params de cotizaciones
+const cotizacionesQuerySchema = z.object({
+  estado: z.enum(['pendiente', 'aprobada', 'rechazada', 'recibida']).optional(),
+  sku: z.string().optional(),
+}).strict();
+
+// Esquema para POST cotizaciones
+const cotizacionPostSchema = z.object({
+  sku: z.string().min(1, 'SKU es requerido'),
+  descripcion: z.string().optional(),
+  cantidad_cotizar: z.number().int().positive('Cantidad debe ser mayor a 0'),
+  precio_unitario: z.number().nonnegative('Precio debe ser mayor o igual a 0').optional().default(0),
+  notas: z.string().optional(),
+}).strict();
+
+// Esquema para PUT cotizaciones (todos los campos opcionales excepto al menos uno requerido)
+const cotizacionPutSchema = z.object({
+  cantidad_cotizar: z.number().int().positive('Cantidad debe ser mayor a 0').optional(),
+  precio_unitario: z.number().nonnegative('Precio debe ser mayor o igual a 0').optional(),
+  estado: z.enum(['pendiente', 'aprobada', 'rechazada', 'recibida']).optional(),
+  notas: z.string().optional(),
+}).strict().refine(
+  data => Object.keys(data).length > 0,
+  { message: 'Al menos un campo debe ser actualizado' }
+);
+
 // Helper para validar y retornar errores formateados
 function validateInput(schema, data) {
   try {
@@ -52,5 +78,8 @@ module.exports = {
   prediccionesQuerySchema,
   alertasQuerySchema,
   procesarExcelBodySchema,
+  cotizacionesQuerySchema,
+  cotizacionPostSchema,
+  cotizacionPutSchema,
   validateInput
 };

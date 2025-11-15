@@ -82,3 +82,44 @@ export async function fetchDatosBD(tabla: 'ventas' | 'stock' | 'transito' | 'com
   const response = await apiCall(`/.netlify/functions/datos-bd?tabla=${tabla}`)
   return response.json()
 }
+
+// Cotizaciones API
+export async function fetchCotizaciones(params?: { estado?: string; sku?: string }) {
+  const queryString = params ? '?' + new URLSearchParams(params as any).toString() : ''
+  const response = await apiCall(`/.netlify/functions/cotizaciones${queryString}`)
+  return response.json()
+}
+
+export async function createCotizacion(data: {
+  sku: string
+  descripcion?: string
+  cantidad_cotizar: number
+  precio_unitario?: number
+  notas?: string
+}) {
+  const response = await apiCall('/.netlify/functions/cotizaciones', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+  return response.json()
+}
+
+export async function updateCotizacion(id: number, data: {
+  cantidad_cotizar?: number
+  precio_unitario?: number
+  estado?: 'pendiente' | 'aprobada' | 'rechazada' | 'recibida'
+  notas?: string
+}) {
+  const response = await apiCall(`/.netlify/functions/cotizaciones/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+  return response.json()
+}
+
+export async function deleteCotizacion(id: number) {
+  const response = await apiCall(`/.netlify/functions/cotizaciones/${id}`, {
+    method: 'DELETE',
+  })
+  return response.json()
+}
