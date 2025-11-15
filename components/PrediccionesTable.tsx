@@ -27,9 +27,19 @@ interface Props {
   predicciones: Prediccion[]
   onExcludeToggle: (sku: string, descripcion: string) => Promise<void>
   onCotizar: (prediccion: Prediccion) => void
+  skusSeleccionados: Set<string>
+  onToggleSeleccion: (sku: string) => void
+  onToggleTodos: () => void
 }
 
-function PrediccionesTable({ predicciones, onExcludeToggle, onCotizar }: Props) {
+function PrediccionesTable({
+  predicciones,
+  onExcludeToggle,
+  onCotizar,
+  skusSeleccionados,
+  onToggleSeleccion,
+  onToggleTodos
+}: Props) {
   const getClaseABCColor = (clase: string) => {
     switch (clase) {
       case 'A': return 'bg-red-100 text-red-800'
@@ -70,10 +80,20 @@ function PrediccionesTable({ predicciones, onExcludeToggle, onCotizar }: Props) 
         <td className="px-3 py-3 whitespace-nowrap text-center">
           <input
             type="checkbox"
-            onChange={() => onExcludeToggle(pred.sku, pred.descripcion)}
-            className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded cursor-pointer"
-            title="Excluir este SKU del análisis"
+            checked={skusSeleccionados.has(pred.sku)}
+            onChange={() => onToggleSeleccion(pred.sku)}
+            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+            title="Seleccionar para acción masiva"
           />
+        </td>
+        <td className="px-3 py-3 whitespace-nowrap text-center">
+          <button
+            onClick={() => onExcludeToggle(pred.sku, pred.descripcion)}
+            className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
+            title="Excluir este SKU del análisis"
+          >
+            🚫 Excluir
+          </button>
         </td>
         <td className="px-3 py-3 whitespace-nowrap text-center">
           <button
@@ -154,7 +174,7 @@ function PrediccionesTable({ predicciones, onExcludeToggle, onCotizar }: Props) 
         </td>
       </tr>
     ))
-  }, [predicciones, onExcludeToggle, onCotizar])
+  }, [predicciones, onExcludeToggle, onCotizar, skusSeleccionados, onToggleSeleccion])
 
   return (
     <div className="overflow-x-auto max-h-[600px] overflow-y-auto relative">
@@ -162,6 +182,15 @@ function PrediccionesTable({ predicciones, onExcludeToggle, onCotizar }: Props) 
         <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
           <tr>
             <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <input
+                type="checkbox"
+                checked={predicciones.length > 0 && skusSeleccionados.size === predicciones.length}
+                onChange={onToggleTodos}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                title="Seleccionar/Deseleccionar todos"
+              />
+            </th>
+            <th className="px-3 py-3 text-center text-xs font-medium text-red-600 uppercase tracking-wider">
               Excluir
             </th>
             <th className="px-3 py-3 text-center text-xs font-medium text-blue-600 uppercase tracking-wider">

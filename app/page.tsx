@@ -10,6 +10,7 @@ import ConfiguracionModal from '@/components/ConfiguracionModal'
 import SkusExcluidosModal from '@/components/SkusExcluidosModal'
 import CotizarModal from '@/components/CotizarModal'
 import ResumenModal from '@/components/ResumenModal'
+import CotizarMasivoModal from '@/components/CotizarMasivoModal'
 
 interface Prediccion {
   id: number
@@ -45,6 +46,9 @@ export default function Home() {
   // Debouncing en búsqueda para evitar queries excesivas
   const debouncedBusqueda = useDebounce(filtros.busqueda, 300)
 
+  // Estado para selección múltiple
+  const [skusSeleccionados, setSkusSeleccionados] = useState<Set<string>>(new Set())
+
   const [configuracionOpen, setConfiguracionOpen] = useState(false)
   const [excluidosOpen, setExcluidosOpen] = useState(false)
   const [resumenOpen, setResumenOpen] = useState(false)
@@ -55,6 +59,7 @@ export default function Home() {
     isOpen: false,
     prediccion: null
   })
+  const [cotizarMasivoOpen, setCotizarMasivoOpen] = useState(false)
 
   // Pre-cargar datos de modales para apertura instantánea
   const [configuraciones, setConfiguraciones] = useState<any[]>([])
@@ -304,6 +309,80 @@ export default function Home() {
     }
   }, [supabase, cargarPredicciones, cargarDatosModales])
 
+  // Funciones para selección múltiple
+  const handleToggleSeleccion = useCallback((sku: string) => {
+    setSkusSeleccionados(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(sku)) {
+        newSet.delete(sku)
+      } else {
+        newSet.add(sku)
+      }
+      return newSet
+    })
+  }, [])
+
+  const handleToggleTodos = useCallback(() => {
+    if (skusSeleccionados.size === predicciones.length) {
+      // Si todos están seleccionados, deseleccionar todos
+      setSkusSeleccionados(new Set())
+    } else {
+      // Seleccionar todos
+      setSkusSeleccionados(new Set(predicciones.map(p => p.sku)))
+    }
+  }, [predicciones, skusSeleccionados.size])
+
+  const handleExcluirSeleccionados = useCallback(async () => {
+    if (skusSeleccionados.size === 0) {
+      alert('⚠️ No hay SKUs seleccionados')
+      return
+    }
+
+    const confirmacion = confirm(`¿Deseas excluir ${skusSeleccionados.size} SKU(s) del análisis?`)
+    if (!confirmacion) return
+
+    try {
+      // Obtener datos de los SKUs seleccionados
+      const skusAExcluir = predicciones
+        .filter(p => skusSeleccionados.has(p.sku))
+        .map(p => ({
+          sku: p.sku,
+          descripcion: p.descripcion,
+          motivo: 'Exclusión masiva desde dashboard',
+          excluido_por: 'usuario'
+        }))
+
+      // Insertar todos los SKUs excluidos
+      const { error: insertError } = await supabase
+        .from('skus_excluidos')
+        .insert(skusAExcluir)
+
+      if (insertError) throw insertError
+
+      alert(`✅ ${skusSeleccionados.size} SKU(s) excluidos del análisis`)
+
+      // Limpiar selección
+      setSkusSeleccionados(new Set())
+
+      // Recargar datos
+      await Promise.all([
+        cargarPredicciones(),
+        cargarDatosModales()
+      ])
+    } catch (error: any) {
+      console.error('Error excluyendo SKUs:', error)
+      alert('Error al excluir SKUs: ' + error.message)
+    }
+  }, [skusSeleccionados, predicciones, supabase, cargarPredicciones, cargarDatosModales])
+
+  const handleCotizarSeleccionados = useCallback(() => {
+    if (skusSeleccionados.size === 0) {
+      alert('⚠️ No hay SKUs seleccionados')
+      return
+    }
+    setCotizarMasivoOpen(true)
+  }, [skusSeleccionados.size])
+
   async function cargarPredicciones() {
     setLoading(true)
     try {
@@ -415,12 +494,39 @@ export default function Home() {
       {/* Tabla de Predicciones */}
       <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Sugerencias de Reposición
-          </h2>
-          <p className="text-sm text-gray-500 mt-1">
-            {predicciones.length} productos · Ordenados por valor
-          </p>
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">
+                Sugerencias de Reposición
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                {predicciones.length} productos · Ordenados por valor
+                {skusSeleccionados.size > 0 && (
+                  <span className="ml-2 text-blue-600 font-medium">
+                    · {skusSeleccionados.size} seleccionado{skusSeleccionados.size !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </p>
+            </div>
+
+            {/* Botones de acción masiva */}
+            {skusSeleccionados.size > 0 && (
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCotizarSeleccionados}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                >
+                  📋 Cotizar Seleccionados ({skusSeleccionados.size})
+                </button>
+                <button
+                  onClick={handleExcluirSeleccionados}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                >
+                  🚫 Excluir Seleccionados ({skusSeleccionados.size})
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {loading ? (
@@ -440,6 +546,9 @@ export default function Home() {
             predicciones={predicciones}
             onExcludeToggle={handleExcludeToggle}
             onCotizar={handleCotizar}
+            skusSeleccionados={skusSeleccionados}
+            onToggleSeleccion={handleToggleSeleccion}
+            onToggleTodos={handleToggleTodos}
           />
         )}
       </div>
@@ -482,6 +591,13 @@ export default function Home() {
       <ResumenModal
         isOpen={resumenOpen}
         onClose={() => setResumenOpen(false)}
+      />
+
+      {/* Modal de Cotización Masiva */}
+      <CotizarMasivoModal
+        isOpen={cotizarMasivoOpen}
+        onClose={() => setCotizarMasivoOpen(false)}
+        prediccionesSeleccionadas={predicciones.filter(p => skusSeleccionados.has(p.sku))}
       />
     </div>
   )
