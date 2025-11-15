@@ -285,8 +285,8 @@ class ForecastPipeline:
 
 
     def cargar_datos_transito(self) -> pd.DataFrame:
-        """Carga tránsito desde China y cotizaciones aprobadas"""
-        print(f"\n🚢 Cargando tránsito China y cotizaciones...")
+        """Carga tránsito desde China y cotizaciones en proceso (pendiente/respondida/aprobada)"""
+        print(f"\n🚢 Cargando tránsito China y cotizaciones en proceso...")
 
         # 1. Cargar tránsito China
         response_transito = self.supabase.table('transito_china') \
@@ -306,10 +306,11 @@ class ForecastPipeline:
         else:
             print("   ℹ️  No hay tránsito en curso desde China")
 
-        # 2. Cargar cotizaciones aprobadas (tratadas como tránsito)
+        # 2. Cargar cotizaciones en proceso (tratadas como tránsito)
+        # Estados: pendiente, respondida, aprobada (todo lo que está en proceso de compra)
         response_cotizaciones = self.supabase.table('cotizaciones') \
             .select('*') \
-            .filter('estado', 'eq', 'aprobada') \
+            .in_('estado', ['pendiente', 'respondida', 'aprobada']) \
             .execute()
 
         cotizaciones_data = []
@@ -318,11 +319,19 @@ class ForecastPipeline:
                 cotizaciones_data.append({
                     'sku': row['sku'],
                     'unidades': row['cantidad_cotizar'],
-                    'estado': 'cotizacion_aprobada'
+                    'estado': f"cotizacion_{row['estado']}"
                 })
-            print(f"   ✓ {len(cotizaciones_data)} cotizaciones aprobadas (como tránsito)")
+            print(f"   ✓ {len(cotizaciones_data)} cotizaciones en proceso (como tránsito)")
+            # Mostrar resumen por estado
+            estados_count = {}
+            for cot in response_cotizaciones.data:
+                estado = cot['estado']
+                estados_count[estado] = estados_count.get(estado, 0) + 1
+            print(f"      - Pendientes: {estados_count.get('pendiente', 0)}")
+            print(f"      - Respondidas: {estados_count.get('respondida', 0)}")
+            print(f"      - Aprobadas: {estados_count.get('aprobada', 0)}")
         else:
-            print("   ℹ️  No hay cotizaciones aprobadas")
+            print("   ℹ️  No hay cotizaciones en proceso")
 
         # 3. Combinar ambas fuentes
         combined_data = transito_data + cotizaciones_data
