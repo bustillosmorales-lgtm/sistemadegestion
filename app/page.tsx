@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useSupabase } from '@/lib/SupabaseProvider'
+import { useDebounce } from '@/hooks/useDebounce'
 import PrediccionesTable from '@/components/PrediccionesTable'
 import Filtros from '@/components/Filtros'
 import UploadExcel from '@/components/UploadExcel'
@@ -40,6 +41,10 @@ export default function Home() {
     busqueda: '',
     soloAlertas: false
   })
+
+  // Debouncing en búsqueda para evitar queries excesivas
+  const debouncedBusqueda = useDebounce(filtros.busqueda, 300)
+
   const [configuracionOpen, setConfiguracionOpen] = useState(false)
   const [excluidosOpen, setExcluidosOpen] = useState(false)
   const [resumenOpen, setResumenOpen] = useState(false)
@@ -76,7 +81,7 @@ export default function Home() {
 
   useEffect(() => {
     cargarPredicciones()
-  }, [filtros])
+  }, [debouncedBusqueda, filtros.abc, filtros.soloAlertas])
 
   // Pre-cargar datos de modales al montar el componente
   useEffect(() => {

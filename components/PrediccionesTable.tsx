@@ -1,6 +1,6 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useMemo } from 'react'
 
 interface Prediccion {
   id: number
@@ -63,6 +63,99 @@ function PrediccionesTable({ predicciones, onExcludeToggle, onCotizar }: Props) 
     return 'text-gray-600'
   }
 
+  // Memoizar filas para evitar re-renders innecesarios
+  const tableRows = useMemo(() => {
+    return predicciones.map((pred) => (
+      <tr key={pred.id} className="hover:bg-gray-50 transition-colors">
+        <td className="px-3 py-3 whitespace-nowrap text-center">
+          <input
+            type="checkbox"
+            onChange={() => onExcludeToggle(pred.sku, pred.descripcion)}
+            className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded cursor-pointer"
+            title="Excluir este SKU del análisis"
+          />
+        </td>
+        <td className="px-3 py-3 whitespace-nowrap text-center">
+          <button
+            onClick={() => onCotizar(pred)}
+            className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+            title="Crear cotización para este producto"
+          >
+            📋 Cotizar
+          </button>
+        </td>
+        <td className="px-3 py-3 whitespace-nowrap">
+          <span className="text-sm font-medium text-gray-900">
+            {pred.sku}
+          </span>
+        </td>
+        <td className="px-4 py-3">
+          <span className="text-sm text-gray-700 line-clamp-2">
+            {pred.descripcion || '—'}
+          </span>
+        </td>
+        <td className="px-3 py-3 whitespace-nowrap">
+          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getClaseABCColor(pred.clasificacion_abc)}`}>
+            {pred.clasificacion_abc}-{pred.clasificacion_xyz}
+          </span>
+        </td>
+        <td className="px-3 py-3 whitespace-nowrap text-right text-sm text-gray-900">
+          {pred.venta_diaria_p50.toFixed(1)}
+        </td>
+        <td className="px-3 py-3 whitespace-nowrap text-right text-sm text-blue-600 font-medium">
+          ${pred.precio_unitario.toLocaleString('es-CL')}
+        </td>
+        <td className="px-3 py-3 whitespace-nowrap text-right text-sm text-gray-900">
+          {pred.stock_actual.toLocaleString('es-CL')}
+        </td>
+        <td className="px-3 py-3 whitespace-nowrap text-right text-sm text-gray-600">
+          {pred.stock_optimo.toLocaleString('es-CL')}
+        </td>
+        <td className="px-3 py-3 whitespace-nowrap text-right text-sm">
+          <span className={getDiasStockColor(pred.dias_stock_actual)}>
+            {pred.dias_stock_actual.toFixed(0)} días
+          </span>
+        </td>
+        <td className="px-3 py-3 whitespace-nowrap text-right text-sm text-orange-600">
+          {pred.transito_china.toLocaleString('es-CL')}
+        </td>
+        <td className="px-3 py-3 whitespace-nowrap text-right text-sm font-semibold text-gray-900">
+          {pred.sugerencia_reposicion.toLocaleString('es-CL')}
+        </td>
+        <td className="px-3 py-3 whitespace-nowrap text-right text-sm font-semibold text-green-600">
+          ${(pred.valor_total_sugerencia / 1000).toFixed(0)}k
+        </td>
+        <td className="px-3 py-3 whitespace-nowrap text-center text-sm">
+          <span className={pred.coeficiente_variacion > 1 ? 'text-red-600 font-semibold' : pred.coeficiente_variacion > 0.5 ? 'text-yellow-600' : 'text-green-600'} title="Coeficiente de Variación (volatilidad)">
+            {pred.coeficiente_variacion.toFixed(2)}
+          </span>
+        </td>
+        <td className="px-3 py-3 whitespace-nowrap text-center text-sm">
+          <span className={`font-medium ${getTendenciaColor(pred.tendencia)}`}>
+            {getTendenciaTexto(pred.tendencia)}
+          </span>
+        </td>
+        <td className="px-3 py-3 whitespace-nowrap text-center text-xs">
+          <span className="inline-flex px-2 py-1 rounded-full bg-purple-100 text-purple-800 font-medium" title={`Modelo de predicción: ${pred.modelo_usado}`}>
+            {pred.modelo_usado}
+          </span>
+        </td>
+        <td className="px-3 py-3 whitespace-nowrap text-center">
+          {pred.alertas && pred.alertas.length > 0 ? (
+            <span
+              className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800"
+              title={pred.alertas.join('\n')}
+            >
+              ⚠️ {pred.alertas.length}
+            </span>
+          ) : (
+            <span className="text-gray-400">—</span>
+          )}
+        </td>
+      </tr>
+    ))
+  }, [predicciones, onExcludeToggle, onCotizar])
+
   return (
     <div className="overflow-x-auto max-h-[600px] overflow-y-auto relative">
       <table className="min-w-full divide-y divide-gray-200">
@@ -122,95 +215,7 @@ function PrediccionesTable({ predicciones, onExcludeToggle, onCotizar }: Props) 
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
-          {predicciones.map((pred) => (
-            <tr key={pred.id} className="hover:bg-gray-50 transition-colors">
-              <td className="px-3 py-3 whitespace-nowrap text-center">
-                <input
-                  type="checkbox"
-                  onChange={() => onExcludeToggle(pred.sku, pred.descripcion)}
-                  className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded cursor-pointer"
-                  title="Excluir este SKU del análisis"
-                />
-              </td>
-              <td className="px-3 py-3 whitespace-nowrap text-center">
-                <button
-                  onClick={() => onCotizar(pred)}
-                  className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
-                  title="Crear cotización para este producto"
-                >
-                  📋 Cotizar
-                </button>
-              </td>
-              <td className="px-3 py-3 whitespace-nowrap">
-                <span className="text-sm font-medium text-gray-900">
-                  {pred.sku}
-                </span>
-              </td>
-              <td className="px-4 py-3">
-                <span className="text-sm text-gray-700 line-clamp-2">
-                  {pred.descripcion || '—'}
-                </span>
-              </td>
-              <td className="px-3 py-3 whitespace-nowrap">
-                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getClaseABCColor(pred.clasificacion_abc)}`}>
-                  {pred.clasificacion_abc}-{pred.clasificacion_xyz}
-                </span>
-              </td>
-              <td className="px-3 py-3 whitespace-nowrap text-right text-sm text-gray-900">
-                {pred.venta_diaria_p50.toFixed(1)}
-              </td>
-              <td className="px-3 py-3 whitespace-nowrap text-right text-sm text-blue-600 font-medium">
-                ${pred.precio_unitario.toLocaleString('es-CL')}
-              </td>
-              <td className="px-3 py-3 whitespace-nowrap text-right text-sm text-gray-900">
-                {pred.stock_actual.toLocaleString('es-CL')}
-              </td>
-              <td className="px-3 py-3 whitespace-nowrap text-right text-sm text-gray-600">
-                {pred.stock_optimo.toLocaleString('es-CL')}
-              </td>
-              <td className="px-3 py-3 whitespace-nowrap text-right text-sm">
-                <span className={getDiasStockColor(pred.dias_stock_actual)}>
-                  {pred.dias_stock_actual.toFixed(0)} días
-                </span>
-              </td>
-              <td className="px-3 py-3 whitespace-nowrap text-right text-sm text-orange-600">
-                {pred.transito_china.toLocaleString('es-CL')}
-              </td>
-              <td className="px-3 py-3 whitespace-nowrap text-right text-sm font-semibold text-gray-900">
-                {pred.sugerencia_reposicion.toLocaleString('es-CL')}
-              </td>
-              <td className="px-3 py-3 whitespace-nowrap text-right text-sm font-semibold text-green-600">
-                ${(pred.valor_total_sugerencia / 1000).toFixed(0)}k
-              </td>
-              <td className="px-3 py-3 whitespace-nowrap text-center text-sm">
-                <span className={pred.coeficiente_variacion > 1 ? 'text-red-600 font-semibold' : pred.coeficiente_variacion > 0.5 ? 'text-yellow-600' : 'text-green-600'} title="Coeficiente de Variación (volatilidad)">
-                  {pred.coeficiente_variacion.toFixed(2)}
-                </span>
-              </td>
-              <td className="px-3 py-3 whitespace-nowrap text-center text-sm">
-                <span className={`font-medium ${getTendenciaColor(pred.tendencia)}`}>
-                  {getTendenciaTexto(pred.tendencia)}
-                </span>
-              </td>
-              <td className="px-3 py-3 whitespace-nowrap text-center text-xs">
-                <span className="inline-flex px-2 py-1 rounded-full bg-purple-100 text-purple-800 font-medium" title={`Modelo de predicción: ${pred.modelo_usado}`}>
-                  {pred.modelo_usado}
-                </span>
-              </td>
-              <td className="px-3 py-3 whitespace-nowrap text-center">
-                {pred.alertas && pred.alertas.length > 0 ? (
-                  <span
-                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800"
-                    title={pred.alertas.join('\n')}
-                  >
-                    ⚠️ {pred.alertas.length}
-                  </span>
-                ) : (
-                  <span className="text-gray-400">—</span>
-                )}
-              </td>
-            </tr>
-          ))}
+          {tableRows}
         </tbody>
       </table>
     </div>
