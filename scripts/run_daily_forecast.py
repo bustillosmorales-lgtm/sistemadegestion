@@ -285,7 +285,7 @@ class ForecastPipeline:
 
 
     def cargar_datos_transito(self) -> pd.DataFrame:
-        """Carga tránsito desde China y cotizaciones en proceso (pendiente/respondida/aprobada)"""
+        """Carga tránsito desde China y cotizaciones en proceso (excluye solo rechazadas)"""
         print(f"\n🚢 Cargando tránsito China y cotizaciones en proceso...")
 
         # 1. Cargar tránsito China
@@ -307,10 +307,10 @@ class ForecastPipeline:
             print("   ℹ️  No hay tránsito en curso desde China")
 
         # 2. Cargar cotizaciones en proceso (tratadas como tránsito)
-        # Estados: pendiente, respondida, aprobada (todo lo que está en proceso de compra)
+        # Estados: pendiente, respondida, aprobada, recibida (excluir solo rechazada)
         response_cotizaciones = self.supabase.table('cotizaciones') \
             .select('*') \
-            .in_('estado', ['pendiente', 'respondida', 'aprobada']) \
+            .in_('estado', ['pendiente', 'respondida', 'aprobada', 'recibida']) \
             .execute()
 
         cotizaciones_data = []
@@ -330,6 +330,7 @@ class ForecastPipeline:
             print(f"      - Pendientes: {estados_count.get('pendiente', 0)}")
             print(f"      - Respondidas: {estados_count.get('respondida', 0)}")
             print(f"      - Aprobadas: {estados_count.get('aprobada', 0)}")
+            print(f"      - Recibidas: {estados_count.get('recibida', 0)}")
         else:
             print("   ℹ️  No hay cotizaciones en proceso")
 

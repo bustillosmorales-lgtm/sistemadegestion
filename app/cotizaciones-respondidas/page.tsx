@@ -26,7 +26,7 @@ interface Cotizacion {
 export default function CotizacionesRespondidasPage() {
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([])
   const [loading, setLoading] = useState(true)
-  const [filtroEstado, setFiltroEstado] = useState<string>('respondida')
+  const [filtroEstado, setFiltroEstado] = useState<string>('')
 
   useEffect(() => {
     cargarCotizaciones()
@@ -112,6 +112,7 @@ export default function CotizacionesRespondidasPage() {
     respondida: cotizaciones.filter(c => c.estado === 'respondida').length,
     aprobada: cotizaciones.filter(c => c.estado === 'aprobada').length,
     rechazada: cotizaciones.filter(c => c.estado === 'rechazada').length,
+    recibida: cotizaciones.filter(c => c.estado === 'recibida').length,
     total: cotizaciones.length,
     valorTotal: cotizaciones.reduce((sum, c) => sum + (c.costo_proveedor || 0) * c.cantidad_cotizar, 0)
   }
@@ -127,7 +128,7 @@ export default function CotizacionesRespondidasPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-500">Total</p>
           <p className="text-2xl font-bold text-gray-900">{resumen.total}</p>
@@ -140,13 +141,17 @@ export default function CotizacionesRespondidasPage() {
           <p className="text-sm text-blue-600">Aprobadas</p>
           <p className="text-2xl font-bold text-blue-700">{resumen.aprobada}</p>
         </div>
+        <div className="bg-purple-50 rounded-lg shadow p-4">
+          <p className="text-sm text-purple-600">Recibidas</p>
+          <p className="text-2xl font-bold text-purple-700">{resumen.recibida}</p>
+        </div>
         <div className="bg-red-50 rounded-lg shadow p-4">
           <p className="text-sm text-red-600">Rechazadas</p>
           <p className="text-2xl font-bold text-red-700">{resumen.rechazada}</p>
         </div>
-        <div className="bg-purple-50 rounded-lg shadow p-4">
-          <p className="text-sm text-purple-600">Valor Total</p>
-          <p className="text-xl font-bold text-purple-700">
+        <div className="bg-orange-50 rounded-lg shadow p-4">
+          <p className="text-sm text-orange-600">Valor Total</p>
+          <p className="text-xl font-bold text-orange-700">
             ${(resumen.valorTotal / 1000).toFixed(0)}k
           </p>
         </div>
@@ -164,6 +169,7 @@ export default function CotizacionesRespondidasPage() {
             <option value="">Todos</option>
             <option value="respondida">Respondidas</option>
             <option value="aprobada">Aprobadas</option>
+            <option value="recibida">Recibidas</option>
             <option value="rechazada">Rechazadas</option>
           </select>
         </div>

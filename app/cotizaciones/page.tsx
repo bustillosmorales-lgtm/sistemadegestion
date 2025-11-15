@@ -128,6 +128,8 @@ export default function CotizacionesPage() {
   const resumen = {
     pendiente: cotizaciones.filter(c => c.estado === 'pendiente').length,
     respondida: cotizaciones.filter(c => c.estado === 'respondida').length,
+    aprobada: cotizaciones.filter(c => c.estado === 'aprobada').length,
+    recibida: cotizaciones.filter(c => c.estado === 'recibida').length,
     total: cotizaciones.length
   }
 
@@ -142,18 +144,32 @@ export default function CotizacionesPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-500">Total</p>
           <p className="text-2xl font-bold text-gray-900">{resumen.total}</p>
         </div>
         <div className="bg-yellow-50 rounded-lg shadow p-4">
-          <p className="text-sm text-yellow-600">Por Responder</p>
+          <p className="text-sm text-yellow-600">Pendientes</p>
           <p className="text-2xl font-bold text-yellow-700">{resumen.pendiente}</p>
         </div>
         <div className="bg-green-50 rounded-lg shadow p-4">
           <p className="text-sm text-green-600">Respondidas</p>
           <p className="text-2xl font-bold text-green-700">{resumen.respondida}</p>
+        </div>
+        <div className="bg-blue-50 rounded-lg shadow p-4">
+          <p className="text-sm text-blue-600">Aprobadas</p>
+          <p className="text-2xl font-bold text-blue-700">{resumen.aprobada}</p>
+        </div>
+        <div className="bg-purple-50 rounded-lg shadow p-4">
+          <p className="text-sm text-purple-600">Recibidas</p>
+          <p className="text-2xl font-bold text-purple-700">{resumen.recibida}</p>
+        </div>
+        <div className="bg-orange-50 rounded-lg shadow p-4">
+          <p className="text-sm text-orange-600">En Proceso</p>
+          <p className="text-2xl font-bold text-orange-700">
+            {resumen.pendiente + resumen.respondida + resumen.aprobada + resumen.recibida}
+          </p>
         </div>
       </div>
 
@@ -169,6 +185,8 @@ export default function CotizacionesPage() {
             <option value="">Todos</option>
             <option value="pendiente">Pendientes</option>
             <option value="respondida">Respondidas</option>
+            <option value="aprobada">Aprobadas</option>
+            <option value="recibida">Recibidas</option>
           </select>
         </div>
       </div>
