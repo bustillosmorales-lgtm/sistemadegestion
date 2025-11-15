@@ -1,6 +1,7 @@
 'use client'
 
-import { memo, useMemo } from 'react'
+import { memo, useMemo, useState } from 'react'
+import { createCotizacion } from '@/lib/api-client'
 
 interface Prediccion {
   id: number
@@ -18,6 +19,7 @@ interface Props {
 }
 
 function CotizarMasivoModal({ isOpen, onClose, prediccionesSeleccionadas }: Props) {
+  const [loading, setLoading] = useState(false)
   // Calcular totales
   const totales = useMemo(() => {
     const totalUnidades = prediccionesSeleccionadas.reduce(
@@ -53,6 +55,46 @@ function CotizarMasivoModal({ isOpen, onClose, prediccionesSeleccionadas }: Prop
 
     return texto
   }, [prediccionesSeleccionadas, totales])
+
+  const handleCrearCotizaciones = async () => {
+    setLoading(true)
+    try {
+      let exitosas = 0
+      let fallidas = 0
+
+      // Crear cotizaciones en paralelo
+      const promesas = prediccionesSeleccionadas.map(async (pred) => {
+        try {
+          await createCotizacion({
+            sku: pred.sku,
+            descripcion: pred.descripcion,
+            cantidad_cotizar: pred.sugerencia_reposicion,
+            precio_unitario: pred.precio_unitario,
+            notas: 'Cotización masiva - Cantidad recomendada por sistema'
+          })
+          exitosas++
+        } catch (error) {
+          console.error(`Error creando cotización para ${pred.sku}:`, error)
+          fallidas++
+        }
+      })
+
+      await Promise.all(promesas)
+
+      if (fallidas === 0) {
+        alert(`✅ ${exitosas} cotización(es) creadas exitosamente`)
+      } else {
+        alert(`⚠️ Cotizaciones creadas: ${exitosas}\nFallidas: ${fallidas}`)
+      }
+
+      onClose()
+    } catch (error: any) {
+      console.error('Error en cotización masiva:', error)
+      alert('❌ Error al crear cotizaciones: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleCopiar = async () => {
     try {
@@ -175,22 +217,41 @@ function CotizarMasivoModal({ isOpen, onClose, prediccionesSeleccionadas }: Prop
           <div className="flex flex-col sm:flex-row gap-3 justify-between">
             <button
               onClick={onClose}
-              className="px-6 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              disabled={loading}
+              className="px-6 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancelar
             </button>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={handleCrearCotizaciones}
+                disabled={loading}
+                className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold"
+              >
+                {loading ? (
+                  <>
+                    <span className="inline-block animate-spin">⏳</span>
+                    Creando...
+                  </>
+                ) : (
+                  <>
+                    ✅ Crear Cotización
+                  </>
+                )}
+              </button>
               <button
                 onClick={handleDescargarTxt}
-                className="px-6 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md transition-colors flex items-center gap-2"
+                disabled={loading}
+                className="px-6 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md transition-colors flex items-center gap-2 disabled:opacity-50"
               >
                 💾 Descargar TXT
               </button>
               <button
                 onClick={handleCopiar}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors flex items-center gap-2"
+                disabled={loading}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors flex items-center gap-2 disabled:opacity-50"
               >
-                📋 Copiar al Portapapeles
+                📋 Copiar
               </button>
             </div>
           </div>
