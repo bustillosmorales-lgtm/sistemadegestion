@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useMemo, useState } from 'react'
+import { memo, useMemo, useState, useEffect } from 'react'
 import { createCotizacion } from '@/lib/api-client'
 
 interface Prediccion {
@@ -21,20 +21,52 @@ interface Props {
 
 function CotizarMasivoModal({ isOpen, onClose, prediccionesSeleccionadas, onSuccess }: Props) {
   const [loading, setLoading] = useState(false)
-  // Calcular totales
-  const totales = useMemo(() => {
-    const totalUnidades = prediccionesSeleccionadas.reduce(
-      (sum, p) => sum + p.sugerencia_reposicion,
-      0
-    )
-    const valorTotal = prediccionesSeleccionadas.reduce(
-      (sum, p) => sum + p.valor_total_sugerencia,
-      0
-    )
-    return { totalUnidades, valorTotal }
+
+  // Estado para cantidades editables (Map de SKU -> cantidad)
+  const [cantidades, setCantidades] = useState<Map<string, number>>(() => {
+    const map = new Map<string, number>()
+    prediccionesSeleccionadas.forEach(p => {
+      map.set(p.sku, p.sugerencia_reposicion)
+    })
+    return map
+  })
+
+  // Actualizar cantidades cuando cambian las predicciones seleccionadas
+  useEffect(() => {
+    const map = new Map<string, number>()
+    prediccionesSeleccionadas.forEach(p => {
+      map.set(p.sku, p.sugerencia_reposicion)
+    })
+    setCantidades(map)
   }, [prediccionesSeleccionadas])
 
-  // Generar texto para copiar
+  // Calcular totales basados en cantidades editadas
+  const totales = useMemo(() => {
+    let totalUnidades = 0
+    let valorTotal = 0
+
+    prediccionesSeleccionadas.forEach(p => {
+      const cantidad = cantidades.get(p.sku) || 0
+      totalUnidades += cantidad
+      valorTotal += cantidad * p.precio_unitario
+    })
+
+    return { totalUnidades, valorTotal }
+  }, [prediccionesSeleccionadas, cantidades])
+
+  // Función para manejar cambio de cantidad
+  const handleCantidadChange = (sku: string, value: string) => {
+    const cantidad = value === '' ? 0 : parseInt(value)
+    if (!isNaN(cantidad) && cantidad >= 0) {
+      setCantidades(prev => {
+        const newMap = new Map(prev)
+        newMap.set(sku, cantidad)
+        return newMap
+      })
+    }
+  }
+
+  // Generar texto para copiar usando cantidades editadas
   const textoCotizacion = useMemo(() => {
     let texto = '📋 SOLICITUD DE COTIZACIÓN MASIVA\n\n'
     texto += `Total de productos: ${prediccionesSeleccionadas.length}\n`
@@ -43,19 +75,21 @@ function CotizarMasivoModal({ isOpen, onClose, prediccionesSeleccionadas, onSucc
     texto += '─'.repeat(80) + '\n\n'
 
     prediccionesSeleccionadas.forEach((pred, index) => {
+      const cantidad = cantidades.get(pred.sku) || 0
+      const valorTotal = cantidad * pred.precio_unitario
+
       texto += `${index + 1}. SKU: ${pred.sku}\n`
       texto += `   Descripción: ${pred.descripcion || 'Sin descripción'}\n`
-      texto += `   Cantidad solicitada: ${pred.sugerencia_reposicion.toLocaleString('es-CL')} unidades\n`
+      texto += `   Cantidad solicitada: ${cantidad.toLocaleString('es-CL')} unidades\n`
       texto += `   Precio unitario ref.: $${pred.precio_unitario.toLocaleString('es-CL')}\n`
-      texto += `   Valor total ref.: $${pred.valor_total_sugerencia.toLocaleString('es-CL')}\n\n`
+      texto += `   Valor total ref.: $${valorTotal.toLocaleString('es-CL')}\n\n`
     })
 
     texto += '─'.repeat(80) + '\n'
     texto += `\nTOTAL GENERAL: $${totales.valorTotal.toLocaleString('es-CL')}\n`
-    texto += `\nNota: Las cantidades indicadas son las recomendadas por el sistema de forecasting.\n`
 
     return texto
-  }, [prediccionesSeleccionadas, totales])
+  }, [prediccionesSeleccionadas, cantidades, totales])
 
   const handleCrearCotizaciones = async () => {
     setLoading(true)
@@ -63,15 +97,24 @@ function CotizarMasivoModal({ isOpen, onClose, prediccionesSeleccionadas, onSucc
       let exitosas = 0
       let fallidas = 0
 
-      // Crear cotizaciones en paralelo
+      // Crear cotizaciones en paralelo usando cantidades editadas
       const promesas = prediccionesSeleccionadas.map(async (pred) => {
+        const cantidad = cantidades.get(pred.sku) || 0
+
+        // No crear cotización si cantidad es 0
+        if (cantidad === 0) {
+          return
+        }
+
         try {
           await createCotizacion({
             sku: pred.sku,
             descripcion: pred.descripcion,
-            cantidad_cotizar: pred.sugerencia_reposicion,
+            cantidad_cotizar: cantidad,  // ← Usar cantidad editada
             precio_unitario: pred.precio_unitario,
-            notas: 'Cotización masiva - Cantidad recomendada por sistema'
+            notas: cantidad === pred.sugerencia_reposicion
+              ? 'Cotización masiva - Cantidad recomendada por sistema'
+              : `Cotización masiva - Cantidad ajustada (recomendado: ${pred.sugerencia_reposicion})`
           })
           exitosas++
         } catch (error) {
@@ -193,23 +236,38 @@ function CotizarMasivoModal({ isOpen, onClose, prediccionesSeleccionadas, onSucc
                     <p className="text-sm text-gray-600 mt-1 ml-8">
                       {pred.descripcion || 'Sin descripción'}
                     </p>
-                    <div className="flex gap-4 mt-2 ml-8 text-sm">
-                      <span className="text-gray-500">
-                        Cantidad: <span className="font-semibold text-blue-600">
-                          {pred.sugerencia_reposicion.toLocaleString('es-CL')} un.
-                        </span>
-                      </span>
-                      <span className="text-gray-500">
-                        P. Unit.: <span className="font-semibold text-gray-700">
+                    <div className="flex gap-4 mt-3 ml-8 items-center">
+                      <div className="flex-1">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                          Cantidad a Cotizar
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="0"
+                            value={cantidades.get(pred.sku) || 0}
+                            onChange={(e) => handleCantidadChange(pred.sku, e.target.value)}
+                            disabled={loading}
+                            className="w-32 px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                          />
+                          <span className="text-sm text-gray-500">unidades</span>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Recomendado: {pred.sugerencia_reposicion.toLocaleString('es-CL')} un.
+                        </p>
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        <span className="block text-xs text-gray-400 mb-1">P. Unit.</span>
+                        <span className="font-semibold text-gray-700">
                           ${pred.precio_unitario.toLocaleString('es-CL')}
                         </span>
-                      </span>
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="text-xs text-gray-500">Valor Total</p>
                     <p className="text-lg font-bold text-green-600">
-                      ${(pred.valor_total_sugerencia / 1000).toFixed(0)}k
+                      ${(((cantidades.get(pred.sku) || 0) * pred.precio_unitario) / 1000).toFixed(0)}k
                     </p>
                   </div>
                 </div>
@@ -262,7 +320,7 @@ function CotizarMasivoModal({ isOpen, onClose, prediccionesSeleccionadas, onSucc
             </div>
           </div>
           <p className="text-xs text-gray-500 mt-3 text-center">
-            Las cantidades indicadas son las recomendadas automáticamente por el sistema de forecasting
+            💡 Tip: Puedes ajustar las cantidades antes de crear la cotización. Las cantidades recomendadas se muestran como referencia.
           </p>
         </div>
       </div>
