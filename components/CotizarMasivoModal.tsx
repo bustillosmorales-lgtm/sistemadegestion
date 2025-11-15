@@ -16,9 +16,10 @@ interface Props {
   isOpen: boolean
   onClose: () => void
   prediccionesSeleccionadas: Prediccion[]
+  onSuccess?: () => void
 }
 
-function CotizarMasivoModal({ isOpen, onClose, prediccionesSeleccionadas }: Props) {
+function CotizarMasivoModal({ isOpen, onClose, prediccionesSeleccionadas, onSuccess }: Props) {
   const [loading, setLoading] = useState(false)
   // Calcular totales
   const totales = useMemo(() => {
@@ -85,6 +86,11 @@ function CotizarMasivoModal({ isOpen, onClose, prediccionesSeleccionadas }: Prop
         alert(`✅ ${exitosas} cotización(es) creadas exitosamente`)
       } else {
         alert(`⚠️ Cotizaciones creadas: ${exitosas}\nFallidas: ${fallidas}`)
+      }
+
+      // Llamar callback de éxito para actualizar dashboard
+      if (onSuccess) {
+        onSuccess()
       }
 
       onClose()

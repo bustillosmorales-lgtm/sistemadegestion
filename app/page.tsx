@@ -636,6 +636,10 @@ export default function Home() {
         isOpen={cotizarMasivoOpen}
         onClose={() => setCotizarMasivoOpen(false)}
         prediccionesSeleccionadas={predicciones.filter(p => skusSeleccionados.has(p.sku))}
+        onSuccess={() => {
+          cargarPredicciones()
+          setSkusSeleccionados(new Set()) // Limpiar selección después de cotizar
+        }}
       />
     </div>
   )
