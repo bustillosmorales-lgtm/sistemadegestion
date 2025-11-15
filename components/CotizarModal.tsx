@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo, useCallback, memo } from 'react'
 import { createCotizacion } from '@/lib/api-client'
 
 interface CotizarModalProps {
@@ -13,7 +13,7 @@ interface CotizarModalProps {
   onSuccess?: () => void
 }
 
-export default function CotizarModal({
+function CotizarModal({
   isOpen,
   onClose,
   sku,
@@ -26,9 +26,13 @@ export default function CotizarModal({
   const [notas, setNotas] = useState('')
   const [loading, setLoading] = useState(false)
 
-  if (!isOpen) return null
+  // Memoizar cálculo del valor total
+  const valorTotal = useMemo(() => {
+    return cantidadCotizar * precioUnitario
+  }, [cantidadCotizar, precioUnitario])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Optimizar handlers con useCallback
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
@@ -54,9 +58,20 @@ export default function CotizarModal({
     } finally {
       setLoading(false)
     }
-  }
+  }, [sku, descripcion, cantidadCotizar, precioUnitario, notas, onSuccess, onClose])
 
-  const valorTotal = cantidadCotizar * precioUnitario
+  const handleCantidadChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(e.target.value)
+    if (!isNaN(value)) {
+      setCantidadCotizar(value)
+    }
+  }, [])
+
+  const handleNotasChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNotas(e.target.value)
+  }, [])
+
+  if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -107,7 +122,7 @@ export default function CotizarModal({
                           min="1"
                           max={sugerenciaReposicion}
                           value={cantidadCotizar}
-                          onChange={(e) => setCantidadCotizar(parseInt(e.target.value) || 0)}
+                          onChange={handleCantidadChange}
                           className="block w-full rounded-md border-gray-300 pr-16 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                           required
                         />
@@ -149,7 +164,7 @@ export default function CotizarModal({
                         id="notas"
                         rows={3}
                         value={notas}
-                        onChange={(e) => setNotas(e.target.value)}
+                        onChange={handleNotasChange}
                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                         placeholder="Agregar observaciones..."
                       />
@@ -183,3 +198,6 @@ export default function CotizarModal({
     </div>
   )
 }
+
+// Exportar con memo para evitar re-renders innecesarios
+export default memo(CotizarModal)

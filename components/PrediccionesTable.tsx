@@ -1,8 +1,5 @@
 'use client'
 
-import { useState } from 'react'
-import CotizarModal from './CotizarModal'
-
 interface Prediccion {
   id: number
   sku: string
@@ -27,16 +24,10 @@ interface Prediccion {
 interface Props {
   predicciones: Prediccion[]
   onExcludeToggle: (sku: string, descripcion: string) => Promise<void>
+  onCotizar: (prediccion: Prediccion) => void
 }
 
-export default function PrediccionesTable({ predicciones, onExcludeToggle }: Props) {
-  const [cotizarModal, setCotizarModal] = useState<{
-    isOpen: boolean
-    prediccion: Prediccion | null
-  }>({
-    isOpen: false,
-    prediccion: null
-  })
+export default function PrediccionesTable({ predicciones, onExcludeToggle, onCotizar }: Props) {
   const getClaseABCColor = (clase: string) => {
     switch (clase) {
       case 'A': return 'bg-red-100 text-red-800'
@@ -141,7 +132,7 @@ export default function PrediccionesTable({ predicciones, onExcludeToggle }: Pro
               </td>
               <td className="px-3 py-3 whitespace-nowrap text-center">
                 <button
-                  onClick={() => setCotizarModal({ isOpen: true, prediccion: pred })}
+                  onClick={() => onCotizar(pred)}
                   className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
                   title="Crear cotización para este producto"
                 >
@@ -220,21 +211,6 @@ export default function PrediccionesTable({ predicciones, onExcludeToggle }: Pro
           ))}
         </tbody>
       </table>
-
-      {/* Modal de Cotización */}
-      {cotizarModal.prediccion && (
-        <CotizarModal
-          isOpen={cotizarModal.isOpen}
-          onClose={() => setCotizarModal({ isOpen: false, prediccion: null })}
-          sku={cotizarModal.prediccion.sku}
-          descripcion={cotizarModal.prediccion.descripcion}
-          sugerenciaReposicion={cotizarModal.prediccion.sugerencia_reposicion}
-          precioUnitario={cotizarModal.prediccion.precio_unitario}
-          onSuccess={() => {
-            // Opcional: recargar datos o mostrar mensaje
-          }}
-        />
-      )}
     </div>
   )
 }

@@ -8,6 +8,7 @@ import Filtros from '@/components/Filtros'
 import UploadExcel from '@/components/UploadExcel'
 import ConfiguracionModal from '@/components/ConfiguracionModal'
 import SkusExcluidosModal from '@/components/SkusExcluidosModal'
+import CotizarModal from '@/components/CotizarModal'
 
 interface Prediccion {
   id: number
@@ -41,6 +42,13 @@ export default function Home() {
   })
   const [configuracionOpen, setConfiguracionOpen] = useState(false)
   const [excluidosOpen, setExcluidosOpen] = useState(false)
+  const [cotizarModal, setCotizarModal] = useState<{
+    isOpen: boolean
+    prediccion: Prediccion | null
+  }>({
+    isOpen: false,
+    prediccion: null
+  })
 
   // Pre-cargar datos de modales para apertura instantánea
   const [configuraciones, setConfiguraciones] = useState<any[]>([])
@@ -238,6 +246,10 @@ export default function Home() {
     }
   }
 
+  function handleCotizar(prediccion: Prediccion) {
+    setCotizarModal({ isOpen: true, prediccion })
+  }
+
   async function handleExcludeToggle(sku: string, descripcion: string) {
     try {
       // Verificar si ya está excluido
@@ -416,7 +428,11 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          <PrediccionesTable predicciones={predicciones} onExcludeToggle={handleExcludeToggle} />
+          <PrediccionesTable
+            predicciones={predicciones}
+            onExcludeToggle={handleExcludeToggle}
+            onCotizar={handleCotizar}
+          />
         )}
       </div>
 
@@ -438,6 +454,21 @@ export default function Home() {
           cargarPredicciones()
         }}
       />
+
+      {/* Modal de Cotización */}
+      {cotizarModal.prediccion && (
+        <CotizarModal
+          isOpen={cotizarModal.isOpen}
+          onClose={() => setCotizarModal({ isOpen: false, prediccion: null })}
+          sku={cotizarModal.prediccion.sku}
+          descripcion={cotizarModal.prediccion.descripcion}
+          sugerenciaReposicion={cotizarModal.prediccion.sugerencia_reposicion}
+          precioUnitario={cotizarModal.prediccion.precio_unitario}
+          onSuccess={() => {
+            // Opcional: recargar cotizaciones si es necesario
+          }}
+        />
+      )}
     </div>
   )
 }
