@@ -23,6 +23,13 @@ export default function ContenedoresPage() {
     sku: '',
     descripcion: ''
   })
+  const [editingItem, setEditingItem] = useState<ContenedorItem | null>(null)
+  const [editData, setEditData] = useState({
+    sku: '',
+    numero_contenedor: '',
+    fecha_carga: '',
+    unidades: 0
+  })
 
   useEffect(() => {
     cargarDatos()
@@ -53,7 +60,7 @@ export default function ContenedoresPage() {
       // 2. Cargar tránsito desde carga masiva
       let queryTransito = supabase
         .from('transito_china')
-        .select('id, sku, unidades, numero_contenedor, estado, created_at')
+        .select('id, sku, descripcion, unidades, numero_contenedor, estado, fecha_contenedor, created_at')
         .eq('estado', 'en_transito')
 
       if (filtros.contenedor) {
@@ -61,6 +68,9 @@ export default function ContenedoresPage() {
       }
       if (filtros.sku) {
         queryTransito = queryTransito.ilike('sku', `%${filtros.sku}%`)
+      }
+      if (filtros.descripcion) {
+        queryTransito = queryTransito.ilike('descripcion', `%${filtros.descripcion}%`)
       }
 
       const { data: transito, error: errorTra } = await queryTransito
@@ -88,10 +98,10 @@ export default function ContenedoresPage() {
           combined.push({
             id: tra.id,
             sku: tra.sku,
-            descripcion: null,
+            descripcion: tra.descripcion,
             unidades: tra.unidades,
             numero_contenedor: tra.numero_contenedor,
-            fecha_carga: tra.created_at,
+            fecha_carga: tra.fecha_contenedor || tra.created_at,
             origen: 'carga_masiva',
             estado: tra.estado
           })
@@ -116,6 +126,90 @@ export default function ContenedoresPage() {
       console.error('Error cargando contenedores:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  function startEdit(item: ContenedorItem) {
+    setEditingItem(item)
+    setEditData({
+      sku: item.sku,
+      numero_contenedor: item.numero_contenedor || '',
+      fecha_carga: item.fecha_carga.split('T')[0], // Solo la fecha
+      unidades: item.unidades
+    })
+  }
+
+  async function saveEdit() {
+    if (!editingItem) return
+
+    try {
+      if (editingItem.origen === 'cotizacion') {
+        // Actualizar en cotizaciones
+        const { error } = await supabase
+          .from('cotizaciones')
+          .update({
+            numero_contenedor: editData.numero_contenedor || null,
+            fecha_carga_contenedor: editData.fecha_carga || null,
+            cantidad_cotizar: editData.unidades
+          })
+          .eq('id', editingItem.id)
+
+        if (error) throw error
+      } else {
+        // Actualizar en transito_china
+        const { error } = await supabase
+          .from('transito_china')
+          .update({
+            sku: editData.sku,
+            numero_contenedor: editData.numero_contenedor || null,
+            fecha_contenedor: editData.fecha_carga || null,
+            unidades: editData.unidades
+          })
+          .eq('id', editingItem.id)
+
+        if (error) throw error
+      }
+
+      alert('✅ Registro actualizado exitosamente')
+      setEditingItem(null)
+      await cargarDatos()
+    } catch (error: any) {
+      console.error('Error actualizando:', error)
+      alert('Error: ' + error.message)
+    }
+  }
+
+  async function deleteItem(item: ContenedorItem) {
+    const confirmMsg = `¿Eliminar ${item.sku} del contenedor ${item.numero_contenedor}?`
+    if (!confirm(confirmMsg)) return
+
+    try {
+      if (item.origen === 'cotizacion') {
+        // En cotizaciones, solo limpiamos los campos de contenedor
+        const { error } = await supabase
+          .from('cotizaciones')
+          .update({
+            numero_contenedor: null,
+            fecha_carga_contenedor: null
+          })
+          .eq('id', item.id)
+
+        if (error) throw error
+      } else {
+        // En transito_china, eliminamos el registro
+        const { error } = await supabase
+          .from('transito_china')
+          .delete()
+          .eq('id', item.id)
+
+        if (error) throw error
+      }
+
+      alert('✅ Registro eliminado exitosamente')
+      await cargarDatos()
+    } catch (error: any) {
+      console.error('Error eliminando:', error)
+      alert('Error: ' + error.message)
     }
   }
 
@@ -229,6 +323,7 @@ export default function ContenedoresPage() {
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Unidades</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Origen</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Estado</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -263,6 +358,22 @@ export default function ContenedoresPage() {
                         {item.estado}
                       </span>
                     </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-center">
+                      <div className="flex gap-2 justify-center">
+                        <button
+                          onClick={() => startEdit(item)}
+                          className="text-blue-600 hover:text-blue-800 font-medium text-sm"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => deleteItem(item)}
+                          className="text-red-600 hover:text-red-800 font-medium text-sm"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -270,6 +381,85 @@ export default function ContenedoresPage() {
           </div>
         )}
       </div>
+
+      {/* Modal de Edición */}
+      {editingItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">
+              Editar Registro - {editingItem.origen === 'cotizacion' ? 'Cotización' : 'Carga Masiva'}
+            </h3>
+
+            <div className="space-y-4">
+              {/* SKU (solo editable si es carga masiva) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">SKU</label>
+                <input
+                  type="text"
+                  value={editData.sku}
+                  onChange={(e) => setEditData({ ...editData, sku: e.target.value })}
+                  disabled={editingItem.origen === 'cotizacion'}
+                  className={`w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 ${
+                    editingItem.origen === 'cotizacion' ? 'bg-gray-100' : ''
+                  }`}
+                />
+                {editingItem.origen === 'cotizacion' && (
+                  <p className="text-xs text-gray-500 mt-1">No se puede editar SKU en cotizaciones</p>
+                )}
+              </div>
+
+              {/* Unidades */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Unidades</label>
+                <input
+                  type="number"
+                  value={editData.unidades}
+                  onChange={(e) => setEditData({ ...editData, unidades: parseInt(e.target.value) || 0 })}
+                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Número de Contenedor */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">N° Contenedor</label>
+                <input
+                  type="text"
+                  value={editData.numero_contenedor}
+                  onChange={(e) => setEditData({ ...editData, numero_contenedor: e.target.value })}
+                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Fecha de Carga */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Carga</label>
+                <input
+                  type="date"
+                  value={editData.fecha_carga}
+                  onChange={(e) => setEditData({ ...editData, fecha_carga: e.target.value })}
+                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Botones */}
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={saveEdit}
+                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium"
+              >
+                Guardar
+              </button>
+              <button
+                onClick={() => setEditingItem(null)}
+                className="flex-1 bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 font-medium"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

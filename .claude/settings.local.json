@@ -51,7 +51,13 @@
       "Bash(gh workflow:*)",
       "Bash(timeout /t 5)",
       "Bash(workflow_stockout_log.txt)",
-      "Bash(del nul 2)"
+      "Bash(del nul 2)",
+      "Bash(tree:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(del update-layout.ps1)",
+      "Bash(gh auth token:*)",
+      "Bash(https://api.github.com/repos/bustillosmorales-lgtm/sistemadegestion/actions/workflows/process-excel.yml/dispatches )",
+      "Bash(netlify functions:log:*)"
     ],
     "deny": [],
     "ask": []

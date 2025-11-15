@@ -194,22 +194,41 @@ async function processExcel() {
 
       for (let i = 1; i < transitoData.length; i++) {
         const row = transitoData[i];
-        const sku = row[3]?.toString().trim();
-        const unidades = parseFloat(row[7]) || 0;
+        const numeroContenedor = row[0]?.toString().trim(); // Columna A
+        const fechaRaw = row[1]; // Columna B
+        const sku = row[3]?.toString().trim(); // Columna D
+        const descripcion = row[4]?.toString().trim(); // Columna E
+        const unidades = parseFloat(row[7]) || 0; // Columna H
 
         if (!sku || unidades <= 0) continue;
+
+        // Procesar fecha (puede ser Date object o serial number)
+        let fechaContenedor = null;
+        if (fechaRaw) {
+          if (fechaRaw instanceof Date) {
+            fechaContenedor = fechaRaw.toISOString().split('T')[0];
+          } else if (typeof fechaRaw === 'number') {
+            fechaContenedor = excelDateToJSDate(fechaRaw);
+          } else if (typeof fechaRaw === 'string') {
+            fechaContenedor = fechaRaw;
+          }
+        }
 
         transitoRegistros.push({
           sku,
           unidades,
-          estado: 'en_transito'
+          estado: 'en_transito',
+          numero_contenedor: numeroContenedor || null,
+          descripcion: descripcion || null,
+          fecha_contenedor: fechaContenedor,
+          origen: 'carga_masiva'
         });
       }
 
-      // SIEMPRE limpiar tránsito anterior, incluso si no hay registros nuevos
-      console.log(`  🗑️ Limpiando TODO el tránsito anterior...`);
-      await supabase.from('transito_china').delete().neq('sku', '');
-      console.log(`  ✅ Tránsito anterior eliminado (carga completa)`);
+      // SIEMPRE limpiar tránsito anterior DE CARGA MASIVA, no de cotizaciones
+      console.log(`  🗑️ Limpiando tránsito anterior de carga masiva...`);
+      await supabase.from('transito_china').delete().eq('origen', 'carga_masiva');
+      console.log(`  ✅ Tránsito de carga masiva eliminado (registros de cotizaciones preservados)`);
 
       if (transitoRegistros.length > 0) {
         console.log(`  ⏳ Insertando ${transitoRegistros.length} registros en tránsito...`);

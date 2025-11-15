@@ -79,7 +79,9 @@ exports.handler = async (event, context) => {
         .from('cotizaciones')
         .select('*')
         .order('fecha_cotizacion', { ascending: false })
-        .limit(50000);
+        .limit(50000)
+        // No mostrar items ya cargados en contenedor
+        .is('fecha_carga_contenedor', null);
 
       if (estado) {
         query = query.eq('estado', estado);
@@ -195,7 +197,7 @@ exports.handler = async (event, context) => {
           // Obtener datos de la cotización para crear tránsito
           const { data: cotizacion } = await supabase
             .from('cotizaciones')
-            .select('sku, cantidad_cotizar')
+            .select('sku, cantidad_cotizar, descripcion')
             .eq('id', parseInt(id))
             .single();
 
@@ -208,6 +210,8 @@ exports.handler = async (event, context) => {
                 unidades: cotizacion.cantidad_cotizar,
                 estado: 'en_transito',
                 numero_contenedor: updateData.numero_contenedor,
+                descripcion: cotizacion.descripcion || null,
+                fecha_contenedor: updateData.fecha_carga_contenedor.split('T')[0], // Solo la fecha
                 origen: 'cotizacion'
               });
           }
