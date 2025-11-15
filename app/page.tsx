@@ -342,9 +342,20 @@ export default function Home() {
     if (!confirmacion) return
 
     try {
-      // Obtener datos de los SKUs seleccionados
+      // Obtener SKUs seleccionados con sus datos
+      const skusSeleccionadosArray = Array.from(skusSeleccionados)
+
+      // Verificar cuáles ya están excluidos
+      const { data: yaExcluidos } = await supabase
+        .from('skus_excluidos')
+        .select('sku')
+        .in('sku', skusSeleccionadosArray)
+
+      const skusYaExcluidosSet = new Set(yaExcluidos?.map(e => e.sku) || [])
+
+      // Filtrar solo los SKUs que NO están excluidos
       const skusAExcluir = predicciones
-        .filter(p => skusSeleccionados.has(p.sku))
+        .filter(p => skusSeleccionados.has(p.sku) && !skusYaExcluidosSet.has(p.sku))
         .map(p => ({
           sku: p.sku,
           descripcion: p.descripcion,
@@ -352,14 +363,28 @@ export default function Home() {
           excluido_por: 'usuario'
         }))
 
-      // Insertar todos los SKUs excluidos
+      if (skusAExcluir.length === 0) {
+        alert(`ℹ️ Todos los SKUs seleccionados ya están excluidos (${skusYaExcluidosSet.size})`)
+        setSkusSeleccionados(new Set())
+        await Promise.all([
+          cargarPredicciones(),
+          cargarDatosModales()
+        ])
+        return
+      }
+
+      // Insertar solo los SKUs nuevos
       const { error: insertError } = await supabase
         .from('skus_excluidos')
         .insert(skusAExcluir)
 
       if (insertError) throw insertError
 
-      alert(`✅ ${skusSeleccionados.size} SKU(s) excluidos del análisis`)
+      const mensaje = skusYaExcluidosSet.size > 0
+        ? `✅ ${skusAExcluir.length} SKU(s) excluidos\nℹ️ ${skusYaExcluidosSet.size} ya estaban excluidos`
+        : `✅ ${skusAExcluir.length} SKU(s) excluidos del análisis`
+
+      alert(mensaje)
 
       // Limpiar selección
       setSkusSeleccionados(new Set())
