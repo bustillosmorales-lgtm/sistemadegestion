@@ -226,6 +226,5 @@ export default function CargaMasivaCotizaciones({ predicciones, onSuccess }: Pro
           </div>
         </div>
       </div>
-    </div>
   )
 }
