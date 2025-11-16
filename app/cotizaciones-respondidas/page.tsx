@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { fetchCotizaciones, updateCotizacion, deleteCotizacion } from '@/lib/api-client'
+import AprobarCotizacionesMasivo from '@/components/AprobarCotizacionesMasivo'
 
 interface Cotizacion {
   id: number
@@ -19,6 +20,7 @@ interface Cotizacion {
   cantidad_minima_venta: number | null
   unidades_por_embalaje: number | null
   metros_cubicos_embalaje: number | null
+  tiempo_entrega_dias: number | null
   fecha_respuesta: string | null
   notas_proveedor: string | null
 }
@@ -174,6 +176,9 @@ export default function CotizacionesRespondidasPage() {
           </select>
         </div>
       </div>
+
+      {/* Aprobar/Rechazar Cotizaciones Masivamente */}
+      <AprobarCotizacionesMasivo onSuccess={cargarCotizaciones} />
 
       {/* Tabla */}
       <div className="bg-white rounded-lg shadow">

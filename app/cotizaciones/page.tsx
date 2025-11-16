@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { fetchCotizaciones, updateCotizacion, deleteCotizacion } from '@/lib/api-client'
 import ResponderCotizacionesMasivo from '@/components/ResponderCotizacionesMasivo'
-import AprobarCotizacionesMasivo from '@/components/AprobarCotizacionesMasivo'
 
 interface Cotizacion {
   id: number
@@ -232,9 +231,6 @@ export default function CotizacionesPage() {
 
       {/* Responder Cotizaciones Masivamente */}
       <ResponderCotizacionesMasivo onSuccess={cargarCotizaciones} />
-
-      {/* Aprobar/Rechazar Cotizaciones Masivamente */}
-      <AprobarCotizacionesMasivo onSuccess={cargarCotizaciones} />
 
       {/* Tabla */}
       <div className="bg-white rounded-lg shadow">
