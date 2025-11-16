@@ -135,18 +135,25 @@ export default function ResponderCotizacionesMasivo({ onSuccess }: Props) {
 
       // Mostrar resultado
       let mensaje = `✅ Procesamiento completado\n\n`
+      mensaje += `Total filas procesadas: ${jsonData.length}\n`
       mensaje += `Cotizaciones actualizadas: ${exitosas}\n`
+      mensaje += `Fallidas: ${fallidas}\n`
+
       if (fallidas > 0) {
-        mensaje += `Fallidas: ${fallidas}\n\n`
-        mensaje += `Errores:\n${errores.slice(0, 5).join('\n')}`
-        if (errores.length > 5) {
-          mensaje += `\n... y ${errores.length - 5} más`
+        mensaje += `\n❌ Errores:\n${errores.slice(0, 10).join('\n')}`
+        if (errores.length > 10) {
+          mensaje += `\n... y ${errores.length - 10} más`
         }
       }
+
+      if (exitosas > 0) {
+        mensaje += `\n\n✅ El dashboard se actualizará automáticamente`
+      }
+
       alert(mensaje)
 
-      // Llamar callback de éxito
-      if (onSuccess && exitosas > 0) {
+      // Llamar callback SIEMPRE para actualizar dashboard
+      if (onSuccess) {
         onSuccess()
       }
 
