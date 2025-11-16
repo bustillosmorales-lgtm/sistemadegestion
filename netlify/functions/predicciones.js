@@ -180,6 +180,13 @@ exports.handler = async (event, context) => {
           limit,
           offset,
           hasMore: count > offset + limit
+        },
+        // Debug info
+        _debug: {
+          version: '2.0-cotizaciones-ajustadas',
+          cotizaciones_encontradas: cotizaciones?.length || 0,
+          skus_con_cotizaciones: Object.keys(cotizacionesPorSku).length,
+          timestamp: new Date().toISOString()
         }
       })
     };
