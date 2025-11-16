@@ -70,9 +70,11 @@ function validateInput(schema, data) {
     return { success: true, data: validated };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const errors = (error.errors || []).map(err => ({
+      // En Zod, los errores están en 'issues', no en 'errors'
+      const errors = (error.issues || []).map(err => ({
         field: (err.path || []).join('.'),
-        message: err.message || 'Validation error'
+        message: err.message || 'Validation error',
+        code: err.code
       }));
       return {
         success: false,
