@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { useSupabase } from '@/lib/SupabaseProvider'
+import { fetchCotizaciones } from '@/lib/api-client'
 
 interface Props {
   onSuccess?: () => void
@@ -17,19 +18,15 @@ export default function ResponderCotizacionesMasivo({ onSuccess }: Props) {
       setLoading(true)
       const XLSX = await import('xlsx')
 
-      // Obtener cotizaciones pendientes
-      const { data: cotizaciones, error } = await supabase
-        .from('cotizaciones')
-        .select('*')
-        .eq('estado', 'pendiente')
-        .order('created_at', { ascending: false })
+      // Usar API endpoint para obtener cotizaciones pendientes
+      const response = await fetchCotizaciones({ estado: 'pendiente' })
 
-      if (error) throw error
-
-      if (!cotizaciones || cotizaciones.length === 0) {
+      if (!response.success || !response.cotizaciones || response.cotizaciones.length === 0) {
         alert('ℹ️ No hay cotizaciones pendientes para responder')
         return
       }
+
+      const cotizaciones = response.cotizaciones
 
       // Preparar datos para el template
       const datos = cotizaciones.map(c => ({
