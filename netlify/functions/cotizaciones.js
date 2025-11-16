@@ -153,11 +153,16 @@ exports.handler = async (event, context) => {
 
     // PUT: Actualizar cotización
     if (event.httpMethod === 'PUT') {
+      console.log('[PUT] Iniciando actualización de cotización');
       const body = JSON.parse(event.body || '{}');
+      console.log('[PUT] Body recibido:', JSON.stringify(body));
+
       const pathParts = event.path.split('/');
       const id = pathParts[pathParts.length - 1];
+      console.log('[PUT] ID:', id);
 
       if (!id || isNaN(parseInt(id))) {
+        console.log('[PUT] ID inválido');
         return {
           statusCode: 400,
           headers: { ...headers, ...rateLimitHeaders },
@@ -168,8 +173,10 @@ exports.handler = async (event, context) => {
         };
       }
 
+      console.log('[PUT] Validando datos...');
       const validation = validateInput(cotizacionPutSchema, body);
       if (!validation.success) {
+        console.log('[PUT] Validación falló:', validation.errors);
         return {
           statusCode: 400,
           headers: { ...headers, ...rateLimitHeaders },
@@ -180,10 +187,22 @@ exports.handler = async (event, context) => {
           })
         };
       }
+      console.log('[PUT] Validación exitosa');
       const validatedData = validation.data;
+      console.log('[PUT] Datos validados:', JSON.stringify(validatedData));
 
       // Procesar flags de fecha (convertir booleans a timestamps)
+      console.log('[PUT] Procesando flags de fecha...');
       const updateData = { ...validatedData };
+
+      // Filtrar campos null antes de actualizar
+      Object.keys(updateData).forEach(key => {
+        if (updateData[key] === null) {
+          delete updateData[key];
+        }
+      });
+      console.log('[PUT] Datos después de filtrar nulls:', JSON.stringify(updateData));
+
       if (updateData.fecha_confirmacion_compra === true) {
         updateData.fecha_confirmacion_compra = new Date().toISOString();
       } else {
@@ -194,6 +213,7 @@ exports.handler = async (event, context) => {
         updateData.fecha_carga_contenedor = new Date().toISOString();
         // Cuando se carga en contenedor y hay número, crear registro en tránsito
         if (updateData.numero_contenedor) {
+          console.log('[PUT] Creando registro en tránsito...');
           // Obtener datos de la cotización para crear tránsito
           const { data: cotizacion } = await supabase
             .from('cotizaciones')
@@ -220,6 +240,9 @@ exports.handler = async (event, context) => {
         delete updateData.fecha_carga_contenedor;
       }
 
+      console.log('[PUT] Actualizando en base de datos...');
+      console.log('[PUT] updateData final:', JSON.stringify(updateData));
+
       const { data, error } = await supabase
         .from('cotizaciones')
         .update(updateData)
@@ -227,7 +250,12 @@ exports.handler = async (event, context) => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[PUT] Error de Supabase:', error);
+        throw error;
+      }
+
+      console.log('[PUT] Actualización exitosa');
 
       return {
         statusCode: 200,
