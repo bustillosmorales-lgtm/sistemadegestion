@@ -30,7 +30,7 @@ export async function apiCall(endpoint: string, options: RequestInit = {}) {
     if (response.status === 401) {
       // Token expirado, intentar refrescar
       const { data: { session: newSession }, error } = await supabase.auth.refreshSession()
-      
+
       if (error || !newSession) {
         // Redirigir a login si falla el refresh
         window.location.href = '/login'
@@ -45,13 +45,19 @@ export async function apiCall(endpoint: string, options: RequestInit = {}) {
       })
 
       if (!retryResponse.ok) {
-        throw new Error(`API call failed: ${retryResponse.statusText}`)
+        const errorData = await retryResponse.json().catch(() => ({}))
+        const errorMsg = errorData.error || errorData.message || retryResponse.statusText
+        throw new Error(`API call failed (${retryResponse.status}): ${errorMsg}`)
       }
 
       return retryResponse
     }
 
-    throw new Error(`API call failed: ${response.statusText}`)
+    // Intentar leer detalles del error del body
+    const errorData = await response.json().catch(() => ({}))
+    const errorMsg = errorData.error || errorData.message || response.statusText
+    const details = errorData.details ? ` - ${JSON.stringify(errorData.details)}` : ''
+    throw new Error(`API call failed (${response.status}): ${errorMsg}${details}`)
   }
 
   return response
