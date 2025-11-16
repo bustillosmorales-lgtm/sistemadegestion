@@ -121,6 +121,7 @@ export async function updateCotizacion(id: number, data: {
   cantidad_minima_venta?: number
   unidades_por_embalaje?: number
   metros_cubicos_embalaje?: number
+  tiempo_entrega_dias?: number
   notas_proveedor?: string
   // Campos de seguimiento
   fecha_confirmacion_compra?: boolean

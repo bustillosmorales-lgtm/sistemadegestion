@@ -52,6 +52,7 @@ const cotizacionPutSchema = z.object({
   cantidad_minima_venta: z.number().int().positive('Cantidad mínima debe ser mayor a 0').optional(),
   unidades_por_embalaje: z.number().int().positive('Unidades por embalaje debe ser mayor a 0').optional(),
   metros_cubicos_embalaje: z.number().nonnegative('Metros cúbicos debe ser mayor o igual a 0').optional(),
+  tiempo_entrega_dias: z.number().int().positive('Tiempo de entrega debe ser mayor a 0').optional(),
   notas_proveedor: z.string().optional(),
   // Campos de seguimiento de contenedores
   fecha_confirmacion_compra: z.boolean().optional(), // true = marcar con NOW()
@@ -69,18 +70,23 @@ function validateInput(schema, data) {
     return { success: true, data: validated };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const errors = error.errors.map(err => ({
-        field: err.path.join('.'),
-        message: err.message
+      const errors = (error.errors || []).map(err => ({
+        field: (err.path || []).join('.'),
+        message: err.message || 'Validation error'
       }));
       return {
         success: false,
         errors
       };
     }
+    // Manejar otros tipos de errores
+    console.error('Validation error (not ZodError):', error);
     return {
       success: false,
-      errors: [{ field: 'unknown', message: 'Validation error' }]
+      errors: [{
+        field: 'unknown',
+        message: error.message || 'Validation error'
+      }]
     };
   }
 }

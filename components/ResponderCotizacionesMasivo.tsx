@@ -124,6 +124,7 @@ export default function ResponderCotizacionesMasivo({ onSuccess }: Props) {
             cantidad_minima_venta: cantidadMinima,
             unidades_por_embalaje: unidadesPorEmbalaje,
             metros_cubicos_embalaje: cbm,
+            tiempo_entrega_dias: tiempoEntrega,
             notas_proveedor: notasProveedor
           })
           exitosas++
