@@ -2,6 +2,8 @@
  * Netlify Function: Obtener predicciones de inventario (SEGURA)
  * GET /api/predicciones
  * Requiere autenticación JWT
+ *
+ * ACTUALIZACIÓN: Ajusta sugerencias restando cotizaciones pendientes/aprobadas en tiempo real
  */
 
 const { createClient } = require('@supabase/supabase-js');
