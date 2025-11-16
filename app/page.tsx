@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useSupabase } from '@/lib/SupabaseProvider'
 import { useDebounce } from '@/hooks/useDebounce'
+import { fetchPredicciones } from '@/lib/api-client'
 import PrediccionesTable from '@/components/PrediccionesTable'
 import Filtros from '@/components/Filtros'
 import UploadExcel from '@/components/UploadExcel'
@@ -412,78 +413,56 @@ export default function Home() {
   async function cargarPredicciones() {
     setLoading(true)
     try {
-      // 1. Obtener SKUs excluidos y SKUs con cotizaciones activas en paralelo
-      const [skusExcluidosData, skusCotizadosData] = await Promise.all([
-        supabase.from('skus_excluidos').select('sku'),
-        supabase.from('cotizaciones').select('sku').eq('estado', 'pendiente')
-      ])
+      // 1. Obtener SKUs excluidos
+      const { data: skusExcluidosData } = await supabase
+        .from('skus_excluidos')
+        .select('sku')
 
-      const skusExcluidosSet = new Set(skusExcluidosData.data?.map(e => e.sku) || [])
-      const skusCotizadosSet = new Set(skusCotizadosData.data?.map(c => c.sku) || [])
+      const skusExcluidosSet = new Set(skusExcluidosData?.map(e => e.sku) || [])
 
-      // 2. Obtener última fecha de cálculo
-      const { data: latestArray, error: latestError } = await supabase
-        .from('predicciones')
-        .select('fecha_calculo')
-        .order('fecha_calculo', { ascending: false })
-        .limit(1)
+      // 2. Usar API endpoint que ya ajusta las sugerencias por cotizaciones
+      const params: Record<string, string> = {}
 
-      // Si hay error o no hay datos, salir temprano
-      if (latestError || !latestArray || latestArray.length === 0) {
+      if (filtros.abc) {
+        params.clasificacion_abc = filtros.abc
+      }
+
+      if (filtros.busqueda) {
+        params.sku = filtros.busqueda
+      }
+
+      // La API ya maneja el ajuste de sugerencias restando cotizaciones
+      const response = await fetchPredicciones(params)
+
+      if (!response.success || !response.data) {
         setPredicciones([])
         setLoading(false)
         return
       }
 
-      const latest = latestArray[0]
+      let allData = response.data
 
-      // 3. Query con filtros EN SERVIDOR (mucho más rápido)
-      let query = supabase
-        .from('predicciones')
-        .select('*')
-        .eq('fecha_calculo', latest.fecha_calculo)
-        .order('valor_total_sugerencia', { ascending: false })
+      // 3. Aplicar filtros en cliente
+      let prediccionesFiltradas = allData
 
-      // Aplicar filtros en servidor
-      if (filtros.abc) {
-        query = query.eq('clasificacion_abc', filtros.abc)
-      }
-
-      if (filtros.busqueda) {
-        query = query.ilike('sku', `%${filtros.busqueda}%`)
-      }
-
-      // Filtro de alertas en servidor usando not.is
-      if (filtros.soloAlertas) {
-        query = query.not('alertas', 'is', null).neq('alertas', '{}')
-      }
-
-      // Supabase con ANON_KEY tiene límite máximo de 1000 registros
-      // Necesitamos hacer múltiples requests para obtener todos los datos
-      let allData: any[] = []
-      let currentOffset = 0
-      const batchSize = 1000
-      let hasMore = true
-
-      while (hasMore) {
-        const { data: batch, error } = await query
-          .range(currentOffset, currentOffset + batchSize - 1)
-
-        if (error) throw error
-
-        if (batch && batch.length > 0) {
-          allData = [...allData, ...batch]
-          currentOffset += batchSize
-          hasMore = batch.length === batchSize
-        } else {
-          hasMore = false
-        }
-      }
-
-      // 4. Filtrar SKUs excluidos y cotizados en cliente (después de obtener datos del servidor)
-      const prediccionesFiltradas = allData.filter(p =>
-        !skusExcluidosSet.has(p.sku) && !skusCotizadosSet.has(p.sku)
+      // Filtrar SKUs excluidos
+      prediccionesFiltradas = prediccionesFiltradas.filter(p =>
+        !skusExcluidosSet.has(p.sku)
       )
+
+      // Filtrar solo alertas si está activado
+      if (filtros.soloAlertas) {
+        prediccionesFiltradas = prediccionesFiltradas.filter(p =>
+          p.alertas && p.alertas !== '{}' && Object.keys(p.alertas).length > 0
+        )
+      }
+
+      // Filtrar por búsqueda si está presente (búsqueda local más flexible)
+      if (filtros.busqueda) {
+        prediccionesFiltradas = prediccionesFiltradas.filter(p =>
+          p.sku?.toLowerCase().includes(filtros.busqueda.toLowerCase())
+        )
+      }
 
       setPredicciones(prediccionesFiltradas)
     } catch (error) {
