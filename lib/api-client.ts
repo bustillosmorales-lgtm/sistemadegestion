@@ -107,8 +107,19 @@ export async function createCotizacion(data: {
 export async function updateCotizacion(id: number, data: {
   cantidad_cotizar?: number
   precio_unitario?: number
-  estado?: 'pendiente' | 'aprobada' | 'rechazada' | 'recibida'
+  estado?: 'pendiente' | 'aprobada' | 'rechazada' | 'recibida' | 'respondida'
   notas?: string
+  // Campos de respuesta del proveedor
+  costo_proveedor?: number
+  moneda?: string
+  cantidad_minima_venta?: number
+  unidades_por_embalaje?: number
+  metros_cubicos_embalaje?: number
+  notas_proveedor?: string
+  // Campos de seguimiento
+  fecha_confirmacion_compra?: boolean
+  fecha_carga_contenedor?: boolean
+  numero_contenedor?: string
 }) {
   const response = await apiCall(`/.netlify/functions/cotizaciones/${id}`, {
     method: 'PUT',

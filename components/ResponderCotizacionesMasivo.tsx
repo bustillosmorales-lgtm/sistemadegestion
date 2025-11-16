@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { useSupabase } from '@/lib/SupabaseProvider'
-import { fetchCotizaciones } from '@/lib/api-client'
+import { fetchCotizaciones, updateCotizacion } from '@/lib/api-client'
 
 interface Props {
   onSuccess?: () => void
@@ -34,8 +34,8 @@ export default function ResponderCotizacionesMasivo({ onSuccess }: Props) {
         'SKU': c.sku,
         'Descripción': c.descripcion || '',
         'Cantidad': c.cantidad_cotizar,
-        'Costo Proveedor (USD)': '', // A llenar por proveedor
-        'Moneda': 'USD', // Pre-llenado
+        'Costo Proveedor': '', // A llenar por proveedor (sin moneda en el nombre)
+        'Moneda': 'RMB', // Pre-llenado con RMB (moneda predeterminada)
         'Cantidad Mínima Venta': '', // A llenar por proveedor
         'Unidades por Embalaje': '', // A llenar por proveedor
         'CBM por Embalaje': '', // A llenar por proveedor
@@ -94,8 +94,8 @@ export default function ResponderCotizacionesMasivo({ onSuccess }: Props) {
       // Procesar cada fila
       for (const row of jsonData) {
         const idCotizacion = row['ID Cotización']
-        const costoProveedor = parseFloat(row['Costo Proveedor (USD)']) || null
-        const moneda = row['Moneda'] || 'USD'
+        const costoProveedor = parseFloat(row['Costo Proveedor']) || null
+        const moneda = row['Moneda'] || 'RMB'
         const cantidadMinima = parseInt(row['Cantidad Mínima Venta']) || null
         const unidadesPorEmbalaje = parseInt(row['Unidades por Embalaje']) || null
         const cbm = parseFloat(row['CBM por Embalaje']) || null
@@ -115,25 +115,17 @@ export default function ResponderCotizacionesMasivo({ onSuccess }: Props) {
           continue
         }
 
-        // Actualizar cotización
+        // Actualizar cotización usando API endpoint
         try {
-          const { error } = await supabase
-            .from('cotizaciones')
-            .update({
-              costo_proveedor: costoProveedor,
-              moneda: moneda,
-              cantidad_minima_venta: cantidadMinima,
-              unidades_por_embalaje: unidadesPorEmbalaje,
-              metros_cubicos_embalaje: cbm,
-              tiempo_entrega_dias: tiempoEntrega,
-              notas_proveedor: notasProveedor,
-              estado: 'respondida',
-              fecha_respuesta: new Date().toISOString()
-            })
-            .eq('id', idCotizacion)
-            .eq('estado', 'pendiente') // Solo actualizar si está pendiente
-
-          if (error) throw error
+          await updateCotizacion(idCotizacion, {
+            estado: 'respondida',
+            costo_proveedor: costoProveedor,
+            moneda: moneda,
+            cantidad_minima_venta: cantidadMinima,
+            unidades_por_embalaje: unidadesPorEmbalaje,
+            metros_cubicos_embalaje: cbm,
+            notas_proveedor: notasProveedor
+          })
           exitosas++
         } catch (error: any) {
           errores.push(`Error en ID ${idCotizacion}: ${error.message}`)
