@@ -42,22 +42,22 @@ const cotizacionPostSchema = z.object({
 
 // Esquema para PUT cotizaciones (todos los campos opcionales excepto al menos uno requerido)
 const cotizacionPutSchema = z.object({
-  cantidad_cotizar: z.number().int().positive('Cantidad debe ser mayor a 0').optional(),
-  precio_unitario: z.number().nonnegative('Precio debe ser mayor o igual a 0').optional(),
+  cantidad_cotizar: z.number().int().positive('Cantidad debe ser mayor a 0').optional().nullable(),
+  precio_unitario: z.number().nonnegative('Precio debe ser mayor o igual a 0').optional().nullable(),
   estado: z.enum(['pendiente', 'aprobada', 'rechazada', 'recibida', 'respondida']).optional(),
-  notas: z.string().optional(),
+  notas: z.string().optional().nullable(),
   // Campos de respuesta del proveedor
-  costo_proveedor: z.number().nonnegative('Costo debe ser mayor o igual a 0').optional(),
-  moneda: z.string().optional(),
-  cantidad_minima_venta: z.number().int().positive('Cantidad mínima debe ser mayor a 0').optional(),
-  unidades_por_embalaje: z.number().int().positive('Unidades por embalaje debe ser mayor a 0').optional(),
-  metros_cubicos_embalaje: z.number().nonnegative('Metros cúbicos debe ser mayor o igual a 0').optional(),
-  tiempo_entrega_dias: z.number().int().positive('Tiempo de entrega debe ser mayor a 0').optional(),
-  notas_proveedor: z.string().optional(),
+  costo_proveedor: z.number().nonnegative('Costo debe ser mayor o igual a 0').optional().nullable(),
+  moneda: z.string().optional().nullable(),
+  cantidad_minima_venta: z.number().int().positive('Cantidad mínima debe ser mayor a 0').optional().nullable(),
+  unidades_por_embalaje: z.number().int().positive('Unidades por embalaje debe ser mayor a 0').optional().nullable(),
+  metros_cubicos_embalaje: z.number().nonnegative('Metros cúbicos debe ser mayor o igual a 0').optional().nullable(),
+  tiempo_entrega_dias: z.number().int().positive('Tiempo de entrega debe ser mayor a 0').optional().nullable(),
+  notas_proveedor: z.string().optional().nullable(),
   // Campos de seguimiento de contenedores
-  fecha_confirmacion_compra: z.boolean().optional(), // true = marcar con NOW()
-  fecha_carga_contenedor: z.boolean().optional(), // true = marcar con NOW()
-  numero_contenedor: z.string().optional(),
+  fecha_confirmacion_compra: z.boolean().optional().nullable(),
+  fecha_carga_contenedor: z.boolean().optional().nullable(),
+  numero_contenedor: z.string().optional().nullable(),
 }).strict().refine(
   data => Object.keys(data).length > 0,
   { message: 'Al menos un campo debe ser actualizado' }
