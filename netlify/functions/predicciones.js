@@ -8,10 +8,10 @@ const { createClient } = require('@supabase/supabase-js');
 const { verifyAuth, getCorsHeaders } = require('./lib/auth');
 const { prediccionesQuerySchema, validateInput } = require('./lib/validation');
 
-// Inicializar Supabase
+// Inicializar Supabase con SERVICE_KEY para bypasear límites
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
+  process.env.SUPABASE_SERVICE_KEY
 );
 
 exports.handler = async (event, context) => {
@@ -68,7 +68,7 @@ exports.handler = async (event, context) => {
   try {
     // Parsear query params
     const params = event.queryStringParameters || {};
-    
+
     // Validar query params
     const validation = validateInput(prediccionesQuerySchema, params);
     if (!validation.success) {
@@ -126,14 +126,53 @@ exports.handler = async (event, context) => {
       throw error;
     }
 
+    // NUEVO: Ajustar sugerencias restando cotizaciones pendientes/aprobadas
+    // Esto asegura que las sugerencias estén actualizadas en tiempo real
+    const { data: cotizaciones } = await supabase
+      .from('cotizaciones')
+      .select('sku, cantidad_cotizar, estado')
+      .in('estado', ['pendiente', 'aprobada'])
+      .is('fecha_carga_contenedor', null); // Solo las que no están en tránsito
+
+    // Agrupar cotizaciones por SKU
+    const cotizacionesPorSku = {};
+    if (cotizaciones) {
+      for (const cotizacion of cotizaciones) {
+        if (!cotizacionesPorSku[cotizacion.sku]) {
+          cotizacionesPorSku[cotizacion.sku] = 0;
+        }
+        cotizacionesPorSku[cotizacion.sku] += cotizacion.cantidad_cotizar || 0;
+      }
+    }
+
+    // Ajustar sugerencias restando cotizaciones
+    const dataAjustada = (data || []).map(prediccion => {
+      const cantidadCotizada = cotizacionesPorSku[prediccion.sku] || 0;
+
+      if (cantidadCotizada > 0) {
+        // Restar cotizaciones de la sugerencia
+        const sugerenciaAjustada = Math.max(0, prediccion.sugerencia_reposicion - cantidadCotizada);
+
+        return {
+          ...prediccion,
+          sugerencia_reposicion: sugerenciaAjustada,
+          sugerencia_reposicion_original: prediccion.sugerencia_reposicion,
+          cantidad_cotizada: cantidadCotizada,
+          valor_total_sugerencia: Math.round(sugerenciaAjustada * (prediccion.precio_unitario || 0))
+        };
+      }
+
+      return prediccion;
+    });
+
     // Respuesta exitosa
     return {
       statusCode: 200,
       headers: { ...headers, ...rateLimitHeaders },
       body: JSON.stringify({
         success: true,
-        data: data || [],
-        count: data?.length || 0,
+        data: dataAjustada,
+        count: dataAjustada?.length || 0,
         total: count,
         pagination: {
           limit,
