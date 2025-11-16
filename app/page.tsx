@@ -13,7 +13,6 @@ import CotizarModal from '@/components/CotizarModal'
 import ResumenModal from '@/components/ResumenModal'
 import CotizarMasivoModal from '@/components/CotizarMasivoModal'
 import CargaMasivaCotizaciones from '@/components/CargaMasivaCotizaciones'
-import ConfiguracionDefontana from '@/components/ConfiguracionDefontana'
 
 interface Prediccion {
   id: number
@@ -513,11 +512,6 @@ export default function Home() {
       {/* Carga Masiva de Cotizaciones */}
       <CargaMasivaCotizaciones
         predicciones={predicciones}
-        onSuccess={() => cargarPredicciones()}
-      />
-
-      {/* Integración Defontana */}
-      <ConfiguracionDefontana
         onSuccess={() => cargarPredicciones()}
       />
 

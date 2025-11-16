@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { getSupabaseClient } from '@/lib/supabase'
+import ConfiguracionDefontana from './ConfiguracionDefontana'
 
 interface Configuracion {
   id: number
@@ -21,9 +22,12 @@ interface Props {
   onSave?: () => void
 }
 
+type Tab = 'parametros' | 'integraciones'
+
 export default function ConfiguracionModal({ isOpen, onClose, configuraciones, onSave }: Props) {
   const [saving, setSaving] = useState(false)
   const [editedValues, setEditedValues] = useState<Record<string, number>>({})
+  const [activeTab, setActiveTab] = useState<Tab>('parametros')
 
   // Inicializar valores editados cuando se reciben las configuraciones
   useEffect(() => {
@@ -108,21 +112,48 @@ export default function ConfiguracionModal({ isOpen, onClose, configuraciones, o
             </button>
           </div>
           <p className="text-sm text-gray-600 mt-2">
-            Ajusta los parámetros del algoritmo de forecasting
+            {activeTab === 'parametros'
+              ? 'Ajusta los parámetros del algoritmo de forecasting'
+              : 'Configura integraciones con sistemas externos'}
           </p>
+
+          {/* Tabs */}
+          <div className="flex gap-2 mt-4 border-b border-gray-200 -mb-px">
+            <button
+              onClick={() => setActiveTab('parametros')}
+              className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+                activeTab === 'parametros'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              📊 Parámetros
+            </button>
+            <button
+              onClick={() => setActiveTab('integraciones')}
+              className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+                activeTab === 'integraciones'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              🔗 Integraciones
+            </button>
+          </div>
         </div>
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          {configuraciones.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-600 mb-4">No hay configuraciones disponibles.</p>
-              <p className="text-sm text-gray-500">
-                Ejecuta el SQL de create_configuracion_table.sql en Supabase primero.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-6">
+          {activeTab === 'parametros' ? (
+            configuraciones.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-600 mb-4">No hay configuraciones disponibles.</p>
+                <p className="text-sm text-gray-500">
+                  Ejecuta el SQL de create_configuracion_table.sql en Supabase primero.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-6">
               {/* Parámetros de Stock */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-200">
@@ -189,26 +220,34 @@ export default function ConfiguracionModal({ isOpen, onClose, configuraciones, o
                 </div>
               </div>
             </div>
+            )
+          ) : (
+            /* Tab de Integraciones */
+            <div>
+              <ConfiguracionDefontana onSuccess={onSave} />
+            </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-            disabled={saving}
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={guardarConfiguraciones}
-            className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
-            disabled={saving || configuraciones.length === 0}
-          >
-            {saving ? 'Guardando...' : '💾 Guardar Cambios'}
-          </button>
-        </div>
+        {activeTab === 'parametros' && (
+          <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+              disabled={saving}
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={guardarConfiguraciones}
+              className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+              disabled={saving || configuraciones.length === 0}
+            >
+              {saving ? 'Guardando...' : '💾 Guardar Cambios'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
