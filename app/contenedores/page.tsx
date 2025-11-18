@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { useSupabase } from '@/lib/SupabaseProvider'
+import { handleApiError } from '@/lib/utils/errorHandler'
+import { showSuccess, showError } from '@/lib/utils/toast'
+import { ContenedoresTableSkeleton } from '@/components/TableSkeleton'
+import { ConfirmDialog, useConfirmDialog } from '@/components/ConfirmDialog'
 
 interface ContenedorItem {
   id: number
@@ -16,6 +20,7 @@ interface ContenedorItem {
 
 export default function ContenedoresPage() {
   const supabase = useSupabase()
+  const confirmDialog = useConfirmDialog()
   const [items, setItems] = useState<ContenedorItem[]>([])
   const [loading, setLoading] = useState(true)
   const [filtros, setFiltros] = useState({
@@ -170,47 +175,49 @@ export default function ContenedoresPage() {
         if (error) throw error
       }
 
-      alert('✅ Registro actualizado exitosamente')
+      showSuccess('Registro actualizado exitosamente')
       setEditingItem(null)
       await cargarDatos()
     } catch (error: any) {
-      console.error('Error actualizando:', error)
-      alert('Error: ' + error.message)
+      showError(handleApiError(error, 'actualizar registro'))
     }
   }
 
   async function deleteItem(item: ContenedorItem) {
-    const confirmMsg = `¿Eliminar ${item.sku} del contenedor ${item.numero_contenedor}?`
-    if (!confirm(confirmMsg)) return
+    confirmDialog.confirm({
+      title: 'Eliminar registro',
+      description: `¿Eliminar ${item.sku} del contenedor ${item.numero_contenedor}?`,
+      variant: 'destructive',
+      onConfirm: async () => {
+        try {
+          if (item.origen === 'cotizacion') {
+            // En cotizaciones, solo limpiamos los campos de contenedor
+            const { error } = await supabase
+              .from('cotizaciones')
+              .update({
+                numero_contenedor: null,
+                fecha_carga_contenedor: null
+              })
+              .eq('id', item.id)
 
-    try {
-      if (item.origen === 'cotizacion') {
-        // En cotizaciones, solo limpiamos los campos de contenedor
-        const { error } = await supabase
-          .from('cotizaciones')
-          .update({
-            numero_contenedor: null,
-            fecha_carga_contenedor: null
-          })
-          .eq('id', item.id)
+            if (error) throw error
+          } else {
+            // En transito_china, eliminamos el registro
+            const { error } = await supabase
+              .from('transito_china')
+              .delete()
+              .eq('id', item.id)
 
-        if (error) throw error
-      } else {
-        // En transito_china, eliminamos el registro
-        const { error } = await supabase
-          .from('transito_china')
-          .delete()
-          .eq('id', item.id)
+            if (error) throw error
+          }
 
-        if (error) throw error
+          showSuccess('Registro eliminado exitosamente')
+          await cargarDatos()
+        } catch (error: any) {
+          showError(handleApiError(error, 'eliminar registro'))
+        }
       }
-
-      alert('✅ Registro eliminado exitosamente')
-      await cargarDatos()
-    } catch (error: any) {
-      console.error('Error eliminando:', error)
-      alert('Error: ' + error.message)
-    }
+    })
   }
 
   const resumen = {
@@ -303,10 +310,7 @@ export default function ContenedoresPage() {
         </div>
 
         {loading ? (
-          <div className="px-6 py-12 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="text-gray-500 mt-4">Cargando datos...</p>
-          </div>
+          <ContenedoresTableSkeleton rows={10} />
         ) : items.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <p className="text-gray-500">No hay contenedores en tránsito.</p>
@@ -460,6 +464,18 @@ export default function ContenedoresPage() {
           </div>
         </div>
       )}
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={confirmDialog.close}
+        onConfirm={confirmDialog.config.onConfirm}
+        title={confirmDialog.config.title}
+        description={confirmDialog.config.description}
+        variant={confirmDialog.config.variant}
+        confirmText={confirmDialog.config.confirmText}
+        cancelText={confirmDialog.config.cancelText}
+      />
     </div>
   )
 }

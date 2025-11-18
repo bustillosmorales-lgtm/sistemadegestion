@@ -3,7 +3,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useSupabase } from '@/lib/SupabaseProvider'
 import { useDebounce } from '@/hooks/useDebounce'
-import { fetchPredicciones } from '@/lib/api-client'
+import { useModalState, useModalWithData } from '@/hooks/useModalState'
+import { usePrediccionesWithFilters } from '@/hooks/useQueries'
+import { useQueryClient } from '@tanstack/react-query'
 import PrediccionesTable from '@/components/PrediccionesTable'
 import Filtros from '@/components/Filtros'
 import UploadExcel from '@/components/UploadExcel'
@@ -13,32 +15,18 @@ import CotizarModal from '@/components/CotizarModal'
 import ResumenModal from '@/components/ResumenModal'
 import CotizarMasivoModal from '@/components/CotizarMasivoModal'
 import CargaMasivaCotizaciones from '@/components/CargaMasivaCotizaciones'
-
-interface Prediccion {
-  id: number
-  sku: string
-  descripcion: string
-  venta_diaria_p50: number
-  stock_actual: number
-  stock_optimo: number
-  dias_stock_actual: number
-  transito_china: number
-  sugerencia_reposicion: number
-  valor_total_sugerencia: number
-  precio_unitario: number
-  coeficiente_variacion: number
-  clasificacion_abc: string
-  clasificacion_xyz: string
-  tendencia: string
-  modelo_usado: string
-  alertas: string[]
-  mape_backtesting: number | null
-}
+import { PrediccionesTableSkeleton } from '@/components/TableSkeleton'
+import type { Prediccion } from '@/lib/types'
+import { exportForecastingToExcel } from '@/lib/services/excelExporter'
+import { toggleSkuExclusion, excludeMultipleSkus } from '@/lib/services/skuService'
+import { handleApiError } from '@/lib/utils/errorHandler'
+import { showSuccess, showError, showWarning } from '@/lib/utils/toast'
+import { ConfirmDialog, useConfirmDialog } from '@/components/ConfirmDialog'
 
 export default function Home() {
   const supabase = useSupabase()
-  const [predicciones, setPredicciones] = useState<Prediccion[]>([])
-  const [loading, setLoading] = useState(true)
+  const confirmDialog = useConfirmDialog()
+  const queryClient = useQueryClient()
   const [filtros, setFiltros] = useState({
     abc: '',
     busqueda: '',
@@ -48,20 +36,23 @@ export default function Home() {
   // Debouncing en búsqueda para evitar queries excesivas
   const debouncedBusqueda = useDebounce(filtros.busqueda, 300)
 
+  // Use React Query with debounced search
+  const filtrosDebounced = {
+    ...filtros,
+    busqueda: debouncedBusqueda
+  }
+
+  const { data: predicciones = [], isLoading: loading, error, refetch } = usePrediccionesWithFilters(filtrosDebounced)
+
   // Estado para selección múltiple
   const [skusSeleccionados, setSkusSeleccionados] = useState<Set<string>>(new Set())
 
-  const [configuracionOpen, setConfiguracionOpen] = useState(false)
-  const [excluidosOpen, setExcluidosOpen] = useState(false)
-  const [resumenOpen, setResumenOpen] = useState(false)
-  const [cotizarModal, setCotizarModal] = useState<{
-    isOpen: boolean
-    prediccion: Prediccion | null
-  }>({
-    isOpen: false,
-    prediccion: null
-  })
-  const [cotizarMasivoOpen, setCotizarMasivoOpen] = useState(false)
+  // Modal states usando hooks
+  const configuracionModal = useModalState()
+  const excluidosModal = useModalState()
+  const resumenModal = useModalState()
+  const cotizarModal = useModalWithData<Prediccion>()
+  const cotizarMasivoModal = useModalState()
 
   // Pre-cargar datos de modales para apertura instantánea
   const [configuraciones, setConfiguraciones] = useState<any[]>([])
@@ -86,230 +77,31 @@ export default function Home() {
     }
   }, [supabase])
 
-  useEffect(() => {
-    cargarPredicciones()
-  }, [debouncedBusqueda, filtros.abc, filtros.soloAlertas])
-
   // Pre-cargar datos de modales al montar el componente
   useEffect(() => {
     cargarDatosModales()
   }, [cargarDatosModales])
 
   async function exportarAExcel() {
-    try {
-      // Mostrar mensaje de carga
-      const loadingMessage = 'Exportando datos... Por favor espera.'
-      console.log(loadingMessage)
-
-      // Importar xlsx y fetchDatosBD dinámicamente
-      const XLSX = await import('xlsx')
-      const { fetchDatosBD } = await import('@/lib/api-client')
-
-      // 1. Preparar datos de predicciones
-      const datosPredicciones = predicciones.map(p => ({
-        'SKU': p.sku,
-        'Descripción': p.descripcion || '',
-        'Clase': `${p.clasificacion_abc}-${p.clasificacion_xyz}`,
-        'Venta Diaria': p.venta_diaria_p50.toFixed(1),
-        'Precio Unitario': p.precio_unitario,
-        'Stock Actual': p.stock_actual,
-        'Stock Óptimo': p.stock_optimo,
-        'Días Stock': p.dias_stock_actual.toFixed(0),
-        'Tránsito China': p.transito_china,
-        'Sugerencia Reposición': p.sugerencia_reposicion,
-        'Valor Total Sugerencia': p.valor_total_sugerencia,
-        'Coef. Variación': p.coeficiente_variacion.toFixed(2),
-        'Tendencia': p.tendencia,
-        'Modelo': p.modelo_usado,
-        'Alertas': p.alertas ? p.alertas.join(', ') : '',
-        'MAPE %': p.mape_backtesting ? p.mape_backtesting.toFixed(1) : ''
-      }))
-
-      // 2. Obtener datos de la BD para validación
-      console.log('Obteniendo datos de ventas...')
-      const ventasResponse = await fetchDatosBD('ventas')
-      const datosVentas = ventasResponse.data.map((v: any) => ({
-        'Empresa': v.empresa,
-        'Canal': v.canal,
-        'Fecha': v.fecha,
-        'SKU': v.sku,
-        'MLC': v.mlc || '',
-        'Descripción': v.descripcion || '',
-        'Unidades': v.unidades,
-        'Precio': v.precio
-      }))
-
-      console.log('Obteniendo datos de stock...')
-      const stockResponse = await fetchDatosBD('stock')
-      const datosStock = stockResponse.data.map((s: any) => ({
-        'SKU': s.sku,
-        'Descripción': s.descripcion || '',
-        'Bodega C': s.bodega_c || 0,
-        'Bodega D': s.bodega_d || 0,
-        'Bodega E': s.bodega_e || 0,
-        'Bodega F': s.bodega_f || 0,
-        'Bodega H': s.bodega_h || 0,
-        'Bodega J': s.bodega_j || 0
-      }))
-
-      console.log('Obteniendo datos de tránsito...')
-      const transitoResponse = await fetchDatosBD('transito')
-      const datosTransito = transitoResponse.data.map((t: any) => ({
-        'SKU': t.sku,
-        'Unidades': t.unidades,
-        'Estado': t.estado
-      }))
-
-      console.log('Obteniendo datos de compras...')
-      const comprasResponse = await fetchDatosBD('compras')
-      const datosCompras = comprasResponse.data.map((c: any) => ({
-        'SKU': c.sku,
-        'Fecha Compra': c.fecha_compra
-      }))
-
-      console.log('Obteniendo datos de packs...')
-      const packsResponse = await fetchDatosBD('packs')
-      const datosPacks = packsResponse.data.map((p: any) => ({
-        'SKU Pack': p.sku_pack,
-        'SKU Componente': p.sku_componente,
-        'Cantidad': p.cantidad
-      }))
-
-      console.log('Obteniendo datos de SKUs desconsiderados...')
-      const desconsiderarResponse = await fetchDatosBD('desconsiderar')
-      const datosDesconsiderar = desconsiderarResponse.data.map((d: any) => ({
-        'SKU': d.sku
-      }))
-
-      // 3. Crear libro de Excel
-      const wb = XLSX.utils.book_new()
-
-      // Hoja 1: Predicciones (principal)
-      const wsPredicciones = XLSX.utils.json_to_sheet(datosPredicciones)
-      wsPredicciones['!cols'] = [
-        { wch: 15 }, { wch: 40 }, { wch: 8 }, { wch: 12 }, { wch: 15 },
-        { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 18 },
-        { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 30 }, { wch: 10 }
-      ]
-      XLSX.utils.book_append_sheet(wb, wsPredicciones, 'Predicciones')
-
-      // Hoja 2: Ventas (para validación)
-      if (datosVentas.length > 0) {
-        const wsVentas = XLSX.utils.json_to_sheet(datosVentas)
-        wsVentas['!cols'] = [
-          { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 },
-          { wch: 40 }, { wch: 10 }, { wch: 12 }
-        ]
-        XLSX.utils.book_append_sheet(wb, wsVentas, 'BD - Ventas')
-      }
-
-      // Hoja 3: Stock
-      if (datosStock.length > 0) {
-        const wsStock = XLSX.utils.json_to_sheet(datosStock)
-        wsStock['!cols'] = [
-          { wch: 15 }, { wch: 40 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
-          { wch: 10 }, { wch: 10 }, { wch: 10 }
-        ]
-        XLSX.utils.book_append_sheet(wb, wsStock, 'BD - Stock')
-      }
-
-      // Hoja 4: Tránsito
-      if (datosTransito.length > 0) {
-        const wsTransito = XLSX.utils.json_to_sheet(datosTransito)
-        wsTransito['!cols'] = [{ wch: 15 }, { wch: 10 }, { wch: 15 }]
-        XLSX.utils.book_append_sheet(wb, wsTransito, 'BD - Tránsito')
-      }
-
-      // Hoja 5: Compras
-      if (datosCompras.length > 0) {
-        const wsCompras = XLSX.utils.json_to_sheet(datosCompras)
-        wsCompras['!cols'] = [{ wch: 15 }, { wch: 12 }]
-        XLSX.utils.book_append_sheet(wb, wsCompras, 'BD - Compras')
-      }
-
-      // Hoja 6: Packs
-      if (datosPacks.length > 0) {
-        const wsPacks = XLSX.utils.json_to_sheet(datosPacks)
-        wsPacks['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 10 }]
-        XLSX.utils.book_append_sheet(wb, wsPacks, 'BD - Packs')
-      }
-
-      // Hoja 7: SKUs Desconsiderados
-      if (datosDesconsiderar.length > 0) {
-        const wsDesconsiderar = XLSX.utils.json_to_sheet(datosDesconsiderar)
-        wsDesconsiderar['!cols'] = [{ wch: 15 }]
-        XLSX.utils.book_append_sheet(wb, wsDesconsiderar, 'BD - Desconsiderar')
-      }
-
-      // 4. Descargar archivo
-      const fecha = new Date().toISOString().split('T')[0]
-      XLSX.writeFile(wb, `Forecasting_Completo_${fecha}.xlsx`)
-
-      alert(`✅ Excel exportado correctamente con ${wb.SheetNames.length} pestañas\n\n` +
-            `📊 Incluye predicciones y datos de BD para validación:\n` +
-            `- ${datosVentas.length} ventas\n` +
-            `- ${datosStock.length} SKUs en stock\n` +
-            `- ${datosTransito.length} en tránsito\n` +
-            `- ${datosCompras.length} compras\n` +
-            `- ${datosPacks.length} packs\n` +
-            `- ${datosDesconsiderar.length} desconsiderados`)
-    } catch (error: any) {
-      console.error('Error exportando a Excel:', error)
-      alert('Error al exportar a Excel: ' + error.message)
-    }
+    await exportForecastingToExcel(predicciones)
   }
 
   const handleCotizar = useCallback((prediccion: Prediccion) => {
-    setCotizarModal({ isOpen: true, prediccion })
-  }, [])
+    cotizarModal.openWith(prediccion)
+  }, [cotizarModal])
 
   const handleExcludeToggle = useCallback(async (sku: string, descripcion: string) => {
     try {
-      // Verificar si ya está excluido
-      const { data: existing, error: checkError } = await supabase
-        .from('skus_excluidos')
-        .select('*')
-        .eq('sku', sku)
-        .single()
-
-      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows found
-        throw checkError
-      }
-
-      if (existing) {
-        // Si existe, eliminarlo (reactivar)
-        const { error: deleteError } = await supabase
-          .from('skus_excluidos')
-          .delete()
-          .eq('sku', sku)
-
-        if (deleteError) throw deleteError
-        alert(`✅ SKU ${sku} reactivado en el análisis`)
-      } else {
-        // Si no existe, agregarlo (excluir)
-        const { error: insertError } = await supabase
-          .from('skus_excluidos')
-          .insert({
-            sku,
-            descripcion,
-            motivo: 'Excluido desde dashboard',
-            excluido_por: 'usuario'
-          })
-
-        if (insertError) throw insertError
-        alert(`⚠️ SKU ${sku} excluido del análisis`)
-      }
-
-      // Recargar predicciones y datos de modales
+      const result = await toggleSkuExclusion(sku, descripcion)
+      showSuccess(result.message)
       await Promise.all([
-        cargarPredicciones(),
+        refetch(),
         cargarDatosModales()
       ])
     } catch (error: any) {
-      console.error('Error toggle exclusión:', error)
-      alert('Error al cambiar estado de exclusión: ' + error.message)
+      showError(handleApiError(error, 'cambiar estado de exclusión'))
     }
-  }, [supabase, cargarPredicciones, cargarDatosModales])
+  }, [refetch, cargarDatosModales])
 
   // Funciones para selección múltiple
   const handleToggleSeleccion = useCallback((sku: string) => {
@@ -336,141 +128,49 @@ export default function Home() {
 
   const handleExcluirSeleccionados = useCallback(async () => {
     if (skusSeleccionados.size === 0) {
-      alert('⚠️ No hay SKUs seleccionados')
+      showWarning('No hay SKUs seleccionados')
       return
     }
 
-    const confirmacion = confirm(`¿Deseas excluir ${skusSeleccionados.size} SKU(s) del análisis?`)
-    if (!confirmacion) return
+    confirmDialog.confirm({
+      title: 'Excluir SKUs',
+      description: `¿Deseas excluir ${skusSeleccionados.size} SKU(s) del análisis?`,
+      variant: 'destructive',
+      onConfirm: async () => {
+        try {
+          const skusToExclude = predicciones
+            .filter(p => skusSeleccionados.has(p.sku))
+            .map(p => ({ sku: p.sku, descripcion: p.descripcion }))
 
-    try {
-      // Obtener SKUs seleccionados con sus datos
-      const skusSeleccionadosArray = Array.from(skusSeleccionados)
+          const result = await excludeMultipleSkus(skusToExclude)
+          showSuccess(result.message)
 
-      // Verificar cuáles ya están excluidos
-      const { data: yaExcluidos } = await supabase
-        .from('skus_excluidos')
-        .select('sku')
-        .in('sku', skusSeleccionadosArray)
-
-      const skusYaExcluidosSet = new Set(yaExcluidos?.map(e => e.sku) || [])
-
-      // Filtrar solo los SKUs que NO están excluidos
-      const skusAExcluir = predicciones
-        .filter(p => skusSeleccionados.has(p.sku) && !skusYaExcluidosSet.has(p.sku))
-        .map(p => ({
-          sku: p.sku,
-          descripcion: p.descripcion,
-          motivo: 'Exclusión masiva desde dashboard',
-          excluido_por: 'usuario'
-        }))
-
-      if (skusAExcluir.length === 0) {
-        alert(`ℹ️ Todos los SKUs seleccionados ya están excluidos (${skusYaExcluidosSet.size})`)
-        setSkusSeleccionados(new Set())
-        await Promise.all([
-          cargarPredicciones(),
-          cargarDatosModales()
-        ])
-        return
+          setSkusSeleccionados(new Set())
+          await Promise.all([
+            refetch(),
+            cargarDatosModales()
+          ])
+        } catch (error: any) {
+          showError(handleApiError(error, 'excluir SKUs'))
+        }
       }
-
-      // Insertar solo los SKUs nuevos
-      const { error: insertError } = await supabase
-        .from('skus_excluidos')
-        .insert(skusAExcluir)
-
-      if (insertError) throw insertError
-
-      const mensaje = skusYaExcluidosSet.size > 0
-        ? `✅ ${skusAExcluir.length} SKU(s) excluidos\nℹ️ ${skusYaExcluidosSet.size} ya estaban excluidos`
-        : `✅ ${skusAExcluir.length} SKU(s) excluidos del análisis`
-
-      alert(mensaje)
-
-      // Limpiar selección
-      setSkusSeleccionados(new Set())
-
-      // Recargar datos
-      await Promise.all([
-        cargarPredicciones(),
-        cargarDatosModales()
-      ])
-    } catch (error: any) {
-      console.error('Error excluyendo SKUs:', error)
-      alert('Error al excluir SKUs: ' + error.message)
-    }
-  }, [skusSeleccionados, predicciones, supabase, cargarPredicciones, cargarDatosModales])
+    })
+  }, [skusSeleccionados, predicciones, refetch, cargarDatosModales, confirmDialog])
 
   const handleCotizarSeleccionados = useCallback(() => {
     if (skusSeleccionados.size === 0) {
-      alert('⚠️ No hay SKUs seleccionados')
+      showWarning('No hay SKUs seleccionados')
       return
     }
-    setCotizarMasivoOpen(true)
+    cotizarMasivoModal.open()
   }, [skusSeleccionados.size])
 
-  async function cargarPredicciones() {
-    setLoading(true)
-    try {
-      // 1. Obtener SKUs excluidos
-      const { data: skusExcluidosData } = await supabase
-        .from('skus_excluidos')
-        .select('sku')
-
-      const skusExcluidosSet = new Set(skusExcluidosData?.map(e => e.sku) || [])
-
-      // 2. Usar API endpoint que ya ajusta las sugerencias por cotizaciones
-      const params: Record<string, string> = {}
-
-      if (filtros.abc) {
-        params.clasificacion_abc = filtros.abc
-      }
-
-      if (filtros.busqueda) {
-        params.sku = filtros.busqueda
-      }
-
-      // La API ya maneja el ajuste de sugerencias restando cotizaciones
-      const response = await fetchPredicciones(params)
-
-      if (!response.success || !response.data) {
-        setPredicciones([])
-        setLoading(false)
-        return
-      }
-
-      let allData = response.data
-
-      // 3. Aplicar filtros en cliente
-      let prediccionesFiltradas = allData
-
-      // Filtrar SKUs excluidos
-      prediccionesFiltradas = prediccionesFiltradas.filter(p =>
-        !skusExcluidosSet.has(p.sku)
-      )
-
-      // Filtrar solo alertas si está activado
-      if (filtros.soloAlertas) {
-        prediccionesFiltradas = prediccionesFiltradas.filter(p =>
-          p.alertas && p.alertas !== '{}' && Object.keys(p.alertas).length > 0
-        )
-      }
-
-      // Filtrar por búsqueda si está presente (búsqueda local más flexible)
-      if (filtros.busqueda) {
-        prediccionesFiltradas = prediccionesFiltradas.filter(p =>
-          p.sku?.toLowerCase().includes(filtros.busqueda.toLowerCase())
-        )
-      }
-
-      setPredicciones(prediccionesFiltradas)
-    } catch (error) {
-      console.error('Error cargando predicciones:', error)
-    } finally {
-      setLoading(false)
+  // Show error if query fails
+  useEffect(() => {
+    if (error) {
+      showError(handleApiError(error, 'cargar predicciones'))
     }
-  }
+  }, [error])
 
   return (
     <div className="space-y-6">
@@ -479,7 +179,7 @@ export default function Home() {
         <UploadExcel />
         <div className="flex gap-2">
           <button
-            onClick={() => setResumenOpen(true)}
+            onClick={resumenModal.open}
             className="px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
           >
             📊 Resumen Gerencial
@@ -492,13 +192,13 @@ export default function Home() {
             📄 Exportar Excel
           </button>
           <button
-            onClick={() => setExcluidosOpen(true)}
+            onClick={excluidosModal.open}
             className="px-4 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-lg font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
           >
             🚫 SKUs Excluidos
           </button>
           <button
-            onClick={() => setConfiguracionOpen(true)}
+            onClick={configuracionModal.open}
             className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
           >
             ⚙️ Configuración
@@ -512,7 +212,7 @@ export default function Home() {
       {/* Carga Masiva de Cotizaciones */}
       <CargaMasivaCotizaciones
         predicciones={predicciones}
-        onSuccess={() => cargarPredicciones()}
+        onSuccess={() => refetch()}
       />
 
       {/* Tabla de Predicciones */}
@@ -554,10 +254,7 @@ export default function Home() {
         </div>
 
         {loading ? (
-          <div className="px-6 py-12 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="text-gray-500 mt-4">Cargando predicciones...</p>
-          </div>
+          <PrediccionesTableSkeleton rows={10} />
         ) : predicciones.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <p className="text-gray-500">No se encontraron predicciones.</p>
@@ -579,32 +276,32 @@ export default function Home() {
 
       {/* Modal de Configuración */}
       <ConfiguracionModal
-        isOpen={configuracionOpen}
-        onClose={() => setConfiguracionOpen(false)}
+        isOpen={configuracionModal.isOpen}
+        onClose={configuracionModal.close}
         configuraciones={configuraciones}
         onSave={cargarDatosModales}
       />
 
       {/* Modal de SKUs Excluidos */}
       <SkusExcluidosModal
-        isOpen={excluidosOpen}
-        onClose={() => setExcluidosOpen(false)}
+        isOpen={excluidosModal.isOpen}
+        onClose={excluidosModal.close}
         skusExcluidos={skusExcluidos}
         onReactivar={() => {
           cargarDatosModales()
-          cargarPredicciones()
+          refetch()
         }}
       />
 
       {/* Modal de Cotización */}
-      {cotizarModal.prediccion && (
+      {cotizarModal.data && (
         <CotizarModal
           isOpen={cotizarModal.isOpen}
-          onClose={() => setCotizarModal({ isOpen: false, prediccion: null })}
-          sku={cotizarModal.prediccion.sku}
-          descripcion={cotizarModal.prediccion.descripcion}
-          sugerenciaReposicion={cotizarModal.prediccion.sugerencia_reposicion}
-          precioUnitario={cotizarModal.prediccion.precio_unitario}
+          onClose={cotizarModal.close}
+          sku={cotizarModal.data.sku}
+          descripcion={cotizarModal.data.descripcion}
+          sugerenciaReposicion={cotizarModal.data.sugerencia_reposicion}
+          precioUnitario={cotizarModal.data.precio_unitario}
           onSuccess={() => {
             // Opcional: recargar cotizaciones si es necesario
           }}
@@ -613,19 +310,31 @@ export default function Home() {
 
       {/* Modal de Resumen Gerencial */}
       <ResumenModal
-        isOpen={resumenOpen}
-        onClose={() => setResumenOpen(false)}
+        isOpen={resumenModal.isOpen}
+        onClose={resumenModal.close}
       />
 
       {/* Modal de Cotización Masiva */}
       <CotizarMasivoModal
-        isOpen={cotizarMasivoOpen}
-        onClose={() => setCotizarMasivoOpen(false)}
+        isOpen={cotizarMasivoModal.isOpen}
+        onClose={cotizarMasivoModal.close}
         prediccionesSeleccionadas={predicciones.filter(p => skusSeleccionados.has(p.sku))}
         onSuccess={() => {
-          cargarPredicciones()
+          refetch()
           setSkusSeleccionados(new Set()) // Limpiar selección después de cotizar
         }}
+      />
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={confirmDialog.close}
+        onConfirm={confirmDialog.config.onConfirm}
+        title={confirmDialog.config.title}
+        description={confirmDialog.config.description}
+        variant={confirmDialog.config.variant}
+        confirmText={confirmDialog.config.confirmText}
+        cancelText={confirmDialog.config.cancelText}
       />
     </div>
   )

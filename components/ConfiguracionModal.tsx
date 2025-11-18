@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { getSupabaseClient } from '@/lib/supabase'
 import ConfiguracionDefontana from './ConfiguracionDefontana'
+import DefontanaSync from './DefontanaSync'
+import { showSuccess, showError } from '@/lib/utils/toast'
 
 interface Configuracion {
   id: number
@@ -67,12 +69,12 @@ export default function ConfiguracionModal({ isOpen, onClose, configuraciones, o
         }
       }
 
-      alert('✅ Configuración guardada correctamente')
+      showSuccess('Configuración guardada correctamente')
       if (onSave) await onSave()
       onClose()
     } catch (error: any) {
       console.error('Error guardando configuraciones:', error)
-      alert('Error guardando configuraciones: ' + error.message)
+      showError('Error guardando configuraciones: ' + error.message)
     } finally {
       setSaving(false)
     }
@@ -223,8 +225,23 @@ export default function ConfiguracionModal({ isOpen, onClose, configuraciones, o
             )
           ) : (
             /* Tab de Integraciones */
-            <div>
+            <div className="space-y-6">
               <ConfiguracionDefontana onSuccess={onSave} />
+
+              <div className="border-t border-gray-200 pt-6">
+                <DefontanaSync />
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800 font-medium mb-2">
+                  💡 Opciones de Importación
+                </p>
+                <ul className="text-sm text-blue-700 space-y-1">
+                  <li>• <strong>Defontana Sync:</strong> Sincroniza ventas automáticamente desde Defontana (recomendado)</li>
+                  <li>• <strong>Excel Manual:</strong> Usa el botón "Cargar Excel" en el dashboard para subir archivos manualmente</li>
+                  <li>• Ambos métodos pueden coexistir sin problemas</li>
+                </ul>
+              </div>
             </div>
           )}
         </div>

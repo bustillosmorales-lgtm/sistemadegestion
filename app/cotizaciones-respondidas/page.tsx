@@ -3,6 +3,10 @@
 import { useEffect, useState } from 'react'
 import { fetchCotizaciones, updateCotizacion, deleteCotizacion } from '@/lib/api-client'
 import AprobarCotizacionesMasivo from '@/components/AprobarCotizacionesMasivo'
+import { handleApiError } from '@/lib/utils/errorHandler'
+import { showSuccess, showError } from '@/lib/utils/toast'
+import { CotizacionesTableSkeleton } from '@/components/TableSkeleton'
+import { ConfirmDialog, useConfirmDialog } from '@/components/ConfirmDialog'
 
 interface Cotizacion {
   id: number
@@ -26,6 +30,7 @@ interface Cotizacion {
 }
 
 export default function CotizacionesRespondidasPage() {
+  const confirmDialog = useConfirmDialog()
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([])
   const [loading, setLoading] = useState(true)
   const [filtroEstado, setFiltroEstado] = useState<string>('')
@@ -46,51 +51,63 @@ export default function CotizacionesRespondidasPage() {
       if (response.success) {
         setCotizaciones(response.cotizaciones)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error cargando cotizaciones:', error)
-      alert('Error al cargar cotizaciones')
+      showError(handleApiError(error, 'cargar cotizaciones'))
     } finally {
       setLoading(false)
     }
   }
 
   async function handleAprobar(id: number, sku: string) {
-    if (!confirm(`¿Aprobar cotización de ${sku}?`)) return
-
-    try {
-      await updateCotizacion(id, { estado: 'aprobada' })
-      alert('✅ Cotización aprobada')
-      await cargarCotizaciones()
-    } catch (error: any) {
-      console.error('Error:', error)
-      alert('Error: ' + error.message)
-    }
+    confirmDialog.confirm({
+      title: 'Aprobar cotización',
+      description: `¿Aprobar cotización de ${sku}?`,
+      variant: 'default',
+      onConfirm: async () => {
+        try {
+          await updateCotizacion(id, { estado: 'aprobada' })
+          showSuccess('Cotización aprobada')
+          await cargarCotizaciones()
+        } catch (error: any) {
+          showError(handleApiError(error, 'aprobar cotización'))
+        }
+      }
+    })
   }
 
   async function handleRechazar(id: number, sku: string) {
-    if (!confirm(`¿Rechazar cotización de ${sku}?`)) return
-
-    try {
-      await updateCotizacion(id, { estado: 'rechazada' })
-      alert('❌ Cotización rechazada')
-      await cargarCotizaciones()
-    } catch (error: any) {
-      console.error('Error:', error)
-      alert('Error: ' + error.message)
-    }
+    confirmDialog.confirm({
+      title: 'Rechazar cotización',
+      description: `¿Rechazar cotización de ${sku}?`,
+      variant: 'destructive',
+      onConfirm: async () => {
+        try {
+          await updateCotizacion(id, { estado: 'rechazada' })
+          showError('Cotización rechazada')
+          await cargarCotizaciones()
+        } catch (error: any) {
+          showError(handleApiError(error, 'rechazar cotización'))
+        }
+      }
+    })
   }
 
   async function handleEliminar(id: number, sku: string) {
-    if (!confirm(`¿Eliminar cotización de ${sku}?`)) return
-
-    try {
-      await deleteCotizacion(id)
-      alert('Cotización eliminada')
-      await cargarCotizaciones()
-    } catch (error: any) {
-      console.error('Error:', error)
-      alert('Error: ' + error.message)
-    }
+    confirmDialog.confirm({
+      title: 'Eliminar cotización',
+      description: `¿Eliminar cotización de ${sku}?`,
+      variant: 'destructive',
+      onConfirm: async () => {
+        try {
+          await deleteCotizacion(id)
+          showSuccess('Cotización eliminada')
+          await cargarCotizaciones()
+        } catch (error: any) {
+          showError(handleApiError(error, 'eliminar cotización'))
+        }
+      }
+    })
   }
 
   const getEstadoColor = (estado: string) => {
@@ -192,10 +209,7 @@ export default function CotizacionesRespondidasPage() {
         </div>
 
         {loading ? (
-          <div className="px-6 py-12 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="text-gray-500 mt-4">Cargando cotizaciones...</p>
-          </div>
+          <CotizacionesTableSkeleton rows={10} />
         ) : cotizaciones.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <p className="text-gray-500">No hay cotizaciones respondidas.</p>
@@ -302,6 +316,18 @@ export default function CotizacionesRespondidasPage() {
           </div>
         )}
       </div>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={confirmDialog.close}
+        onConfirm={confirmDialog.config.onConfirm}
+        title={confirmDialog.config.title}
+        description={confirmDialog.config.description}
+        variant={confirmDialog.config.variant}
+        confirmText={confirmDialog.config.confirmText}
+        cancelText={confirmDialog.config.cancelText}
+      />
     </div>
   )
 }

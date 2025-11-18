@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { useSupabase } from '@/lib/SupabaseProvider'
 import { fetchCotizaciones, updateCotizacion } from '@/lib/api-client'
+import { showSuccess, showError, showInfo } from '@/lib/utils/toast'
 
 interface Props {
   onSuccess?: () => void
@@ -22,7 +23,7 @@ export default function ResponderCotizacionesMasivo({ onSuccess }: Props) {
       const response = await fetchCotizaciones({ estado: 'pendiente' })
 
       if (!response.success || !response.cotizaciones || response.cotizaciones.length === 0) {
-        alert('ℹ️ No hay cotizaciones pendientes para responder')
+        showInfo('No hay cotizaciones pendientes para responder')
         return
       }
 
@@ -67,10 +68,10 @@ export default function ResponderCotizacionesMasivo({ onSuccess }: Props) {
       const fecha = new Date().toISOString().split('T')[0]
       XLSX.writeFile(wb, `Cotizaciones_Pendientes_${fecha}.xlsx`)
 
-      alert(`✅ Template descargado con ${cotizaciones.length} cotización(es)\n\n💡 Instrucciones:\n1. Llena todos los campos del proveedor\n2. Costo Proveedor es OBLIGATORIO\n3. Guarda y sube el archivo`)
+      showSuccess(`Template descargado con ${cotizaciones.length} cotización(es)\n\nInstrucciones:\n1. Llena todos los campos del proveedor\n2. Costo Proveedor es OBLIGATORIO\n3. Guarda y sube el archivo`)
     } catch (error: any) {
       console.error('Error descargando template:', error)
-      alert('Error al descargar template: ' + error.message)
+      showError('Error al descargar template: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -135,23 +136,29 @@ export default function ResponderCotizacionesMasivo({ onSuccess }: Props) {
       }
 
       // Mostrar resultado
-      let mensaje = `✅ Procesamiento completado\n\n`
+      let mensaje = `Procesamiento completado\n\n`
       mensaje += `Total filas procesadas: ${jsonData.length}\n`
       mensaje += `Cotizaciones actualizadas: ${exitosas}\n`
       mensaje += `Fallidas: ${fallidas}\n`
 
       if (fallidas > 0) {
-        mensaje += `\n❌ Errores:\n${errores.slice(0, 10).join('\n')}`
+        mensaje += `\nErrores:\n${errores.slice(0, 10).join('\n')}`
         if (errores.length > 10) {
           mensaje += `\n... y ${errores.length - 10} más`
         }
       }
 
       if (exitosas > 0) {
-        mensaje += `\n\n✅ El dashboard se actualizará automáticamente`
+        mensaje += `\n\nEl dashboard se actualizará automáticamente`
       }
 
-      alert(mensaje)
+      if (fallidas > 0 && exitosas > 0) {
+        showInfo(mensaje)
+      } else if (fallidas > 0) {
+        showError(mensaje)
+      } else {
+        showSuccess(mensaje)
+      }
 
       // Llamar callback SIEMPRE para actualizar dashboard
       if (onSuccess) {
@@ -164,7 +171,7 @@ export default function ResponderCotizacionesMasivo({ onSuccess }: Props) {
       }
     } catch (error: any) {
       console.error('Error procesando archivo:', error)
-      alert('Error al procesar archivo: ' + error.message)
+      showError('Error al procesar archivo: ' + error.message)
     } finally {
       setLoading(false)
     }

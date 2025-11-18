@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { useSupabase } from '@/lib/SupabaseProvider'
 import { createCotizacion } from '@/lib/api-client'
+import { showSuccess, showError, showInfo } from '@/lib/utils/toast'
 
 interface Props {
   predicciones: any[]
@@ -53,10 +54,10 @@ export default function CargaMasivaCotizaciones({ predicciones, onSuccess }: Pro
       const fecha = new Date().toISOString().split('T')[0]
       XLSX.writeFile(wb, `Template_Solicitud_Cotizacion_${fecha}.xlsx`)
 
-      alert('✅ Template descargado\n\n💡 Instrucciones:\n1. Edita la columna "Cantidad a Cotizar"\n2. Agrega notas si es necesario\n3. Guarda y sube el archivo')
+      showSuccess('Template descargado\n\nInstrucciones:\n1. Edita la columna "Cantidad a Cotizar"\n2. Agrega notas si es necesario\n3. Guarda y sube el archivo')
     } catch (error: any) {
       console.error('Error descargando template:', error)
-      alert('Error al descargar template: ' + error.message)
+      showError('Error al descargar template: ' + error.message)
     }
   }
 
@@ -117,7 +118,7 @@ export default function CargaMasivaCotizaciones({ predicciones, onSuccess }: Pro
       }
 
       // Mostrar resultado
-      let mensaje = `✅ Procesamiento completado\n\n`
+      let mensaje = `Procesamiento completado\n\n`
       mensaje += `Cotizaciones creadas: ${exitosas}\n`
       if (fallidas > 0) {
         mensaje += `Fallidas: ${fallidas}\n\n`
@@ -126,7 +127,13 @@ export default function CargaMasivaCotizaciones({ predicciones, onSuccess }: Pro
           mensaje += `\n... y ${errores.length - 5} más`
         }
       }
-      alert(mensaje)
+      if (fallidas > 0 && exitosas > 0) {
+        showInfo(mensaje)
+      } else if (fallidas > 0) {
+        showError(mensaje)
+      } else {
+        showSuccess(mensaje)
+      }
 
       // Llamar callback de éxito
       if (onSuccess && exitosas > 0) {
@@ -139,7 +146,7 @@ export default function CargaMasivaCotizaciones({ predicciones, onSuccess }: Pro
       }
     } catch (error: any) {
       console.error('Error procesando archivo:', error)
-      alert('Error al procesar archivo: ' + error.message)
+      showError('Error al procesar archivo: ' + error.message)
     } finally {
       setLoading(false)
     }

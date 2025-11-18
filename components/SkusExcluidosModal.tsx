@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { getSupabaseClient } from '@/lib/supabase'
+import { showSuccess, showError } from '@/lib/utils/toast'
 
 interface SkuExcluido {
   id: number
@@ -35,11 +36,11 @@ export default function SkusExcluidosModal({ isOpen, onClose, skusExcluidos, onR
 
       if (error) throw error
 
-      alert(`✅ SKU ${sku} reactivado`)
+      showSuccess(`SKU ${sku} reactivado`)
       if (onReactivar) onReactivar()
     } catch (error: any) {
       console.error('Error reactivando SKU:', error)
-      alert('Error reactivando SKU: ' + error.message)
+      showError('Error reactivando SKU: ' + error.message)
     } finally {
       setProcesando(false)
     }

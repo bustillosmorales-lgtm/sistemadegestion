@@ -1,41 +1,21 @@
 /**
  * Netlify Function: Sincronización de Ventas desde Defontana
- * POST - Sincronizar ventas desde Defontana
+ * POST /api/defontana-sync - Sincronizar ventas desde Defontana
+ * Requiere autenticación JWT
  */
 
 const { createClient } = require('@supabase/supabase-js');
-const { verifyAuth, getCorsHeaders } = require('./lib/auth');
+const { withAuth } = require('./lib/middleware');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
 
-exports.handler = async (event, context) => {
-  const origin = event.headers.origin || '';
-  const headers = getCorsHeaders(origin);
-
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers, body: '' };
-  }
-
-  // Verificar autenticación
-  const auth = await verifyAuth(event);
-  if (!auth.authenticated) {
-    return {
-      statusCode: auth.rateLimitExceeded ? 429 : 401,
-      headers,
-      body: JSON.stringify({
-        success: false,
-        error: auth.error
-      })
-    };
-  }
-
+exports.handler = withAuth(async (event, context, auth) => {
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
-      headers,
       body: JSON.stringify({ error: 'Method not allowed' })
     };
   }
@@ -57,7 +37,6 @@ exports.handler = async (event, context) => {
     if (configError || !config) {
       return {
         statusCode: 400,
-        headers,
         body: JSON.stringify({
           success: false,
           error: 'Defontana no está configurado. Configura la integración primero.'
@@ -182,7 +161,6 @@ exports.handler = async (event, context) => {
 
     return {
       statusCode: 200,
-      headers,
       body: JSON.stringify({
         success: true,
         salesImported,
@@ -208,11 +186,10 @@ exports.handler = async (event, context) => {
 
     return {
       statusCode: 500,
-      headers,
       body: JSON.stringify({
         success: false,
         error: error.message
       })
     };
   }
-};
+});

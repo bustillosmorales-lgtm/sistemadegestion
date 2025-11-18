@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { getSupabaseClient } from '@/lib/supabase'
+import { showSuccess, showError, showInfo } from '@/lib/utils/toast'
 
 interface Props {
   onSuccess?: () => void
@@ -9,7 +11,6 @@ interface Props {
 export default function ConfiguracionDefontana({ onSuccess }: Props) {
   const [isConfigured, setIsConfigured] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [syncing, setSyncing] = useState(false)
   const [showConfig, setShowConfig] = useState(false)
 
   const [config, setConfig] = useState({
@@ -32,21 +33,40 @@ export default function ConfiguracionDefontana({ onSuccess }: Props) {
 
   async function checkConfiguration() {
     try {
-      const response = await fetch('/.netlify/functions/defontana-config', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      })
+      const supabase = getSupabaseClient()
 
-      if (response.ok) {
-        const data = await response.json()
-        if (data.configured) {
+      // Check if Defontana is configured in configuracion_sistema
+      const { data, error } = await supabase
+        .from('configuracion_sistema')
+        .select('clave, valor')
+        .in('clave', ['defontana_email', 'defontana_password', 'defontana_activo'])
+
+      if (!error && data && data.length > 0) {
+        const configMap: Record<string, string> = {}
+        data.forEach(item => {
+          configMap[item.clave] = item.valor
+        })
+
+        if (configMap.defontana_activo === 'true' && configMap.defontana_email) {
           setIsConfigured(true)
-          setSyncInfo({
-            lastSync: data.lastSync || null,
-            totalSales: data.totalSales || 0
-          })
         }
+      }
+
+      // Get last sync info
+      const { data: syncData } = await supabase
+        .from('sync_logs')
+        .select('created_at, records_imported')
+        .eq('integration', 'defontana')
+        .eq('status', 'success')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (syncData) {
+        setSyncInfo({
+          lastSync: syncData.created_at,
+          totalSales: syncData.records_imported || 0
+        })
       }
     } catch (error) {
       console.error('Error verificando configuración:', error)
@@ -55,28 +75,30 @@ export default function ConfiguracionDefontana({ onSuccess }: Props) {
 
   async function handleSaveConfig() {
     if (!config.apiKey || !config.companyId) {
-      alert('❌ Por favor completa todos los campos obligatorios')
+      showError('Por favor completa todos los campos obligatorios')
       return
     }
 
     setLoading(true)
     try {
-      const response = await fetch('/.netlify/functions/defontana-config', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(config)
-      })
+      const supabase = getSupabaseClient()
 
-      const data = await response.json()
+      // Save Defontana configuration to configuracion_sistema
+      const updates = [
+        { clave: 'defontana_email', valor: config.apiKey, descripcion: 'Email para Defontana API' },
+        { clave: 'defontana_password', valor: config.companyId, descripcion: 'Password para Defontana API' },
+        { clave: 'defontana_activo', valor: 'true', descripcion: 'Defontana activado' }
+      ]
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Error al guardar configuración')
+      for (const item of updates) {
+        const { error } = await supabase
+          .from('configuracion_sistema')
+          .upsert(item, { onConflict: 'clave' })
+
+        if (error) throw error
       }
 
-      alert('✅ Configuración de Defontana guardada correctamente')
+      showSuccess('Configuración de Defontana guardada correctamente')
       setIsConfigured(true)
       setShowConfig(false)
       setConfig({ apiKey: '', companyId: '', environment: 'production' })
@@ -86,56 +108,9 @@ export default function ConfiguracionDefontana({ onSuccess }: Props) {
       }
     } catch (error: any) {
       console.error('Error:', error)
-      alert('❌ Error: ' + error.message)
+      showError('Error: ' + error.message)
     } finally {
       setLoading(false)
-    }
-  }
-
-  async function handleSyncSales() {
-    if (!confirm('¿Sincronizar ventas desde Defontana? Esto puede tomar varios minutos.')) {
-      return
-    }
-
-    setSyncing(true)
-    try {
-      const response = await fetch('/.netlify/functions/defontana-sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          syncType: 'sales',
-          dateFrom: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Último año
-          dateTo: new Date().toISOString().split('T')[0]
-        })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Error al sincronizar ventas')
-      }
-
-      alert(`✅ Sincronización completada\n\n` +
-        `Ventas importadas: ${data.salesImported}\n` +
-        `SKUs actualizados: ${data.skusUpdated}\n` +
-        `Tiempo: ${data.timeElapsed}`)
-
-      setSyncInfo({
-        lastSync: new Date().toISOString(),
-        totalSales: data.totalSales || 0
-      })
-
-      if (onSuccess) {
-        onSuccess()
-      }
-    } catch (error: any) {
-      console.error('Error:', error)
-      alert('❌ Error al sincronizar: ' + error.message)
-    } finally {
-      setSyncing(false)
     }
   }
 
@@ -146,23 +121,26 @@ export default function ConfiguracionDefontana({ onSuccess }: Props) {
 
     setLoading(true)
     try {
-      const response = await fetch('/.netlify/functions/defontana-config', {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      })
+      const supabase = getSupabaseClient()
 
-      if (!response.ok) {
-        throw new Error('Error al desconectar')
-      }
+      // Set defontana_activo to false
+      const { error } = await supabase
+        .from('configuracion_sistema')
+        .update({ valor: 'false' })
+        .eq('clave', 'defontana_activo')
 
-      alert('✅ Defontana desconectado correctamente')
+      if (error) throw error
+
+      showSuccess('Defontana desconectado correctamente')
       setIsConfigured(false)
       setSyncInfo({ lastSync: null, totalSales: 0 })
+
+      if (onSuccess) {
+        onSuccess()
+      }
     } catch (error: any) {
       console.error('Error:', error)
-      alert('❌ Error: ' + error.message)
+      showError('Error: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -224,28 +202,11 @@ export default function ConfiguracionDefontana({ onSuccess }: Props) {
             </div>
           </div>
 
-          {/* Botones de acción */}
-          <div className="flex gap-3">
-            <button
-              onClick={handleSyncSales}
-              disabled={syncing}
-              className="flex-1 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {syncing ? (
-                <>
-                  <span className="animate-spin">⏳</span>
-                  Sincronizando ventas...
-                </>
-              ) : (
-                <>
-                  🔄 Sincronizar Ventas Ahora
-                </>
-              )}
-            </button>
-
+          {/* Botón de desconexión */}
+          <div className="flex justify-end">
             <button
               onClick={handleDisconnect}
-              disabled={loading || syncing}
+              disabled={loading}
               className="px-5 py-3 bg-red-100 hover:bg-red-200 text-red-700 rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               🔌 Desconectar
@@ -253,13 +214,12 @@ export default function ConfiguracionDefontana({ onSuccess }: Props) {
           </div>
 
           {/* Información */}
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <h4 className="font-semibold text-gray-900 mb-2">ℹ️ Información:</h4>
-            <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
-              <li>Las ventas se sincronizan automáticamente cada 6 horas</li>
-              <li>Puedes forzar una sincronización manual usando el botón azul</li>
-              <li>Se importan ventas del último año por defecto</li>
-              <li>Los datos se usan para mejorar las predicciones de demanda</li>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="font-semibold text-blue-900 mb-2">ℹ️ Configuración Activa:</h4>
+            <ul className="list-disc list-inside space-y-1 text-sm text-blue-700">
+              <li>Defontana está configurado y listo para sincronizar</li>
+              <li>Usa el botón "Sincronizar Ventas" más abajo para importar datos</li>
+              <li>Los datos importados mejoran las predicciones de demanda</li>
             </ul>
           </div>
         </div>

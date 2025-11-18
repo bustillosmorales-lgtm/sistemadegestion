@@ -7,7 +7,7 @@
  */
 
 const { createClient } = require('@supabase/supabase-js');
-const { verifyAuth, getCorsHeaders } = require('./lib/auth');
+const { withAuth } = require('./lib/middleware');
 const { prediccionesQuerySchema, validateInput } = require('./lib/validation');
 
 // Inicializar Supabase con SERVICE_KEY para bypasear límites
@@ -16,56 +16,14 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-exports.handler = async (event, context) => {
-  const origin = event.headers.origin || '';
-  const headers = getCorsHeaders(origin);
-
-  // Manejar preflight CORS
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers,
-      body: ''
-    };
-  }
-
+exports.handler = withAuth(async (event, context, auth) => {
   // Solo permitir GET
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
-      headers,
       body: JSON.stringify({ error: 'Method not allowed' })
     };
   }
-
-  // Verificar autenticación
-  const auth = await verifyAuth(event);
-  if (!auth.authenticated) {
-    const statusCode = auth.rateLimitExceeded ? 429 : 401;
-    return {
-      statusCode,
-      headers: {
-        ...headers,
-        ...(auth.rateLimit ? {
-          'X-RateLimit-Limit': String(auth.rateLimit.limit),
-          'X-RateLimit-Remaining': '0',
-          'X-RateLimit-Reset': String(auth.rateLimit.resetIn),
-          'Retry-After': String(auth.retryAfter || 60)
-        } : {})
-      },
-      body: JSON.stringify({
-        success: false,
-        error: auth.error
-      })
-    };
-  }
-
-  // Agregar headers de rate limit a las respuestas
-  const rateLimitHeaders = auth.rateLimit ? {
-    'X-RateLimit-Limit': String(auth.rateLimit.limit),
-    'X-RateLimit-Remaining': String(auth.rateLimit.remaining),
-    'X-RateLimit-Reset': String(auth.rateLimit.resetIn)
-  } : {};
 
   try {
     // Parsear query params
@@ -76,8 +34,7 @@ exports.handler = async (event, context) => {
     if (!validation.success) {
       return {
         statusCode: 400,
-        headers: { ...headers, ...rateLimitHeaders },
-        body: JSON.stringify({
+                body: JSON.stringify({
           success: false,
           error: 'Invalid parameters',
           details: validation.errors
@@ -170,8 +127,7 @@ exports.handler = async (event, context) => {
     // Respuesta exitosa
     return {
       statusCode: 200,
-      headers: { ...headers, ...rateLimitHeaders },
-      body: JSON.stringify({
+            body: JSON.stringify({
         success: true,
         data: dataAjustada,
         count: dataAjustada?.length || 0,
@@ -192,13 +148,13 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
+    console.error('Error en predicciones:', error);
     return {
       statusCode: 500,
-      headers: { ...headers, ...rateLimitHeaders },
       body: JSON.stringify({
         success: false,
         error: error.message
       })
     };
   }
-};
+});

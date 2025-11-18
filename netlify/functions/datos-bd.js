@@ -3,7 +3,7 @@
  */
 
 const { createClient } = require('@supabase/supabase-js');
-const { verifyAuth, getCorsHeaders } = require('./lib/auth');
+const { withAuth } = require('./lib/middleware');
 const { handleError } = require('./lib/error-handler');
 
 const supabase = createClient(
@@ -11,51 +11,23 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-exports.handler = async (event, context) => {
-  const origin = event.headers.origin || event.headers.Origin || '';
-  const corsHeaders = getCorsHeaders(origin);
-
-  // Manejar preflight OPTIONS
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 204,
-      headers: corsHeaders,
-      body: ''
-    };
-  }
-
+exports.handler = withAuth(async (event, context, auth) => {
   // Solo permitir GET
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
-      headers: corsHeaders,
       body: JSON.stringify({ error: 'Method Not Allowed' })
     };
   }
 
   try {
-    // Verificar autenticación
-    const auth = await verifyAuth(event);
-    if (!auth.authenticated) {
-      const statusCode = auth.rateLimitExceeded ? 429 : 401;
-      return {
-        statusCode,
-        headers: corsHeaders,
-        body: JSON.stringify({
-          error: auth.error,
-          ...(auth.rateLimitExceeded && { retryAfter: auth.retryAfter })
-        })
-      };
-    }
-
     // Obtener parámetro de query string
     const tabla = event.queryStringParameters?.tabla;
 
     if (!tabla) {
       return {
         statusCode: 400,
-        headers: corsHeaders,
-        body: JSON.stringify({ error: 'Parámetro "tabla" requerido' })
+              body: JSON.stringify({ error: 'Parámetro "tabla" requerido' })
       };
     }
 
@@ -113,8 +85,7 @@ exports.handler = async (event, context) => {
       default:
         return {
           statusCode: 400,
-          headers: corsHeaders,
-          body: JSON.stringify({
+                  body: JSON.stringify({
             error: 'Tabla no válida. Opciones: ventas, stock, transito, compras, packs, desconsiderar'
           })
         };
@@ -145,6 +116,6 @@ exports.handler = async (event, context) => {
 
   } catch (error) {
     console.error('[datos-bd] Error general:', error);
-    return handleError(error, corsHeaders);
+    return handleError(error);
   }
-};
+});

@@ -61,36 +61,40 @@ exports.handler = async (event, context) => {
 
     // Disparar GitHub Action
     const githubToken = process.env.GITHUB_TOKEN;
-    const githubRepo = process.env.GITHUB_REPOSITORY || 'FranciscoBustillos/nuevo_sistema';
+    const githubRepo = process.env.GITHUB_REPOSITORY || 'bustillosmorales-lgtm/sistemadegestion';
 
     if (!githubToken) {
+      console.error('GITHUB_TOKEN no configurado');
       throw new Error('GITHUB_TOKEN no configurado en variables de entorno');
     }
 
     const [owner, repo] = githubRepo.split('/');
+    const workflowUrl = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/process-excel.yml/dispatches`;
 
-    const response = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/actions/workflows/process-excel.yml/dispatches`,
-      {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/vnd.github+json',
-          'Authorization': `Bearer ${githubToken}`,
-          'X-GitHub-Api-Version': '2022-11-28',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ref: 'main',
-          inputs: {
-            file_path: filePath
-          }
-        })
-      }
-    );
+    console.log('Disparando GitHub Action:', { owner, repo, filePath });
+
+    const response = await fetch(workflowUrl, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/vnd.github+json',
+        'Authorization': `Bearer ${githubToken}`,
+        'X-GitHub-Api-Version': '2022-11-28',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        ref: 'main',
+        inputs: {
+          file_path: filePath
+        }
+      })
+    });
+
+    console.log('GitHub API response status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Error disparando GitHub Action: ${response.status} ${errorText}`);
+      console.error('GitHub API error:', { status: response.status, error: errorText });
+      throw new Error(`Error disparando GitHub Action (${response.status}): ${errorText || 'Sin detalles'}`);
     }
 
     return {

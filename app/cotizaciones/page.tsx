@@ -3,6 +3,10 @@
 import { useEffect, useState } from 'react'
 import { fetchCotizaciones, updateCotizacion, deleteCotizacion } from '@/lib/api-client'
 import ResponderCotizacionesMasivo from '@/components/ResponderCotizacionesMasivo'
+import { handleApiError } from '@/lib/utils/errorHandler'
+import { showSuccess, showError, showInfo } from '@/lib/utils/toast'
+import { CotizacionesTableSkeleton } from '@/components/TableSkeleton'
+import { ConfirmDialog, useConfirmDialog } from '@/components/ConfirmDialog'
 
 interface Cotizacion {
   id: number
@@ -12,7 +16,6 @@ interface Cotizacion {
   estado: 'pendiente' | 'aprobada' | 'rechazada' | 'recibida' | 'respondida'
   fecha_cotizacion: string
   notas: string | null
-  // Campos de respuesta del proveedor
   costo_proveedor: number | null
   moneda: string | null
   cantidad_minima_venta: number | null
@@ -20,13 +23,13 @@ interface Cotizacion {
   metros_cubicos_embalaje: number | null
   tiempo_entrega_dias: number | null
   notas_proveedor: string | null
-  // Campos de seguimiento de contenedores
   fecha_confirmacion_compra: string | null
   fecha_carga_contenedor: string | null
   numero_contenedor: string | null
 }
 
 export default function CotizacionesPage() {
+  const confirmDialog = useConfirmDialog()
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([])
   const [loading, setLoading] = useState(true)
   const [filtroEstado, setFiltroEstado] = useState<string>('')
@@ -63,25 +66,29 @@ export default function CotizacionesPage() {
       if (response.success) {
         setCotizaciones(response.cotizaciones)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error cargando cotizaciones:', error)
-      alert('Error al cargar cotizaciones')
+      showError(handleApiError(error, 'cargar cotizaciones'))
     } finally {
       setLoading(false)
     }
   }
 
   async function handleDelete(id: number, sku: string) {
-    if (!confirm(`¿Eliminar cotización de ${sku}?`)) return
-
-    try {
-      await deleteCotizacion(id)
-      alert('Cotización eliminada')
-      await cargarCotizaciones()
-    } catch (error: any) {
-      console.error('Error eliminando:', error)
-      alert('Error: ' + error.message)
-    }
+    confirmDialog.confirm({
+      title: 'Eliminar cotización',
+      description: `¿Eliminar cotización de ${sku}?`,
+      variant: 'destructive',
+      onConfirm: async () => {
+        try {
+          await deleteCotizacion(id)
+          showSuccess('Cotización eliminada')
+          await cargarCotizaciones()
+        } catch (error: any) {
+          showError(handleApiError(error, 'eliminar cotización'))
+        }
+      }
+    })
   }
 
   function startEdit(cot: Cotizacion) {
@@ -107,12 +114,11 @@ export default function CotizacionesPage() {
         notas_proveedor: editData.notas_proveedor.trim() || undefined,
         estado: 'respondida'
       })
-      alert('✅ Cotización respondida exitosamente')
+      showSuccess('Cotización respondida exitosamente')
       setEditingId(null)
       await cargarCotizaciones()
     } catch (error: any) {
-      console.error('Error respondiendo:', error)
-      alert('Error: ' + error.message)
+      showError(handleApiError(error, 'responder cotización'))
     }
   }
 
@@ -121,18 +127,22 @@ export default function CotizacionesPage() {
   }
 
   async function handleConfirmarCompra(id: number, sku: string) {
-    if (!confirm(`¿Confirmar recepción de orden de compra para ${sku}?`)) return
-
-    try {
-      await updateCotizacion(id, {
-        fecha_confirmacion_compra: true as any
-      })
-      alert('✅ Orden de compra confirmada')
-      await cargarCotizaciones()
-    } catch (error: any) {
-      console.error('Error:', error)
-      alert('Error: ' + error.message)
-    }
+    confirmDialog.confirm({
+      title: 'Confirmar orden de compra',
+      description: `¿Confirmar recepción de orden de compra para ${sku}?`,
+      variant: 'default',
+      onConfirm: async () => {
+        try {
+          await updateCotizacion(id, {
+            fecha_confirmacion_compra: true as any
+          })
+          showSuccess('Orden de compra confirmada')
+          await cargarCotizaciones()
+        } catch (error: any) {
+          showError(handleApiError(error, 'confirmar orden de compra'))
+        }
+      }
+    })
   }
 
   async function handleCargarContenedor(id: number, sku: string) {
@@ -144,11 +154,10 @@ export default function CotizacionesPage() {
         fecha_carga_contenedor: true as any,
         numero_contenedor: numeroContenedor.trim()
       })
-      alert(`✅ Mercadería cargada en contenedor ${numeroContenedor}\n\nSe creó registro automático en Tránsito China.`)
+      showSuccess(`Mercadería cargada en contenedor ${numeroContenedor}. Se creó registro automático en Tránsito China.`)
       await cargarCotizaciones()
     } catch (error: any) {
-      console.error('Error:', error)
-      alert('Error: ' + error.message)
+      showError(handleApiError(error, 'cargar contenedor'))
     }
   }
 
@@ -244,10 +253,7 @@ export default function CotizacionesPage() {
         </div>
 
         {loading ? (
-          <div className="px-6 py-12 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="text-gray-500 mt-4">Cargando cotizaciones...</p>
-          </div>
+          <CotizacionesTableSkeleton rows={10} />
         ) : cotizaciones.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <p className="text-gray-500">No hay cotizaciones.</p>
@@ -451,6 +457,18 @@ export default function CotizacionesPage() {
           </div>
         )}
       </div>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={confirmDialog.close}
+        onConfirm={confirmDialog.config.onConfirm}
+        title={confirmDialog.config.title}
+        description={confirmDialog.config.description}
+        variant={confirmDialog.config.variant}
+        confirmText={confirmDialog.config.confirmText}
+        cancelText={confirmDialog.config.cancelText}
+      />
     </div>
   )
 }

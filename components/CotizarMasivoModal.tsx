@@ -2,6 +2,7 @@
 
 import { memo, useMemo, useState, useEffect } from 'react'
 import { createCotizacion } from '@/lib/api-client'
+import { showSuccess, showError, showWarning } from '@/lib/utils/toast'
 
 interface Prediccion {
   id: number
@@ -126,9 +127,9 @@ function CotizarMasivoModal({ isOpen, onClose, prediccionesSeleccionadas, onSucc
       await Promise.all(promesas)
 
       if (fallidas === 0) {
-        alert(`✅ ${exitosas} cotización(es) creadas exitosamente`)
+        showSuccess(`${exitosas} cotización(es) creadas exitosamente`)
       } else {
-        alert(`⚠️ Cotizaciones creadas: ${exitosas}\nFallidas: ${fallidas}`)
+        showWarning(`Cotizaciones creadas: ${exitosas}\nFallidas: ${fallidas}`)
       }
 
       // Llamar callback de éxito para actualizar dashboard
@@ -139,7 +140,7 @@ function CotizarMasivoModal({ isOpen, onClose, prediccionesSeleccionadas, onSucc
       onClose()
     } catch (error: any) {
       console.error('Error en cotización masiva:', error)
-      alert('❌ Error al crear cotizaciones: ' + error.message)
+      showError('Error al crear cotizaciones: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -148,10 +149,10 @@ function CotizarMasivoModal({ isOpen, onClose, prediccionesSeleccionadas, onSucc
   const handleCopiar = async () => {
     try {
       await navigator.clipboard.writeText(textoCotizacion)
-      alert('✅ Cotización copiada al portapapeles')
+      showSuccess('Cotización copiada al portapapeles')
     } catch (error) {
       console.error('Error copiando:', error)
-      alert('❌ Error al copiar al portapapeles')
+      showError('Error al copiar al portapapeles')
     }
   }
 

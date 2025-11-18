@@ -8,7 +8,7 @@
  */
 
 const { createClient } = require('@supabase/supabase-js');
-const { verifyAuth, getCorsHeaders } = require('./lib/auth');
+const { withAuth } = require('./lib/middleware');
 const { cotizacionesQuerySchema, cotizacionPostSchema, cotizacionPutSchema, validateInput } = require('./lib/validation');
 
 // Usar SERVICE_KEY para bypasear límite de 1000 registros
@@ -17,43 +17,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-exports.handler = async (event, context) => {
-  const origin = event.headers.origin || '';
-  const headers = getCorsHeaders(origin);
-
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers, body: '' };
-  }
-
-  // Verificar autenticación
-  const auth = await verifyAuth(event);
-  if (!auth.authenticated) {
-    const statusCode = auth.rateLimitExceeded ? 429 : 401;
-    return {
-      statusCode,
-      headers: {
-        ...headers,
-        ...(auth.rateLimit ? {
-          'X-RateLimit-Limit': String(auth.rateLimit.limit),
-          'X-RateLimit-Remaining': '0',
-          'X-RateLimit-Reset': String(auth.rateLimit.resetIn),
-          'Retry-After': String(auth.retryAfter || 60)
-        } : {})
-      },
-      body: JSON.stringify({
-        success: false,
-        error: auth.error
-      })
-    };
-  }
-
-  // Agregar headers de rate limit
-  const rateLimitHeaders = auth.rateLimit ? {
-    'X-RateLimit-Limit': String(auth.rateLimit.limit),
-    'X-RateLimit-Remaining': String(auth.rateLimit.remaining),
-    'X-RateLimit-Reset': String(auth.rateLimit.resetIn)
-  } : {};
-
+exports.handler = withAuth(async (event, context, auth) => {
   try {
     // GET: Obtener cotizaciones
     if (event.httpMethod === 'GET') {
@@ -63,8 +27,7 @@ exports.handler = async (event, context) => {
       if (!validation.success) {
         return {
           statusCode: 400,
-          headers: { ...headers, ...rateLimitHeaders },
-          body: JSON.stringify({
+                    body: JSON.stringify({
             success: false,
             error: 'Invalid parameters',
             details: validation.errors
@@ -106,8 +69,7 @@ exports.handler = async (event, context) => {
 
       return {
         statusCode: 200,
-        headers: { ...headers, ...rateLimitHeaders },
-        body: JSON.stringify({
+                body: JSON.stringify({
           success: true,
           resumen,
           cotizaciones: data
@@ -123,8 +85,7 @@ exports.handler = async (event, context) => {
       if (!validation.success) {
         return {
           statusCode: 400,
-          headers: { ...headers, ...rateLimitHeaders },
-          body: JSON.stringify({
+                    body: JSON.stringify({
             success: false,
             error: 'Invalid input',
             details: validation.errors
@@ -143,8 +104,7 @@ exports.handler = async (event, context) => {
 
       return {
         statusCode: 201,
-        headers: { ...headers, ...rateLimitHeaders },
-        body: JSON.stringify({
+                body: JSON.stringify({
           success: true,
           cotizacion: data
         })
@@ -161,8 +121,7 @@ exports.handler = async (event, context) => {
       if (!id || isNaN(parseInt(id))) {
         return {
           statusCode: 400,
-          headers: { ...headers, ...rateLimitHeaders },
-          body: JSON.stringify({
+                    body: JSON.stringify({
             success: false,
             error: 'Invalid ID'
           })
@@ -173,8 +132,7 @@ exports.handler = async (event, context) => {
       if (!validation.success) {
         return {
           statusCode: 400,
-          headers: { ...headers, ...rateLimitHeaders },
-          body: JSON.stringify({
+                    body: JSON.stringify({
             success: false,
             error: 'Invalid input',
             details: validation.errors
@@ -243,8 +201,7 @@ exports.handler = async (event, context) => {
 
       return {
         statusCode: 200,
-        headers: { ...headers, ...rateLimitHeaders },
-        body: JSON.stringify({
+                body: JSON.stringify({
           success: true,
           cotizacion: data
         })
@@ -259,8 +216,7 @@ exports.handler = async (event, context) => {
       if (!id || isNaN(parseInt(id))) {
         return {
           statusCode: 400,
-          headers: { ...headers, ...rateLimitHeaders },
-          body: JSON.stringify({
+                    body: JSON.stringify({
             success: false,
             error: 'Invalid ID'
           })
@@ -276,8 +232,7 @@ exports.handler = async (event, context) => {
 
       return {
         statusCode: 200,
-        headers: { ...headers, ...rateLimitHeaders },
-        body: JSON.stringify({
+                body: JSON.stringify({
           success: true,
           message: 'Cotización eliminada'
         })
@@ -286,7 +241,6 @@ exports.handler = async (event, context) => {
 
     return {
       statusCode: 405,
-      headers,
       body: JSON.stringify({ error: 'Method not allowed' })
     };
 
@@ -294,11 +248,10 @@ exports.handler = async (event, context) => {
     console.error('Error en cotizaciones:', error);
     return {
       statusCode: 500,
-      headers: { ...headers, ...rateLimitHeaders },
       body: JSON.stringify({
         success: false,
         error: error.message
       })
     };
   }
-};
+});

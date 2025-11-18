@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback, memo } from 'react'
 import { createCotizacion } from '@/lib/api-client'
+import { showSuccess, showError } from '@/lib/utils/toast'
 
 interface CotizarModalProps {
   isOpen: boolean
@@ -45,7 +46,7 @@ function CotizarModal({
         notas: notas.trim() || undefined
       })
 
-      alert(`Cotización creada para ${sku}\nCantidad: ${cantidadCotizar} unidades`)
+      showSuccess(`Cotización creada para ${sku}\nCantidad: ${cantidadCotizar} unidades`)
 
       if (onSuccess) {
         onSuccess()
@@ -54,7 +55,7 @@ function CotizarModal({
       onClose()
     } catch (error: any) {
       console.error('Error creando cotización:', error)
-      alert('Error al crear cotización: ' + error.message)
+      showError('Error al crear cotización: ' + error.message)
     } finally {
       setLoading(false)
     }
