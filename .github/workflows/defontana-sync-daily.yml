@@ -1,0 +1,126 @@
+name: Sincronización Diaria Defontana
+
+on:
+  # Ejecutar todos los días a las 2 AM (hora Chile UTC-3)
+  schedule:
+    - cron: '0 5 * * *'  # 5 AM UTC = 2 AM Chile
+
+  # Permitir ejecución manual desde GitHub
+  workflow_dispatch:
+    inputs:
+      days_back:
+        description: 'Días hacia atrás para sincronizar'
+        required: false
+        default: '1'
+        type: string
+
+jobs:
+  sync-defontana-sales:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📅 Calcular fechas
+        id: dates
+        run: |
+          # Calcular fecha de inicio (días hacia atrás)
+          DAYS_BACK=${{ github.event.inputs.days_back || '1' }}
+          START_DATE=$(date -u -d "$DAYS_BACK days ago" +%Y-%m-%d)
+          END_DATE=$(date -u -d "1 day ago" +%Y-%m-%d)
+
+          echo "start_date=$START_DATE" >> $GITHUB_OUTPUT
+          echo "end_date=$END_DATE" >> $GITHUB_OUTPUT
+
+          echo "📅 Sincronizando desde $START_DATE hasta $END_DATE"
+
+      - name: 🔐 Obtener token de autenticación
+        id: auth
+        run: |
+          # Autenticar con Supabase para obtener token
+          AUTH_RESPONSE=$(curl -s -X POST "${{ secrets.SUPABASE_URL }}/auth/v1/token?grant_type=password" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "email": "${{ secrets.SYNC_USER_EMAIL }}",
+              "password": "${{ secrets.SYNC_USER_PASSWORD }}"
+            }')
+
+          TOKEN=$(echo $AUTH_RESPONSE | jq -r '.access_token')
+
+          if [ "$TOKEN" = "null" ] || [ -z "$TOKEN" ]; then
+            echo "❌ Error: No se pudo obtener token de autenticación"
+            echo "Response: $AUTH_RESPONSE"
+            exit 1
+          fi
+
+          echo "✅ Token obtenido correctamente"
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+
+      - name: 🔄 Sincronizar ventas desde Defontana
+        id: sync
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${{ secrets.NETLIFY_SITE_URL }}/.netlify/functions/defontana-sync" \
+            -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "dateFrom": "${{ steps.dates.outputs.start_date }}",
+              "dateTo": "${{ steps.dates.outputs.end_date }}"
+            }')
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          echo "📊 Respuesta HTTP: $HTTP_CODE"
+          echo "📄 Body: $BODY"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "❌ Error en sincronización (HTTP $HTTP_CODE)"
+            echo "$BODY"
+            exit 1
+          fi
+
+          # Extraer información del resultado
+          SUCCESS=$(echo $BODY | jq -r '.success')
+          SALES_IMPORTED=$(echo $BODY | jq -r '.salesImported')
+          DOCUMENTS=$(echo $BODY | jq -r '.documentsProcessed')
+          SKUS=$(echo $BODY | jq -r '.skusUpdated')
+          TIME=$(echo $BODY | jq -r '.timeElapsed')
+
+          echo "✅ Sincronización exitosa"
+          echo "📦 $DOCUMENTS documentos procesados"
+          echo "📋 $SALES_IMPORTED líneas de venta importadas"
+          echo "🏷️  $SKUS SKUs actualizados"
+          echo "⏱️  Tiempo: $TIME"
+
+          # Guardar métricas para el summary
+          echo "sales_imported=$SALES_IMPORTED" >> $GITHUB_OUTPUT
+          echo "documents=$DOCUMENTS" >> $GITHUB_OUTPUT
+          echo "skus=$SKUS" >> $GITHUB_OUTPUT
+          echo "time=$TIME" >> $GITHUB_OUTPUT
+
+      - name: 📊 Crear resumen
+        if: always()
+        run: |
+          echo "## 🔄 Sincronización Defontana" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**📅 Período:** ${{ steps.dates.outputs.start_date }} → ${{ steps.dates.outputs.end_date }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.sync.outcome }}" = "success" ]; then
+            echo "✅ **Estado:** Exitoso" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Resultados" >> $GITHUB_STEP_SUMMARY
+            echo "- 📦 Documentos procesados: **${{ steps.sync.outputs.documents }}**" >> $GITHUB_STEP_SUMMARY
+            echo "- 📋 Líneas de venta: **${{ steps.sync.outputs.sales_imported }}**" >> $GITHUB_STEP_SUMMARY
+            echo "- 🏷️  SKUs actualizados: **${{ steps.sync.outputs.skus }}**" >> $GITHUB_STEP_SUMMARY
+            echo "- ⏱️  Tiempo: **${{ steps.sync.outputs.time }}**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Estado:** Error" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Revisa los logs arriba para más detalles." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: 📧 Notificar si hay error
+        if: failure()
+        run: |
+          echo "❌ La sincronización falló"
+          echo "Revisa los logs en: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

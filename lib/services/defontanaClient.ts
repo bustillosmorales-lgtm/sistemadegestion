@@ -32,40 +32,77 @@ interface DefontanaSale {
 
 /**
  * Get authentication token from Defontana API
+ * Uses /api/Auth/EmailLogin endpoint with query parameters
  */
 async function authenticate(config: DefontanaConfig): Promise<string> {
-  const response = await fetch(`${DEFONTANA_BASE_URL}/api/Account/Login`, {
-    method: 'POST',
+  const params = new URLSearchParams({
+    email: config.email,
+    password: config.password
+  })
+
+  const response = await fetch(`${DEFONTANA_BASE_URL}/api/Auth/EmailLogin?${params.toString()}`, {
+    method: 'GET',
     headers: {
       'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      email: config.email,
-      password: config.password,
-    }),
+    }
   })
 
   if (!response.ok) {
-    throw new Error(`Defontana auth failed: ${response.statusText}`)
+    const errorText = await response.text()
+    throw new Error(`Defontana auth failed: ${response.status} - ${errorText}`)
   }
 
   const data: DefontanaAuthResponse = await response.json()
   return data.token
 }
 
+interface DefontanaSaleResponse {
+  success: boolean
+  message?: string
+  exceptionMessage?: string
+  totalItems: number
+  pageNumber: number
+  itemsPerPage: number
+  saleList: DefontanaSaleDocument[]
+}
+
+interface DefontanaSaleDocument {
+  documentType: string
+  firstFolio: number
+  emissionDate: string
+  clientFile: string
+  details: DefontanaSaleDetail[]
+  total: number
+}
+
+interface DefontanaSaleDetail {
+  detailLine: number
+  type: string
+  code: string // SKU
+  count: number // Cantidad
+  price: number // Precio unitario
+  total: number
+  comment?: string
+}
+
 /**
  * Get sales data by date range
- * Endpoint: /api/Sale/GetSaleByDate
+ * Endpoint: /api/Sale/GetSalebyDate (note: lowercase 'b')
  */
 export async function getSalesByDate(
   config: DefontanaConfig,
-  startDate: string, // Format: YYYY-MM-DD
-  endDate: string // Format: YYYY-MM-DD
-): Promise<DefontanaSale[]> {
+  initialDate: string, // Format: YYYY-MM-DD or ISO 8601
+  endingDate: string // Format: YYYY-MM-DD or ISO 8601
+): Promise<DefontanaSaleResponse> {
   const token = await authenticate(config)
 
+  const params = new URLSearchParams({
+    initialDate: initialDate,
+    endingDate: endingDate
+  })
+
   const response = await fetch(
-    `${DEFONTANA_BASE_URL}/api/Sale/GetSaleByDate?startDate=${startDate}&endDate=${endDate}`,
+    `${DEFONTANA_BASE_URL}/api/Sale/GetSalebyDate?${params.toString()}`,
     {
       method: 'GET',
       headers: {
@@ -76,10 +113,16 @@ export async function getSalesByDate(
   )
 
   if (!response.ok) {
-    throw new Error(`Defontana API error: ${response.statusText}`)
+    const errorText = await response.text()
+    throw new Error(`Defontana API error: ${response.status} - ${errorText}`)
   }
 
-  const data = await response.json()
+  const data: DefontanaSaleResponse = await response.json()
+
+  if (!data.success) {
+    throw new Error(data.exceptionMessage || data.message || 'Error desconocido de Defontana')
+  }
+
   return data
 }
 
@@ -108,16 +151,41 @@ export async function getInventory(config: DefontanaConfig): Promise<any[]> {
 
 /**
  * Transform Defontana sales to our ventas_historicas format
+ * Each sale document can have multiple detail lines (products)
  */
-export function transformDefontanaSales(sales: DefontanaSale[]) {
-  return sales.map(sale => ({
-    empresa: 'Defontana', // Or extract from sale data if available
-    canal: sale.canal || 'Defontana',
-    fecha: sale.fecha.split('T')[0], // Convert to YYYY-MM-DD
-    sku: sale.productoId,
-    mlc: null, // Map if available
-    descripcion: sale.productoNombre,
-    unidades: sale.cantidad,
-    precio: sale.precioUnitario,
-  }))
+export function transformDefontanaSales(salesResponse: DefontanaSaleResponse) {
+  const transformedSales: any[] = []
+
+  if (!salesResponse.saleList) {
+    return transformedSales
+  }
+
+  for (const saleDoc of salesResponse.saleList) {
+    // Each sale document has multiple detail lines (products)
+    for (const detail of saleDoc.details || []) {
+      // Skip non-product lines (could be services, comments, etc.)
+      if (!detail.code || detail.count <= 0) {
+        continue
+      }
+
+      transformedSales.push({
+        empresa: 'Defontana',
+        canal: 'Defontana',
+        fecha: saleDoc.emissionDate ? saleDoc.emissionDate.split('T')[0] : null,
+        sku: detail.code,
+        mlc: null,
+        descripcion: detail.comment || detail.code,
+        unidades: detail.count,
+        precio: detail.price,
+        metadata: {
+          documentType: saleDoc.documentType,
+          folio: saleDoc.firstFolio,
+          clientFile: saleDoc.clientFile,
+          detailLine: detail.detailLine
+        }
+      })
+    }
+  }
+
+  return transformedSales
 }

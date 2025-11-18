@@ -14,8 +14,8 @@ export default function ConfiguracionDefontana({ onSuccess }: Props) {
   const [showConfig, setShowConfig] = useState(false)
 
   const [config, setConfig] = useState({
-    apiKey: '',
-    companyId: '',
+    email: '',
+    password: '',
     environment: 'production' as 'production' | 'sandbox'
   })
 
@@ -74,7 +74,7 @@ export default function ConfiguracionDefontana({ onSuccess }: Props) {
   }
 
   async function handleSaveConfig() {
-    if (!config.apiKey || !config.companyId) {
+    if (!config.email || !config.password) {
       showError('Por favor completa todos los campos obligatorios')
       return
     }
@@ -85,8 +85,8 @@ export default function ConfiguracionDefontana({ onSuccess }: Props) {
 
       // Save Defontana configuration to configuracion_sistema
       const updates = [
-        { clave: 'defontana_email', valor: config.apiKey, descripcion: 'Email para Defontana API' },
-        { clave: 'defontana_password', valor: config.companyId, descripcion: 'Password para Defontana API' },
+        { clave: 'defontana_email', valor: config.email, descripcion: 'Email para Defontana API' },
+        { clave: 'defontana_password', valor: config.password, descripcion: 'Password para Defontana API' },
         { clave: 'defontana_activo', valor: 'true', descripcion: 'Defontana activado' }
       ]
 
@@ -101,7 +101,7 @@ export default function ConfiguracionDefontana({ onSuccess }: Props) {
       showSuccess('Configuración de Defontana guardada correctamente')
       setIsConfigured(true)
       setShowConfig(false)
-      setConfig({ apiKey: '', companyId: '', environment: 'production' })
+      setConfig({ email: '', password: '', environment: 'production' })
 
       if (onSuccess) {
         onSuccess()
@@ -243,8 +243,8 @@ export default function ConfiguracionDefontana({ onSuccess }: Props) {
                 <h4 className="font-semibold text-purple-900 mb-2">📋 Requisitos:</h4>
                 <ol className="list-decimal list-inside space-y-1 text-sm text-gray-700">
                   <li>Cuenta activa de Defontana en Chile</li>
-                  <li>API Key de Defontana (solicítala en tu panel de Defontana)</li>
-                  <li>ID de tu empresa en Defontana</li>
+                  <li>Email y contraseña de tu cuenta de Defontana</li>
+                  <li>Acceso a la API de Defontana habilitado</li>
                 </ol>
               </div>
             </div>
@@ -257,33 +257,33 @@ export default function ConfiguracionDefontana({ onSuccess }: Props) {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    API Key <span className="text-red-500">*</span>
+                    Email <span className="text-red-500">*</span>
                   </label>
                   <input
-                    type="password"
-                    value={config.apiKey}
-                    onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
-                    placeholder="Tu API Key de Defontana"
+                    type="email"
+                    value={config.email}
+                    onChange={(e) => setConfig({ ...config, email: e.target.value })}
+                    placeholder="tu-email@empresa.cl"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    Obtén tu API Key desde el panel de administración de Defontana
+                    Email de tu cuenta de Defontana
                   </p>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    ID de Empresa <span className="text-red-500">*</span>
+                    Contraseña <span className="text-red-500">*</span>
                   </label>
                   <input
-                    type="text"
-                    value={config.companyId}
-                    onChange={(e) => setConfig({ ...config, companyId: e.target.value })}
-                    placeholder="ID de tu empresa en Defontana"
+                    type="password"
+                    value={config.password}
+                    onChange={(e) => setConfig({ ...config, password: e.target.value })}
+                    placeholder="Tu contraseña de Defontana"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    Encuentra tu ID de empresa en la configuración de Defontana
+                    Contraseña de tu cuenta de Defontana
                   </p>
                 </div>
 
@@ -312,7 +312,7 @@ export default function ConfiguracionDefontana({ onSuccess }: Props) {
                   <button
                     onClick={() => {
                       setShowConfig(false)
-                      setConfig({ apiKey: '', companyId: '', environment: 'production' })
+                      setConfig({ email: '', password: '', environment: 'production' })
                     }}
                     disabled={loading}
                     className="px-5 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md font-medium transition-colors"
