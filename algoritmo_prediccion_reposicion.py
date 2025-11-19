@@ -1,11 +1,18 @@
 """
 Algoritmo de Predicción de Venta Diaria y Reposición China-Chile
 Sistema escalable para SaaS
+
+Optimizado para precisión máxima:
+- Venta diaria con 4 decimales de precisión
+- Cálculos internos en float sin redondeo
+- Redondeo hacia arriba (ceil) en sugerencias para evitar pérdida de ventas
+- Validación de casos extremos
 """
 
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
+import math
 
 
 @dataclass
@@ -48,15 +55,20 @@ class PackComponent:
 
 @dataclass
 class SugerenciaReposicion:
-    """Resultado de la sugerencia de reposición"""
+    """
+    Resultado de la sugerencia de reposición
+
+    Nota: Los valores se almacenan sin redondear para precisión.
+    El redondeo se aplica solo al momento de presentar/almacenar.
+    """
     sku: str
     descripcion: str
-    venta_diaria: float
-    stock_optimo: float
+    venta_diaria: float  # Precisión: 4 decimales
+    stock_optimo: float  # Sin redondear internamente
     stock_total_chile: float
     transito_china: float
-    dias_stock_chile: float
-    sugerencia_reposicion: float
+    dias_stock_chile: float  # Precisión: 1 decimal
+    sugerencia_reposicion: float  # Sin redondear internamente
     precio_unitario: float
     valor_total_sugerencia: float
     fecha_inicio: datetime
@@ -223,6 +235,49 @@ class AlgoritmoPrediccionReposicion:
         venta_diaria = total_unidades / dias_periodo
 
         return venta_diaria, total_unidades, dias_periodo
+
+
+    def validar_venta_diaria_minima(
+        self,
+        venta_diaria: float,
+        total_unidades: float,
+        dias_periodo: int
+    ) -> Tuple[float, str]:
+        """
+        Valida y ajusta la venta diaria para casos extremos.
+
+        Casos especiales:
+        - Si venta_diaria < 0.0001 (menos de 1 unidad cada 10,000 días): considerar como sin movimiento
+        - Si total_unidades = 0: venta_diaria = 0
+        - Si días_periodo muy corto: agregar advertencia
+
+        Args:
+            venta_diaria: Venta diaria calculada
+            total_unidades: Total de unidades vendidas
+            dias_periodo: Días del periodo
+
+        Returns:
+            Tupla (venta_diaria_validada, advertencia)
+        """
+        advertencia = ""
+
+        # Caso 1: Sin ventas
+        if total_unidades == 0:
+            return 0.0, "Sin ventas en el periodo"
+
+        # Caso 2: Venta extremadamente baja (menos de 1 unidad cada 10,000 días)
+        if venta_diaria < 0.0001:
+            advertencia = f"Venta muy baja: {total_unidades} unidades en {dias_periodo} días"
+
+        # Caso 3: Periodo muy corto (menos de 30 días)
+        if dias_periodo < 30:
+            advertencia = f"Periodo corto ({dias_periodo} días) - predicción menos confiable"
+
+        # Caso 4: Venta muy alta en poco tiempo (puede ser anomalía)
+        if dias_periodo < 30 and venta_diaria > 10:
+            advertencia = f"Venta alta ({venta_diaria:.2f}/día) en periodo corto - verificar"
+
+        return venta_diaria, advertencia
 
 
     def calcular_sugerencia_reposicion(
@@ -408,6 +463,13 @@ class AlgoritmoPrediccionReposicion:
                 fecha_fin
             )
 
+            # Validar venta diaria y obtener advertencias
+            venta_diaria, advertencia_venta = self.validar_venta_diaria_minima(
+                venta_diaria,
+                total_unidades,
+                dias_periodo
+            )
+
             # Calcular sugerencia de reposición
             sugerencia, dias_stock_chile, observaciones = self.calcular_sugerencia_reposicion(
                 venta_diaria,
@@ -428,24 +490,36 @@ class AlgoritmoPrediccionReposicion:
                     precio_unitario = venta.precio
                     break
 
-            # Calcular stock óptimo
+            # Calcular stock óptimo (mantener precisión)
             stock_optimo = venta_diaria * self.dias_stock_deseado
 
-            # Crear sugerencia
+            # Redondeo inteligente para sugerencia de reposición:
+            # - Si sugerencia > 0: usar ceil() para NO perder ventas
+            # - Si sugerencia <= 0: mantener en 0
+            if sugerencia > 0:
+                sugerencia_redondeada = math.ceil(sugerencia)
+            else:
+                sugerencia_redondeada = 0
+
+            # Agregar advertencia de validación si existe
+            if advertencia_venta:
+                observaciones = f"{advertencia_venta} | {observaciones}" if observaciones else advertencia_venta
+
+            # Crear sugerencia con valores de precisión optimizada
             sugerencia_obj = SugerenciaReposicion(
                 sku=sku,
                 descripcion=descripcion,
-                venta_diaria=round(venta_diaria, 2),
-                stock_optimo=round(stock_optimo, 0),
-                stock_total_chile=round(stock_total_chile, 0),
-                transito_china=round(transito_china, 0),
-                dias_stock_chile=round(dias_stock_chile, 0),
-                sugerencia_reposicion=round(sugerencia, 0),
+                venta_diaria=round(venta_diaria, 4),  # 4 decimales para precisión
+                stock_optimo=stock_optimo,  # Mantener float sin redondear
+                stock_total_chile=stock_total_chile,  # Mantener float
+                transito_china=transito_china,  # Mantener float
+                dias_stock_chile=round(dias_stock_chile, 1),  # 1 decimal suficiente
+                sugerencia_reposicion=sugerencia_redondeada,  # Redondeado hacia arriba (ceil)
                 precio_unitario=precio_unitario,
-                valor_total_sugerencia=round(sugerencia * precio_unitario, 0),
+                valor_total_sugerencia=sugerencia_redondeada * precio_unitario,  # Valor exacto
                 fecha_inicio=fecha_inicio,
                 fecha_fin=fecha_fin,
-                unidades_periodo=round(total_unidades, 0),
+                unidades_periodo=total_unidades,  # Mantener float
                 observaciones=observaciones
             )
 
