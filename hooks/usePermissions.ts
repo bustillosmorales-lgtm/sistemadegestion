@@ -4,7 +4,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { useSupabase } from '@/hooks/useSupabase';
+import { useSupabase } from '@/lib/SupabaseProvider';
 import type { PermissionId, RoleId } from '@/lib/types/permissions';
 
 // =====================================================
