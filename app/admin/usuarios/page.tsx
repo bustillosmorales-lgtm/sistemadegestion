@@ -6,6 +6,7 @@
 
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSupabase } from '@/lib/SupabaseProvider';
 import { AdminOnly } from '@/components/auth/Protected';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -75,13 +76,18 @@ export default function UsuariosPage() {
 // =====================================================
 
 function UsersTable() {
+  const { session } = useSupabase();
+
   const { data: users, isLoading, error } = useQuery({
     queryKey: ['admin-users'],
     queryFn: async () => {
-      const token = localStorage.getItem('supabase.auth.token');
+      if (!session?.access_token) {
+        throw new Error('No autenticado');
+      }
+
       const response = await fetch('/.netlify/functions/admin-list-users', {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${session.access_token}`,
         },
       });
 
@@ -185,14 +191,18 @@ function InviteUserDialog() {
   const [email, setEmail] = useState('');
   const [roleId, setRoleId] = useState<RoleId>('OPERADOR');
   const queryClient = useQueryClient();
+  const { session } = useSupabase();
 
   const inviteMutation = useMutation({
     mutationFn: async () => {
-      const token = localStorage.getItem('supabase.auth.token');
+      if (!session?.access_token) {
+        throw new Error('No autenticado');
+      }
+
       const response = await fetch('/.netlify/functions/admin-create-user', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email, roleId }),
@@ -287,14 +297,18 @@ function ManageRolesDialog({ user }: { user: UserWithRoles }) {
     user.roles.map((r) => r.role_id)
   );
   const queryClient = useQueryClient();
+  const { session } = useSupabase();
 
   const updateRolesMutation = useMutation({
     mutationFn: async () => {
-      const token = localStorage.getItem('supabase.auth.token');
+      if (!session?.access_token) {
+        throw new Error('No autenticado');
+      }
+
       const response = await fetch('/.netlify/functions/admin-update-user-roles', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ userId: user.id, roleIds: selectedRoles }),
