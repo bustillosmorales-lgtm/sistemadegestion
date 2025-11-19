@@ -77,8 +77,16 @@ function withAuth(handler, options = {}) {
     }
 
     try {
+      // Prepare auth context with userId and userEmail for convenience
+      const authContext = auth && auth.user ? {
+        userId: auth.user.id,
+        userEmail: auth.user.email,
+        user: auth.user,  // Keep full user object for backward compatibility
+        ...auth
+      } : auth;
+
       // Call the main handler with auth context
-      const result = await handler(event, context, auth)
+      const result = await handler(event, context, authContext)
 
       // Add CORS and rate limit headers to response
       return {
