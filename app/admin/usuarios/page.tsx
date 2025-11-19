@@ -2,12 +2,10 @@
 
 /**
  * Página de Gestión de Usuarios (Solo Admin)
- * Permite crear, editar, asignar roles y ver auditoría
  */
 
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSupabase } from '@/hooks/useSupabase';
 import { AdminOnly } from '@/components/auth/Protected';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,9 +36,9 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserPlus, Shield, Trash2, Eye, AlertCircle } from 'lucide-react';
+import { UserPlus, Shield, AlertCircle } from 'lucide-react';
 import { ROLE_NAMES, type RoleId } from '@/lib/types/permissions';
-import { useToast } from '@/hooks/useToast';
+import { showSuccess, showError } from '@/lib/utils/toast';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -77,35 +75,22 @@ export default function UsuariosPage() {
 // =====================================================
 
 function UsersTable() {
-  const { client } = useSupabase();
-
   const { data: users, isLoading, error } = useQuery({
     queryKey: ['admin-users'],
     queryFn: async () => {
-      // Obtener todos los usuarios de auth.users
-      const { data, error } = await client.auth.admin.listUsers();
+      const token = localStorage.getItem('supabase.auth.token');
+      const response = await fetch('/.netlify/functions/admin-list-users', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error('Error al cargar usuarios');
+      }
 
-      // Obtener roles de cada usuario
-      const usersWithRoles = await Promise.all(
-        (data.users || []).map(async (user) => {
-          const { data: roles } = await client
-            .from('user_roles')
-            .select('role_id')
-            .eq('user_id', user.id);
-
-          return {
-            id: user.id,
-            email: user.email || '',
-            created_at: user.created_at,
-            last_sign_in_at: user.last_sign_in_at,
-            roles: roles || [],
-          };
-        })
-      );
-
-      return usersWithRoles;
+      const data = await response.json();
+      return data.users as UserWithRoles[];
     },
     staleTime: 2 * 60 * 1000,
   });
@@ -180,10 +165,7 @@ function UsersTable() {
                   {format(new Date(user.created_at), 'dd MMM yyyy', { locale: es })}
                 </TableCell>
                 <TableCell>
-                  <div className="flex gap-2">
-                    <ManageRolesDialog user={user} />
-                    <ViewAuditDialog userId={user.id} userEmail={user.email} />
-                  </div>
+                  <ManageRolesDialog user={user} />
                 </TableCell>
               </TableRow>
             ))}
@@ -202,45 +184,35 @@ function InviteUserDialog() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [roleId, setRoleId] = useState<RoleId>('OPERADOR');
-  const { client } = useSupabase();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const inviteMutation = useMutation({
     mutationFn: async () => {
-      // 1. Crear usuario en auth
-      const { data: newUser, error: createError } = await client.auth.admin.createUser({
-        email,
-        email_confirm: true,
+      const token = localStorage.getItem('supabase.auth.token');
+      const response = await fetch('/.netlify/functions/admin-create-user', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, roleId }),
       });
 
-      if (createError) throw createError;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Error al crear usuario');
+      }
 
-      // 2. Asignar rol
-      const { error: roleError } = await client.from('user_roles').insert({
-        user_id: newUser.user.id,
-        role_id: roleId,
-      });
-
-      if (roleError) throw roleError;
-
-      return newUser;
+      return response.json();
     },
     onSuccess: () => {
-      toast({
-        title: 'Usuario invitado',
-        description: `Se ha enviado un email de invitación a ${email}`,
-      });
+      showSuccess(`Usuario invitado: ${email}`);
       setEmail('');
       setOpen(false);
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
     },
     onError: (error: Error) => {
-      toast({
-        title: 'Error al invitar usuario',
-        description: error.message,
-        variant: 'destructive',
-      });
+      showError(error.message);
     },
   });
 
@@ -314,35 +286,34 @@ function ManageRolesDialog({ user }: { user: UserWithRoles }) {
   const [selectedRoles, setSelectedRoles] = useState<RoleId[]>(
     user.roles.map((r) => r.role_id)
   );
-  const { client } = useSupabase();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const updateRolesMutation = useMutation({
     mutationFn: async () => {
-      // 1. Eliminar todos los roles actuales
-      await client.from('user_roles').delete().eq('user_id', user.id);
+      const token = localStorage.getItem('supabase.auth.token');
+      const response = await fetch('/.netlify/functions/admin-update-user-roles', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: user.id, roleIds: selectedRoles }),
+      });
 
-      // 2. Insertar nuevos roles
-      if (selectedRoles.length > 0) {
-        const { error } = await client
-          .from('user_roles')
-          .insert(selectedRoles.map((role_id) => ({ user_id: user.id, role_id })));
-
-        if (error) throw error;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Error al actualizar roles');
       }
+
+      return response.json();
     },
     onSuccess: () => {
-      toast({ title: 'Roles actualizados', description: `Roles de ${user.email} actualizados` });
+      showSuccess(`Roles actualizados: ${user.email}`);
       setOpen(false);
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
     },
     onError: (error: Error) => {
-      toast({
-        title: 'Error al actualizar roles',
-        description: error.message,
-        variant: 'destructive',
-      });
+      showError(error.message);
     },
   });
 
@@ -394,75 +365,6 @@ function ManageRolesDialog({ user }: { user: UserWithRoles }) {
             {updateRolesMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
           </Button>
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// =====================================================
-// Dialog: Ver Auditoría
-// =====================================================
-
-function ViewAuditDialog({ userId, userEmail }: { userId: string; userEmail: string }) {
-  const [open, setOpen] = useState(false);
-  const { client } = useSupabase();
-
-  const { data: auditLogs } = useQuery({
-    queryKey: ['audit-logs', userId],
-    queryFn: async () => {
-      const { data, error } = await client
-        .from('audit_log')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-      return data;
-    },
-    enabled: open,
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Eye className="h-4 w-4 mr-1" />
-          Auditoría
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Historial de Auditoría</DialogTitle>
-          <DialogDescription>{userEmail}</DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-2">
-          {auditLogs?.map((log) => (
-            <div key={log.id} className="border rounded p-3 text-sm">
-              <div className="flex justify-between items-start">
-                <div>
-                  <Badge variant="outline">{log.action}</Badge>
-                  <span className="ml-2 text-muted-foreground">{log.resource}</span>
-                  {log.resource_id && (
-                    <span className="ml-1 text-xs text-muted-foreground">#{log.resource_id}</span>
-                  )}
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  {format(new Date(log.created_at), 'dd MMM yyyy HH:mm', { locale: es })}
-                </span>
-              </div>
-              {log.metadata && (
-                <pre className="text-xs text-muted-foreground mt-2 overflow-x-auto">
-                  {JSON.stringify(log.metadata, null, 2)}
-                </pre>
-              )}
-            </div>
-          ))}
-          {auditLogs?.length === 0 && (
-            <p className="text-center text-muted-foreground py-8">No hay registros de auditoría</p>
-          )}
-        </div>
       </DialogContent>
     </Dialog>
   );
