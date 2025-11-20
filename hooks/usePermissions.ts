@@ -30,15 +30,15 @@ export function useUserPermissions(): UserPermissionsData {
     queryFn: async () => {
       if (!user) throw new Error('User not authenticated');
 
-      // Obtener roles del usuario
-      const { data: userRoles, error: rolesError } = await client
-        .from('user_roles')
-        .select('role_id')
-        .eq('user_id', user.id);
+      // Obtener roles del usuario usando RPC (evita problema de RLS circular)
+      const { data: userRoles, error: rolesError } = await client.rpc(
+        'get_user_roles',
+        { user_id_param: user.id }
+      );
 
       if (rolesError) throw rolesError;
 
-      const roles = (userRoles || []).map((r) => r.role_id as RoleId);
+      const roles = (userRoles || []).map((r: any) => r.role_id as RoleId);
       const isAdmin = roles.includes('ADMIN');
 
       // Obtener permisos usando la función SQL
