@@ -36,15 +36,42 @@ exports.handler = withAuth(
         };
       }
 
-      // Crear usuario
-      const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+      // Validar formato de email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({
+            success: false,
+            error: 'Email inválido'
+          })
+        };
+      }
+
+      // Invitar usuario por email - Supabase envía automáticamente el correo
+      const { data: newUser, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
         email,
-        email_confirm: true,
-      });
+        {
+          // URL a la que será redirigido después de aceptar la invitación
+          redirectTo: `${process.env.URL || 'http://localhost:3000'}/auth/callback`
+        }
+      );
 
-      if (createError) throw createError;
+      if (inviteError) {
+        // Si el usuario ya existe
+        if (inviteError.message.includes('already registered')) {
+          return {
+            statusCode: 400,
+            body: JSON.stringify({
+              success: false,
+              error: 'Este email ya está registrado'
+            })
+          };
+        }
+        throw inviteError;
+      }
 
-      // Asignar rol
+      // Asignar rol al usuario recién creado
       const { error: roleError } = await supabase.from('user_roles').insert({
         user_id: newUser.user.id,
         role_id: roleId,
@@ -54,15 +81,21 @@ exports.handler = withAuth(
       if (roleError) throw roleError;
 
       // Auditoría
-      await audit.logCreate('user', newUser.user.id, { email, roleId });
+      await audit.logCreate('user', newUser.user.id, {
+        email,
+        roleId,
+        invited: true
+      });
 
       return {
         statusCode: 200,
         body: JSON.stringify({
           success: true,
+          message: 'Invitación enviada exitosamente',
           user: {
             id: newUser.user.id,
-            email: newUser.user.email
+            email: newUser.user.email,
+            invited_at: newUser.user.invited_at
           }
         })
       };
@@ -72,7 +105,7 @@ exports.handler = withAuth(
         statusCode: 500,
         body: JSON.stringify({
           success: false,
-          error: error.message
+          error: error.message || 'Error al crear usuario'
         })
       };
     }
