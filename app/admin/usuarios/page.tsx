@@ -29,6 +29,14 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -37,7 +45,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserPlus, Shield, AlertCircle } from 'lucide-react';
+import { UserPlus, Shield, AlertCircle, MoreVertical, Trash2, Mail, Edit } from 'lucide-react';
 import { ROLE_NAMES, type RoleId } from '@/lib/types/permissions';
 import { showSuccess, showError } from '@/lib/utils/toast';
 import { format } from 'date-fns';
@@ -171,7 +179,7 @@ function UsersTable() {
                   {format(new Date(user.created_at), 'dd MMM yyyy', { locale: es })}
                 </TableCell>
                 <TableCell>
-                  <ManageRolesDialog user={user} />
+                  <UserActionsMenu user={user} />
                 </TableCell>
               </TableRow>
             ))}
@@ -291,8 +299,19 @@ function InviteUserDialog() {
 // Dialog: Gestionar Roles
 // =====================================================
 
-function ManageRolesDialog({ user }: { user: UserWithRoles }) {
-  const [open, setOpen] = useState(false);
+function ManageRolesDialog({
+  user,
+  open,
+  onOpenChange,
+}: {
+  user: UserWithRoles;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = open !== undefined;
+  const isOpen = isControlled ? open : internalOpen;
+  const setIsOpen = isControlled ? (onOpenChange || (() => {})) : setInternalOpen;
   const [selectedRoles, setSelectedRoles] = useState<RoleId[]>(
     user.roles.map((r) => r.role_id)
   );
@@ -323,7 +342,7 @@ function ManageRolesDialog({ user }: { user: UserWithRoles }) {
     },
     onSuccess: () => {
       showSuccess(`Roles actualizados: ${user.email}`);
-      setOpen(false);
+      setIsOpen(false);
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
     },
     onError: (error: Error) => {
@@ -338,13 +357,15 @@ function ManageRolesDialog({ user }: { user: UserWithRoles }) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Shield className="h-4 w-4 mr-1" />
-          Roles
-        </Button>
-      </DialogTrigger>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      {!isControlled && (
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm">
+            <Shield className="h-4 w-4 mr-1" />
+            Roles
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Gestionar Roles</DialogTitle>
@@ -369,7 +390,7 @@ function ManageRolesDialog({ user }: { user: UserWithRoles }) {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
+          <Button variant="outline" onClick={() => setIsOpen(false)}>
             Cancelar
           </Button>
           <Button
@@ -381,5 +402,153 @@ function ManageRolesDialog({ user }: { user: UserWithRoles }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// =====================================================
+// Componente: Menú de Acciones de Usuario
+// =====================================================
+
+function UserActionsMenu({ user }: { user: UserWithRoles }) {
+  const [manageRolesOpen, setManageRolesOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const { session, user: currentUser } = useSupabase();
+
+  const resendInviteMutation = useMutation({
+    mutationFn: async () => {
+      if (!session?.access_token) {
+        throw new Error('No autenticado');
+      }
+
+      const response = await fetch('/.netlify/functions/admin-resend-invite', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: user.email }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Error al enviar email');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      showSuccess(`Email enviado a ${user.email}`);
+    },
+    onError: (error: Error) => {
+      showError(error.message);
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async () => {
+      if (!session?.access_token) {
+        throw new Error('No autenticado');
+      }
+
+      const response = await fetch('/.netlify/functions/admin-delete-user', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Error al eliminar usuario');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      showSuccess(`Usuario ${user.email} eliminado`);
+      setDeleteDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+    },
+    onError: (error: Error) => {
+      showError(error.message);
+    },
+  });
+
+  const isCurrentUser = user.id === currentUser?.id;
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm">
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem onClick={() => setManageRolesOpen(true)}>
+            <Shield className="h-4 w-4 mr-2" />
+            Editar Roles
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            onClick={() => resendInviteMutation.mutate()}
+            disabled={resendInviteMutation.isPending}
+          >
+            <Mail className="h-4 w-4 mr-2" />
+            {resendInviteMutation.isPending ? 'Enviando...' : 'Reenviar Invitación'}
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem
+            onClick={() => setDeleteDialogOpen(true)}
+            disabled={isCurrentUser}
+            className="text-destructive focus:text-destructive"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Eliminar Usuario
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Dialog para editar roles */}
+      <ManageRolesDialog
+        user={user}
+        open={manageRolesOpen}
+        onOpenChange={setManageRolesOpen}
+      />
+
+      {/* Dialog para confirmar eliminación */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Eliminación</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que deseas eliminar al usuario <strong>{user.email}</strong>?
+              Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteUserMutation.mutate()}
+              disabled={deleteUserMutation.isPending}
+            >
+              {deleteUserMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
