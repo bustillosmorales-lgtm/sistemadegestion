@@ -24,7 +24,7 @@ import { showSuccess, showError, showWarning } from '@/lib/utils/toast'
 import { ConfirmDialog, useConfirmDialog } from '@/components/ConfirmDialog'
 
 export default function Home() {
-  const supabase = useSupabase()
+  const { client: supabase } = useSupabase()
   const confirmDialog = useConfirmDialog()
   const queryClient = useQueryClient()
   const [filtros, setFiltros] = useState({
