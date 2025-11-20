@@ -36,13 +36,16 @@ exports.handler = withAuth(
         };
       }
 
+      // Construir la URL del sitio desde las variables de entorno de Netlify
+      const siteUrl = process.env.URL || process.env.DEPLOY_PRIME_URL || `https://${event.headers.host}` || 'http://localhost:3000';
+
       // Enviar email de recuperación de contraseña
       // Esto funciona tanto para usuarios que nunca activaron su cuenta
       // como para usuarios que ya están activos y olvidaron su contraseña
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(
         email,
         {
-          redirectTo: `${process.env.URL || 'http://localhost:3000'}/auth/callback`
+          redirectTo: `${siteUrl}/auth/callback`
         }
       );
 

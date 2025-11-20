@@ -48,12 +48,15 @@ exports.handler = withAuth(
         };
       }
 
+      // Construir la URL del sitio desde las variables de entorno de Netlify
+      const siteUrl = process.env.URL || process.env.DEPLOY_PRIME_URL || `https://${event.headers.host}` || 'http://localhost:3000';
+
       // Invitar usuario por email - Supabase envía automáticamente el correo
       const { data: newUser, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
         email,
         {
           // URL a la que será redirigido después de aceptar la invitación
-          redirectTo: `${process.env.URL || 'http://localhost:3000'}/auth/callback`
+          redirectTo: `${siteUrl}/auth/callback`
         }
       );
 
