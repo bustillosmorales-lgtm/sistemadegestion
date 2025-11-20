@@ -27,7 +27,12 @@ interface ProtectedProps {
  * </Protected>
  */
 export function Protected({ permission, children, fallback = null, showDenied = false }: ProtectedProps) {
-  const hasPermission = usePermission(permission);
+  const { permissions, isAdmin, isLoading } = useUserPermissions();
+  const hasPermission = isAdmin || permissions.includes(permission);
+
+  if (isLoading) {
+    return <div className="text-sm text-muted-foreground">Cargando...</div>;
+  }
 
   if (!hasPermission) {
     if (showDenied) {
@@ -62,7 +67,12 @@ interface ProtectedAnyProps {
  * </ProtectedAny>
  */
 export function ProtectedAny({ permissions, children, fallback = null }: ProtectedAnyProps) {
-  const hasAnyPermission = useAnyPermission(permissions);
+  const { permissions: userPermissions, isAdmin, isLoading } = useUserPermissions();
+  const hasAnyPermission = isAdmin || permissions.some((p) => userPermissions.includes(p));
+
+  if (isLoading) {
+    return <div className="text-sm text-muted-foreground">Cargando...</div>;
+  }
 
   if (!hasAnyPermission) {
     return <>{fallback}</>;
@@ -90,14 +100,26 @@ interface AdminOnlyProps {
  * </AdminOnly>
  */
 export function AdminOnly({ children, fallback = null, showDenied = false }: AdminOnlyProps) {
-  const isAdmin = useIsAdmin();
+  const { isAdmin, isLoading } = useUserPermissions();
+
+  // Mostrar loading mientras se verifican permisos
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Verificando permisos...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAdmin) {
     if (showDenied) {
       return (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
           <p className="text-sm font-medium text-destructive">
-            Acceso Restringido
+            Acceso Restringado
           </p>
           <p className="text-sm text-muted-foreground mt-1">
             Solo administradores pueden acceder a esta sección
@@ -130,7 +152,12 @@ interface RoleRequiredProps {
  * </RoleRequired>
  */
 export function RoleRequired({ role, children, fallback = null }: RoleRequiredProps) {
-  const hasRole = useRole(role);
+  const { roles, isLoading } = useUserPermissions();
+  const hasRole = roles.includes(role);
+
+  if (isLoading) {
+    return <div className="text-sm text-muted-foreground">Cargando...</div>;
+  }
 
   if (!hasRole) {
     return <>{fallback}</>;
