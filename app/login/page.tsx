@@ -32,7 +32,7 @@ export default function LoginPage() {
       if (error) throw error;
 
       if (data.session) {
-        router.push('/dashboard');
+        router.push('/admin/usuarios');
         router.refresh();
       }
     } catch (err: any) {
