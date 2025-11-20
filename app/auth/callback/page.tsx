@@ -18,36 +18,38 @@ export default function AuthCallbackPage() {
         const refreshToken = hashParams.get('refresh_token');
         const type = hashParams.get('type');
 
+        console.log('Auth callback - type:', type, 'has token:', !!accessToken);
+
         if (!accessToken) {
           setError('No se encontró el token de acceso');
+          setTimeout(() => router.push('/login'), 2000);
           return;
         }
 
-        // Si es una invitación, el tipo será 'invite'
-        if (type === 'invite' || type === 'signup') {
-          // Establecer la sesión con el token
-          const { error: sessionError } = await client.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken || '',
-          });
+        // Establecer la sesión con los tokens
+        const { data, error: sessionError } = await client.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken || '',
+        });
 
-          if (sessionError) {
-            console.error('Error al establecer sesión:', sessionError);
-            setError('Error al procesar la invitación');
-            return;
-          }
-
-          // Redirigir al dashboard después de 2 segundos
-          setTimeout(() => {
-            router.push('/dashboard');
-          }, 2000);
-        } else {
-          // Para otros tipos de auth, ir al dashboard directamente
-          router.push('/dashboard');
+        if (sessionError) {
+          console.error('Error al establecer sesión:', sessionError);
+          setError('Error al procesar la autenticación: ' + sessionError.message);
+          setTimeout(() => router.push('/login'), 3000);
+          return;
         }
-      } catch (err) {
+
+        console.log('Sesión establecida correctamente:', data.session?.user?.email);
+
+        // Redirigir a la página principal después de establecer la sesión
+        setTimeout(() => {
+          router.push('/admin/usuarios');
+          router.refresh();
+        }, 2000);
+      } catch (err: any) {
         console.error('Error en callback:', err);
-        setError('Error al procesar la autenticación');
+        setError('Error al procesar la autenticación: ' + (err.message || 'Error desconocido'));
+        setTimeout(() => router.push('/login'), 3000);
       }
     };
 
