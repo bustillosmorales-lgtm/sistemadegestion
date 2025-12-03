@@ -5,7 +5,7 @@ Sistema escalable para SaaS
 Optimizado para precisión máxima:
 - Venta diaria con 4 decimales de precisión
 - Cálculos internos en float sin redondeo
-- Redondeo hacia arriba (ceil) en sugerencias para evitar pérdida de ventas
+- Redondeo estándar (round) en sugerencias al entero más cercano
 - Validación de casos extremos
 """
 
@@ -493,11 +493,11 @@ class AlgoritmoPrediccionReposicion:
             # Calcular stock óptimo (mantener precisión)
             stock_optimo = venta_diaria * self.dias_stock_deseado
 
-            # Redondeo inteligente para sugerencia de reposición:
-            # - Si sugerencia > 0: usar ceil() para NO perder ventas
+            # Redondeo estándar para sugerencia de reposición:
+            # - Redondea al entero más cercano (0.5 redondea hacia arriba)
             # - Si sugerencia <= 0: mantener en 0
             if sugerencia > 0:
-                sugerencia_redondeada = math.ceil(sugerencia)
+                sugerencia_redondeada = round(sugerencia)
             else:
                 sugerencia_redondeada = 0
 
