@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [resetPasswordSent, setResetPasswordSent] = useState(false);
   const router = useRouter();
   const { client } = useSupabase();
 
@@ -67,6 +68,31 @@ export default function LoginPage() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Por favor ingresa tu email primero');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const { error } = await client.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      });
+
+      if (error) throw error;
+
+      setResetPasswordSent(true);
+    } catch (err: any) {
+      console.error('Reset password error:', err);
+      setError(err.message || 'Error al enviar el email de recuperación');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (magicLinkSent) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
@@ -89,6 +115,36 @@ export default function LoginPage() {
               }}
             >
               Volver
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (resetPasswordSent) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-center">Email de Recuperación Enviado</CardTitle>
+            <CardDescription className="text-center">
+              Te hemos enviado un link para restablecer tu contraseña a <strong>{email}</strong>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <p className="text-sm text-muted-foreground mb-4">
+              Haz click en el link del email para establecer una nueva contraseña. El link es válido por 1 hora.
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setResetPasswordSent(false);
+                setEmail('');
+                setPassword('');
+              }}
+            >
+              Volver al Login
             </Button>
           </CardContent>
         </Card>
@@ -128,7 +184,17 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <Label htmlFor="password">Contraseña</Label>
+              <div className="flex items-center justify-between mb-1">
+                <Label htmlFor="password">Contraseña</Label>
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  disabled={isLoading || !email}
+                  className="text-xs text-blue-600 hover:text-blue-700 hover:underline disabled:text-gray-400 disabled:no-underline"
+                >
+                  ¿Olvidaste tu contraseña?
+                </button>
+              </div>
               <Input
                 id="password"
                 type="password"
