@@ -43,7 +43,7 @@ export default function AuthCallbackPage() {
 
         // Redirigir a la página principal después de establecer la sesión
         setTimeout(() => {
-          router.push('/admin/usuarios');
+          router.push('/');
           router.refresh();
         }, 2000);
       } catch (err: any) {
