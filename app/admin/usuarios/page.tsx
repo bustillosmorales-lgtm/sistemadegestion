@@ -269,13 +269,19 @@ function InviteUserDialog() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(ROLE_NAMES).map(([id, name]) => (
-                  <SelectItem key={id} value={id}>
-                    {name}
-                  </SelectItem>
-                ))}
+                {/* Solo mostrar roles principales activos */}
+                <SelectItem value="OPERADOR">{ROLE_NAMES.OPERADOR}</SelectItem>
+                <SelectItem value="COMPRADOR">{ROLE_NAMES.COMPRADOR}</SelectItem>
+                <SelectItem value="GERENTE">{ROLE_NAMES.GERENTE}</SelectItem>
+                <SelectItem value="ADMIN">{ROLE_NAMES.ADMIN}</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground mt-2">
+              <strong>OPERADOR:</strong> Cotizaciones + Contenedores<br />
+              <strong>COMPRADOR:</strong> Dashboard + Respondidas + Contenedores<br />
+              <strong>GERENTE:</strong> Acceso a todo excepto gestión de usuarios<br />
+              <strong>ADMIN:</strong> Acceso total al sistema
+            </p>
           </div>
         </div>
 
