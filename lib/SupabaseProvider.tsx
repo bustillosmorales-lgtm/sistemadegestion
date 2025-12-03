@@ -60,11 +60,6 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       console.log('Auth state changed:', event, session ? `User: ${session.user.email}` : 'No session')
       setSession(session)
       setUser(session?.user ?? null)
-
-      // Refrescar la página cuando cambia la sesión (para actualizar permisos)
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-        window.location.reload()
-      }
     })
 
     return () => subscription.unsubscribe()

@@ -1,46 +1,38 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase-auth'
+import { useSupabase } from '@/lib/SupabaseProvider'
 import { useRouter, usePathname } from 'next/navigation'
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
-  const supabase = createClient()
+  const { session } = useSupabase()
+
+  // Rutas públicas que no requieren autenticación
+  const publicRoutes = ['/login', '/auth/callback', '/setup']
+  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (!session && pathname !== '/login') {
-        router.push('/login')
-        return
-      } else if (session && pathname === '/login') {
-        router.push('/')
-        return
-      }
-      
-      setIsAuthenticated(!!session)
+    // Esperar un momento para que la sesión se cargue
+    const timer = setTimeout(() => {
       setIsLoading(false)
-    }
 
-    checkAuth()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session && pathname !== '/login') {
+      // Si no hay sesión y no estamos en ruta pública, redirigir a login
+      if (!session && !isPublicRoute) {
+        console.log('AuthGuard: No session, redirecting to login')
         router.push('/login')
-      } else if (session && pathname === '/login') {
+      }
+      // Si hay sesión y estamos en login, redirigir a home
+      else if (session && pathname === '/login') {
+        console.log('AuthGuard: Session exists, redirecting to home')
         router.push('/')
       }
-      setIsAuthenticated(!!session)
-      setIsLoading(false)
-    })
+    }, 100)
 
-    return () => subscription.unsubscribe()
-  }, [pathname, router, supabase.auth])
+    return () => clearTimeout(timer)
+  }, [session, pathname, router, isPublicRoute])
 
   if (isLoading) {
     return (
@@ -53,13 +45,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // Si estamos en login, mostrar sin restricciones
-  if (pathname === '/login') {
+  // Si estamos en ruta pública, mostrar sin restricciones
+  if (isPublicRoute) {
     return <>{children}</>
   }
 
-  // Si no está autenticado y no está en login, no mostrar nada (ya se redirigió)
-  if (!isAuthenticated) {
+  // Si no está autenticado y no está en ruta pública, no mostrar nada (ya se redirigió)
+  if (!session) {
     return null
   }
 
