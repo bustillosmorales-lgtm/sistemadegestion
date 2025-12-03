@@ -41,7 +41,16 @@ export default function AuthCallbackPage() {
 
         console.log('Sesión establecida correctamente:', data.session?.user?.email);
 
-        // Redirigir a la página principal después de establecer la sesión
+        // Si es un recovery link (reset password), redirigir a establecer contraseña
+        if (type === 'recovery') {
+          console.log('Recovery link detected, redirecting to set password');
+          setTimeout(() => {
+            router.push('/auth/set-password');
+          }, 1000);
+          return;
+        }
+
+        // Si es magic link o signup, redirigir a home
         setTimeout(() => {
           router.push('/');
           router.refresh();

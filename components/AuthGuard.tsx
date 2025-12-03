@@ -11,7 +11,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { session } = useSupabase()
 
   // Rutas públicas que no requieren autenticación
-  const publicRoutes = ['/login', '/auth/callback', '/setup']
+  const publicRoutes = ['/login', '/auth', '/setup']
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
 
   useEffect(() => {
