@@ -12,21 +12,60 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        // Obtener el hash de la URL (contiene el token)
+        console.log('=== AUTH CALLBACK DEBUG ===');
+        console.log('Full URL:', window.location.href);
+        console.log('Hash:', window.location.hash);
+        console.log('Search:', window.location.search);
+
+        // OPCIÓN 1: Usar exchangeCodeForSession para flujo PKCE moderno
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+
+        if (code) {
+          console.log('Code found, using PKCE flow');
+          const { data, error: exchangeError } = await client.auth.exchangeCodeForSession(code);
+
+          if (exchangeError) {
+            console.error('Error exchanging code:', exchangeError);
+            setError('Error al procesar el link: ' + exchangeError.message);
+            setTimeout(() => router.push('/login'), 3000);
+            return;
+          }
+
+          console.log('Session established via PKCE:', data.session?.user?.email);
+
+          // Verificar tipo de autenticación
+          const type = urlParams.get('type');
+          if (type === 'recovery' || data.session?.user?.recovery_sent_at) {
+            console.log('Recovery flow detected, redirecting to set password');
+            setTimeout(() => router.push('/auth/set-password'), 1000);
+            return;
+          }
+
+          // Redirigir a home
+          setTimeout(() => {
+            router.push('/');
+            router.refresh();
+          }, 1000);
+          return;
+        }
+
+        // OPCIÓN 2: Flujo legacy con tokens en hash
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const accessToken = hashParams.get('access_token');
         const refreshToken = hashParams.get('refresh_token');
         const type = hashParams.get('type');
 
-        console.log('Auth callback - type:', type, 'has token:', !!accessToken);
+        console.log('Hash flow - type:', type, 'has token:', !!accessToken);
 
         if (!accessToken) {
-          setError('No se encontró el token de acceso');
-          setTimeout(() => router.push('/login'), 2000);
+          console.error('No code or access_token found');
+          setError('No se encontró información de autenticación en el link. Por favor solicita un nuevo link.');
+          setTimeout(() => router.push('/login'), 3000);
           return;
         }
 
-        // Establecer la sesión con los tokens
+        // Establecer la sesión con los tokens del hash
         const { data, error: sessionError } = await client.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken || '',
