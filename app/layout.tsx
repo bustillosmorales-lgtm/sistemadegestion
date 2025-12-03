@@ -4,6 +4,7 @@ import { Inter } from 'next/font/google'
 import { ClientProviders } from './ClientProviders'
 import { UserMenu } from '@/components/UserMenu'
 import { AuthGuard } from '@/components/AuthGuard'
+import { Navigation } from '@/components/Navigation'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -39,32 +40,7 @@ export default function RootLayout({
                     <h1 className="text-xl font-bold text-gray-900">
                       📊 Predicción Inventario
                     </h1>
-                    <nav className="flex gap-4">
-                      <a
-                        href="/"
-                        className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
-                      >
-                        Dashboard
-                      </a>
-                      <a
-                        href="/cotizaciones"
-                        className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
-                      >
-                        Cotizaciones
-                      </a>
-                      <a
-                        href="/cotizaciones-respondidas"
-                        className="text-sm font-medium text-green-700 hover:text-green-600 transition-colors"
-                      >
-                        Respondidas
-                      </a>
-                      <a
-                        href="/contenedores"
-                        className="text-sm font-medium text-blue-700 hover:text-blue-600 transition-colors"
-                      >
-                        📦 Contenedores
-                      </a>
-                    </nav>
+                    <Navigation />
                   </div>
                   <div className="flex items-center space-x-4">
                     <span className="text-sm text-gray-500">

@@ -6,6 +6,7 @@ import { useDebounce } from '@/hooks/useDebounce'
 import { useModalState, useModalWithData } from '@/hooks/useModalState'
 import { usePrediccionesWithFilters } from '@/hooks/useQueries'
 import { useQueryClient } from '@tanstack/react-query'
+import { PageGuard } from '@/components/auth/PageGuard'
 import PrediccionesTable from '@/components/PrediccionesTable'
 import Filtros from '@/components/Filtros'
 import UploadExcel from '@/components/UploadExcel'
@@ -24,6 +25,14 @@ import { showSuccess, showError, showWarning } from '@/lib/utils/toast'
 import { ConfirmDialog, useConfirmDialog } from '@/components/ConfirmDialog'
 
 export default function Home() {
+  return (
+    <PageGuard allowedRoles={['ADMIN', 'GERENTE', 'COMPRADOR']}>
+      <DashboardContent />
+    </PageGuard>
+  )
+}
+
+function DashboardContent() {
   const { client: supabase } = useSupabase()
   const confirmDialog = useConfirmDialog()
   const queryClient = useQueryClient()
@@ -338,4 +347,5 @@ export default function Home() {
       />
     </div>
   )
+}
 }

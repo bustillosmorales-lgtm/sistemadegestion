@@ -9,6 +9,7 @@
 export type RoleId =
   | 'ADMIN'
   | 'GERENTE'
+  | 'COMPRADOR'
   | 'OPERADOR'
   | 'VIEWER'
   | 'COTIZACIONES_MANAGER'
@@ -224,7 +225,8 @@ export interface CreateAuditLogParams {
 export const ROLE_NAMES: Record<RoleId, string> = {
   ADMIN: 'Administrador',
   GERENTE: 'Gerente',
-  OPERADOR: 'Operador/Vendedor',
+  COMPRADOR: 'Comprador',
+  OPERADOR: 'Operador',
   VIEWER: 'Solo Lectura',
   COTIZACIONES_MANAGER: 'Gestor de Cotizaciones',
   RESPONDIDAS_MANAGER: 'Gestor de Respondidas',

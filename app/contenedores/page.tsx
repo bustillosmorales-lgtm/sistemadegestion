@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { PageGuard } from '@/components/auth/PageGuard'
 import { useSupabase } from '@/lib/SupabaseProvider'
 import { handleApiError } from '@/lib/utils/errorHandler'
 import { showSuccess, showError } from '@/lib/utils/toast'
@@ -19,6 +20,14 @@ interface ContenedorItem {
 }
 
 export default function ContenedoresPage() {
+  return (
+    <PageGuard allowedRoles={['ADMIN', 'GERENTE', 'COMPRADOR', 'OPERADOR']}>
+      <ContenedoresContent />
+    </PageGuard>
+  )
+}
+
+function ContenedoresContent() {
   const supabase = useSupabase()
   const confirmDialog = useConfirmDialog()
   const [items, setItems] = useState<ContenedorItem[]>([])

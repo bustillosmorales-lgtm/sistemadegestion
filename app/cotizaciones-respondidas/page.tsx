@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { PageGuard } from '@/components/auth/PageGuard'
 import { fetchCotizaciones, updateCotizacion, deleteCotizacion } from '@/lib/api-client'
 import AprobarCotizacionesMasivo from '@/components/AprobarCotizacionesMasivo'
 import { handleApiError } from '@/lib/utils/errorHandler'
@@ -30,6 +31,14 @@ interface Cotizacion {
 }
 
 export default function CotizacionesRespondidasPage() {
+  return (
+    <PageGuard allowedRoles={['ADMIN', 'GERENTE', 'COMPRADOR']}>
+      <RespondidasContent />
+    </PageGuard>
+  )
+}
+
+function RespondidasContent() {
   const confirmDialog = useConfirmDialog()
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([])
   const [loading, setLoading] = useState(true)
