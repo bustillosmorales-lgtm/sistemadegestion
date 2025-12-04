@@ -25,6 +25,22 @@ export default function SetPasswordPage() {
       setError('La contraseña debe tener al menos 8 caracteres');
       return false;
     }
+    if (password.length > 72) {
+      setError('La contraseña no puede tener más de 72 caracteres');
+      return false;
+    }
+    if (!/[A-Z]/.test(password)) {
+      setError('La contraseña debe contener al menos una letra mayúscula');
+      return false;
+    }
+    if (!/[a-z]/.test(password)) {
+      setError('La contraseña debe contener al menos una letra minúscula');
+      return false;
+    }
+    if (!/[0-9]/.test(password)) {
+      setError('La contraseña debe contener al menos un número');
+      return false;
+    }
     if (password !== confirmPassword) {
       setError('Las contraseñas no coinciden');
       return false;
@@ -112,11 +128,26 @@ export default function SetPasswordPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
+      <Card className="w-full max-w-md border-t-4 border-t-blue-600">
+        <CardHeader className="space-y-3">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+            <svg
+              className="h-6 w-6 text-blue-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+              />
+            </svg>
+          </div>
           <CardTitle className="text-2xl text-center">Establece tu Contraseña</CardTitle>
           <CardDescription className="text-center">
-            Configura una contraseña para acceder al sistema
+            Por seguridad, configura una contraseña robusta para acceder al sistema
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -180,11 +211,29 @@ export default function SetPasswordPage() {
               </div>
             </div>
 
-            <div className="text-xs text-muted-foreground space-y-1">
-              <p>La contraseña debe:</p>
-              <ul className="list-disc list-inside pl-2">
-                <li>Tener al menos 8 caracteres</li>
-                <li>Ser fácil de recordar pero difícil de adivinar</li>
+            <div className="text-xs space-y-2 bg-gray-50 p-3 rounded-lg border">
+              <p className="font-medium text-gray-700">Requisitos de contraseña:</p>
+              <ul className="space-y-1">
+                <li className={`flex items-center gap-2 ${password.length >= 8 ? 'text-green-600' : 'text-gray-500'}`}>
+                  <span className="text-lg">{password.length >= 8 ? '✓' : '○'}</span>
+                  Mínimo 8 caracteres
+                </li>
+                <li className={`flex items-center gap-2 ${/[A-Z]/.test(password) ? 'text-green-600' : 'text-gray-500'}`}>
+                  <span className="text-lg">{/[A-Z]/.test(password) ? '✓' : '○'}</span>
+                  Al menos una mayúscula (A-Z)
+                </li>
+                <li className={`flex items-center gap-2 ${/[a-z]/.test(password) ? 'text-green-600' : 'text-gray-500'}`}>
+                  <span className="text-lg">{/[a-z]/.test(password) ? '✓' : '○'}</span>
+                  Al menos una minúscula (a-z)
+                </li>
+                <li className={`flex items-center gap-2 ${/[0-9]/.test(password) ? 'text-green-600' : 'text-gray-500'}`}>
+                  <span className="text-lg">{/[0-9]/.test(password) ? '✓' : '○'}</span>
+                  Al menos un número (0-9)
+                </li>
+                <li className={`flex items-center gap-2 ${password && confirmPassword && password === confirmPassword ? 'text-green-600' : 'text-gray-500'}`}>
+                  <span className="text-lg">{password && confirmPassword && password === confirmPassword ? '✓' : '○'}</span>
+                  Las contraseñas coinciden
+                </li>
               </ul>
             </div>
 

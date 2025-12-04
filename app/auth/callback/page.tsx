@@ -36,13 +36,19 @@ export default function AuthCallbackPage() {
 
           // Verificar tipo de autenticación
           const type = urlParams.get('type');
-          if (type === 'recovery' || data.session?.user?.recovery_sent_at) {
-            console.log('Recovery flow detected, redirecting to set password');
-            setTimeout(() => router.push('/auth/set-password'), 1000);
+          const isNewUser = !data.session?.user?.last_sign_in_at ||
+                           data.session?.user?.invited_at;
+
+          console.log('Auth type:', type, 'Is new user:', isNewUser);
+
+          // Si es invitación, recovery, o usuario nuevo → establecer contraseña
+          if (type === 'invite' || type === 'recovery' || type === 'signup' || isNewUser) {
+            console.log('New user or recovery detected, redirecting to set password');
+            setTimeout(() => router.push('/auth/set-password'), 500);
             return;
           }
 
-          // Redirigir a home
+          // Usuario existente con magic link → redirigir a home
           setTimeout(() => {
             router.push('/');
             router.refresh();
@@ -80,20 +86,26 @@ export default function AuthCallbackPage() {
 
         console.log('Sesión establecida correctamente:', data.session?.user?.email);
 
-        // Si es un recovery link (reset password), redirigir a establecer contraseña
-        if (type === 'recovery') {
-          console.log('Recovery link detected, redirecting to set password');
+        // Verificar si es invitación, recovery o usuario nuevo
+        const isNewUser = !data.session?.user?.last_sign_in_at ||
+                         data.session?.user?.invited_at;
+
+        console.log('Hash flow - type:', type, 'Is new user:', isNewUser);
+
+        // Si es invitación, recovery, signup o usuario nuevo → establecer contraseña
+        if (type === 'invite' || type === 'recovery' || type === 'signup' || isNewUser) {
+          console.log('New user or recovery detected, redirecting to set password');
           setTimeout(() => {
             router.push('/auth/set-password');
-          }, 1000);
+          }, 500);
           return;
         }
 
-        // Si es magic link o signup, redirigir a home
+        // Usuario existente con magic link → redirigir a home
         setTimeout(() => {
           router.push('/');
           router.refresh();
-        }, 2000);
+        }, 1000);
       } catch (err: any) {
         console.error('Error en callback:', err);
         setError('Error al procesar la autenticación: ' + (err.message || 'Error desconocido'));
