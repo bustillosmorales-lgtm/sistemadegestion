@@ -17,6 +17,73 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
+/**
+ * Helper: Verifica si un SKU existe en stock_actual y lo crea si no existe
+ * @param {string} sku - SKU a verificar/crear
+ * @param {string} descripcion - Descripción del producto (opcional)
+ * @returns {Promise<{success: boolean, created: boolean, error?: string}>}
+ */
+async function ensureSKUExists(sku, descripcion = null) {
+  try {
+    // 1. Verificar si el SKU ya existe
+    const { data: existingSKU, error: checkError } = await supabase
+      .from('stock_actual')
+      .select('sku')
+      .eq('sku', sku)
+      .single();
+
+    // Si existe, retornar success
+    if (existingSKU) {
+      return { success: true, created: false };
+    }
+
+    // Si no existe (error de no encontrado), crearlo
+    if (checkError && checkError.code === 'PGRST116') {
+      // Crear el SKU con datos mínimos
+      const { error: insertError } = await supabase
+        .from('stock_actual')
+        .insert([{
+          sku: sku,
+          descripcion: descripcion || `Producto ${sku}`,
+          bodega_c: 0,
+          bodega_d: 0,
+          bodega_e: 0,
+          bodega_f: 0,
+          bodega_h: 0,
+          bodega_j: 0
+        }]);
+
+      if (insertError) {
+        console.error('[ensureSKUExists] Error creando SKU:', insertError);
+        return {
+          success: false,
+          created: false,
+          error: `No se pudo crear el SKU: ${insertError.message}`
+        };
+      }
+
+      console.log(`[ensureSKUExists] SKU ${sku} creado automáticamente`);
+      return { success: true, created: true };
+    }
+
+    // Otro tipo de error
+    console.error('[ensureSKUExists] Error verificando SKU:', checkError);
+    return {
+      success: false,
+      created: false,
+      error: `Error verificando SKU: ${checkError?.message}`
+    };
+
+  } catch (error) {
+    console.error('[ensureSKUExists] Error inesperado:', error);
+    return {
+      success: false,
+      created: false,
+      error: `Error inesperado: ${error.message}`
+    };
+  }
+}
+
 exports.handler = withAuth(async (event, context, auth) => {
   try {
     // GET: Obtener cotizaciones
@@ -94,6 +161,28 @@ exports.handler = withAuth(async (event, context, auth) => {
       }
       const validatedData = validation.data;
 
+      // NUEVO: Asegurar que el SKU existe en stock_actual antes de crear la cotización
+      const skuCheck = await ensureSKUExists(
+        validatedData.sku,
+        validatedData.descripcion
+      );
+
+      if (!skuCheck.success) {
+        console.error('[POST] No se pudo asegurar existencia del SKU:', skuCheck.error);
+        return {
+          statusCode: 500,
+          body: JSON.stringify({
+            success: false,
+            error: skuCheck.error || 'No se pudo crear/verificar el SKU en la base de datos'
+          })
+        };
+      }
+
+      // Log si se creó un nuevo SKU
+      if (skuCheck.created) {
+        console.log(`[POST] SKU ${validatedData.sku} creado automáticamente para cotización`);
+      }
+
       const { data, error } = await supabase
         .from('cotizaciones')
         .insert([validatedData])
@@ -106,7 +195,8 @@ exports.handler = withAuth(async (event, context, auth) => {
         statusCode: 201,
                 body: JSON.stringify({
           success: true,
-          cotizacion: data
+          cotizacion: data,
+          sku_created: skuCheck.created // Informar si se creó el SKU
         })
       };
     }
@@ -169,6 +259,16 @@ exports.handler = withAuth(async (event, context, auth) => {
             .single();
 
           if (cotizacion) {
+            // NUEVO: Asegurar que el SKU existe antes de crear el tránsito
+            const skuCheck = await ensureSKUExists(
+              cotizacion.sku,
+              cotizacion.descripcion
+            );
+
+            if (skuCheck.created) {
+              console.log(`[PUT] SKU ${cotizacion.sku} creado automáticamente al cargar a contenedor`);
+            }
+
             // Crear registro en transito_china
             await supabase
               .from('transito_china')

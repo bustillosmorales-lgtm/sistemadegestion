@@ -24,15 +24,30 @@ export default function CargaMasivaCotizaciones({ predicciones, onSuccess }: Pro
       const XLSX = await import('xlsx')
 
       // Preparar datos para el template
+      // Ahora incluye predicciones pero también permite agregar filas manualmente
       const datos = predicciones.map(p => ({
         'SKU': p.sku,
         'Descripción': p.descripcion || '',
-        'Stock Actual': p.stock_actual,
-        'Días Stock': p.dias_stock_actual,
-        'Sugerencia Sistema': p.sugerencia_reposicion,
-        'Cantidad a Cotizar': p.sugerencia_reposicion, // Pre-llenado con sugerencia
+        'Stock Actual': p.stock_actual || 0,
+        'Días Stock': p.dias_stock_actual || 0,
+        'Sugerencia Sistema': p.sugerencia_reposicion || 0,
+        'Cantidad a Cotizar': p.sugerencia_reposicion || 0, // Pre-llenado con sugerencia
         'Notas': ''
       }))
+
+      // Agregar 20 filas vacías al final para SKUs manuales
+      // NOTA: El usuario puede agregar CUANTAS filas quiera, no hay límite
+      for (let i = 0; i < 20; i++) {
+        datos.push({
+          'SKU': '',
+          'Descripción': '',
+          'Stock Actual': 0,
+          'Días Stock': 0,
+          'Sugerencia Sistema': 0,
+          'Cantidad a Cotizar': 0,
+          'Notas': ''
+        })
+      }
 
       // Crear workbook
       const ws = XLSX.utils.json_to_sheet(datos)
@@ -54,7 +69,7 @@ export default function CargaMasivaCotizaciones({ predicciones, onSuccess }: Pro
       const fecha = new Date().toISOString().split('T')[0]
       XLSX.writeFile(wb, `Template_Solicitud_Cotizacion_${fecha}.xlsx`)
 
-      showSuccess('Template descargado\n\nInstrucciones:\n1. Edita la columna "Cantidad a Cotizar"\n2. Agrega notas si es necesario\n3. Guarda y sube el archivo')
+      showSuccess('Template descargado\n\nInstrucciones:\n1. Edita la columna "Cantidad a Cotizar"\n2. Puedes agregar SKUs nuevos en las filas vacías\n3. Agrega notas si es necesario\n4. Guarda y sube el archivo')
     } catch (error: any) {
       console.error('Error descargando template:', error)
       showError('Error al descargar template: ' + error.message)
@@ -81,6 +96,7 @@ export default function CargaMasivaCotizaciones({ predicciones, onSuccess }: Pro
         const sku = row['SKU']
         const cantidad = parseInt(row['Cantidad a Cotizar']) || 0
         const notas = row['Notas'] || ''
+        const descripcion = row['Descripción'] || row['Descripcion'] || ''
 
         // Validar
         if (!sku) {
@@ -93,21 +109,17 @@ export default function CargaMasivaCotizaciones({ predicciones, onSuccess }: Pro
           continue // Saltar si cantidad es 0
         }
 
-        // Buscar predicción para obtener datos
+        // CAMBIO: Ya no requiere que el SKU esté en predicciones
+        // Buscar predicción para obtener datos adicionales si existe
         const prediccion = predicciones.find(p => p.sku === sku)
-        if (!prediccion) {
-          errores.push(`SKU ${sku} no encontrado en predicciones`)
-          fallidas++
-          continue
-        }
 
-        // Crear cotización
+        // Crear cotización con datos del Excel o de predicción si existe
         try {
           await createCotizacion({
             sku: sku,
-            descripcion: prediccion.descripcion,
+            descripcion: descripcion || prediccion?.descripcion || `Producto ${sku}`,
             cantidad_cotizar: cantidad,
-            precio_unitario: prediccion.precio_unitario,
+            precio_unitario: prediccion?.precio_unitario || 0,
             notas: notas || 'Carga masiva - Solicitud de cotización'
           })
           exitosas++
@@ -176,7 +188,7 @@ export default function CargaMasivaCotizaciones({ predicciones, onSuccess }: Pro
           </div>
 
           <p className="text-sm text-blue-700 mb-4">
-            Descarga el template con todos los productos, edita las cantidades y súbelo para crear cotizaciones masivamente.
+            Descarga el template con productos sugeridos, edita cantidades y puedes agregar SKUs nuevos en las filas vacías.
           </p>
 
           <div className="space-y-3">
@@ -223,12 +235,13 @@ export default function CargaMasivaCotizaciones({ predicciones, onSuccess }: Pro
           <div className="mt-4 p-4 bg-white rounded-lg border border-blue-300">
             <h4 className="font-semibold text-blue-900 mb-2">📋 Cómo usar:</h4>
             <ol className="list-decimal list-inside space-y-1 text-sm text-gray-700">
-              <li>Descarga el template Excel con todos los productos</li>
+              <li>Descarga el template Excel con productos sugeridos</li>
               <li>Edita la columna "Cantidad a Cotizar" según tus necesidades</li>
+              <li><strong>NUEVO:</strong> Puedes agregar SKUs nuevos en las filas vacías (o agregar más filas, sin límite)</li>
               <li>Pon 0 en productos que NO quieras cotizar</li>
               <li>Guarda el archivo Excel</li>
               <li>Súbelo usando el botón azul</li>
-              <li>Las cotizaciones se crearán automáticamente</li>
+              <li>Si el SKU no existe, se creará automáticamente en la base de datos</li>
             </ol>
           </div>
         </div>

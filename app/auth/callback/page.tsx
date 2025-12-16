@@ -33,22 +33,50 @@ export default function AuthCallbackPage() {
           }
 
           console.log('Session established via PKCE:', data.session?.user?.email);
+          console.log('User metadata:', {
+            last_sign_in_at: data.session?.user?.last_sign_in_at,
+            invited_at: data.session?.user?.invited_at,
+            created_at: data.session?.user?.created_at,
+            email_confirmed_at: data.session?.user?.email_confirmed_at
+          });
 
           // Verificar tipo de autenticación
           const type = urlParams.get('type');
-          const isNewUser = !data.session?.user?.last_sign_in_at ||
-                           data.session?.user?.invited_at;
 
-          console.log('Auth type:', type, 'Is new user:', isNewUser);
+          // MEJORADO: Verificar si usuario tiene roles asignados
+          let hasRoles = false;
+          try {
+            const { data: rolesData } = await client
+              .from('user_roles')
+              .select('role_id')
+              .eq('user_id', data.session?.user?.id)
+              .limit(1);
+            hasRoles = rolesData && rolesData.length > 0;
+            console.log('User has roles:', hasRoles);
+          } catch (err) {
+            console.error('Error checking roles:', err);
+          }
 
-          // Si es invitación, recovery, o usuario nuevo → establecer contraseña
-          if (type === 'invite' || type === 'recovery' || type === 'signup' || isNewUser) {
-            console.log('New user or recovery detected, redirecting to set password');
+          // Detección robusta: necesita configurar contraseña si:
+          // 1. El type es invite/recovery/signup, O
+          // 2. El usuario no tiene roles asignados (usuario nuevo)
+          const needsPasswordSetup =
+            type === 'invite' ||
+            type === 'recovery' ||
+            type === 'signup' ||
+            !hasRoles;
+
+          console.log('Auth type:', type, 'Has roles:', hasRoles, 'Needs password setup:', needsPasswordSetup);
+
+          // Si necesita configurar contraseña → ir a set-password
+          if (needsPasswordSetup) {
+            console.log('Password setup required, redirecting to set-password');
             setTimeout(() => router.push('/auth/set-password'), 500);
             return;
           }
 
           // Usuario existente con magic link → redirigir a home
+          console.log('Existing user with roles, redirecting to home');
           setTimeout(() => {
             router.push('/');
             router.refresh();
@@ -85,16 +113,40 @@ export default function AuthCallbackPage() {
         }
 
         console.log('Sesión establecida correctamente:', data.session?.user?.email);
+        console.log('User metadata:', {
+          last_sign_in_at: data.session?.user?.last_sign_in_at,
+          invited_at: data.session?.user?.invited_at,
+          created_at: data.session?.user?.created_at
+        });
 
-        // Verificar si es invitación, recovery o usuario nuevo
-        const isNewUser = !data.session?.user?.last_sign_in_at ||
-                         data.session?.user?.invited_at;
+        // MEJORADO: Verificar si usuario tiene roles asignados
+        let hasRoles = false;
+        try {
+          const { data: rolesData } = await client
+            .from('user_roles')
+            .select('role_id')
+            .eq('user_id', data.session?.user?.id)
+            .limit(1);
+          hasRoles = rolesData && rolesData.length > 0;
+          console.log('User has roles:', hasRoles);
+        } catch (err) {
+          console.error('Error checking roles:', err);
+        }
 
-        console.log('Hash flow - type:', type, 'Is new user:', isNewUser);
+        // Detección robusta: necesita configurar contraseña si:
+        // 1. El type es invite/recovery/signup, O
+        // 2. El usuario no tiene roles asignados (usuario nuevo)
+        const needsPasswordSetup =
+          type === 'invite' ||
+          type === 'recovery' ||
+          type === 'signup' ||
+          !hasRoles;
 
-        // Si es invitación, recovery, signup o usuario nuevo → establecer contraseña
-        if (type === 'invite' || type === 'recovery' || type === 'signup' || isNewUser) {
-          console.log('New user or recovery detected, redirecting to set password');
+        console.log('Hash flow - type:', type, 'Has roles:', hasRoles, 'Needs password setup:', needsPasswordSetup);
+
+        // Si necesita configurar contraseña → ir a set-password
+        if (needsPasswordSetup) {
+          console.log('Password setup required, redirecting to set-password');
           setTimeout(() => {
             router.push('/auth/set-password');
           }, 500);
@@ -102,6 +154,7 @@ export default function AuthCallbackPage() {
         }
 
         // Usuario existente con magic link → redirigir a home
+        console.log('Existing user with roles, redirecting to home');
         setTimeout(() => {
           router.push('/');
           router.refresh();

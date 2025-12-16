@@ -17,6 +17,7 @@ export default function SetPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [hasRoles, setHasRoles] = useState(true); // Asumimos que sí hasta que se verifique
   const router = useRouter();
   const { client, user } = useSupabase();
 
@@ -67,11 +68,27 @@ export default function SetPasswordPage() {
 
       setSuccess(true);
 
-      // Redirigir al home después de 2 segundos
-      setTimeout(() => {
-        router.push('/');
-        router.refresh();
-      }, 2000);
+      // Verificar si el usuario tiene roles asignados antes de redirigir
+      const { data: rolesData } = await client
+        .from('user_roles')
+        .select('role_id')
+        .eq('user_id', user?.id)
+        .limit(1);
+
+      const userHasRoles = rolesData && rolesData.length > 0;
+      setHasRoles(userHasRoles);
+
+      // Si tiene roles, redirigir al home después de 2 segundos
+      if (userHasRoles) {
+        setTimeout(() => {
+          router.push('/');
+          router.refresh();
+        }, 2000);
+      } else {
+        // Si no tiene roles, mostrar mensaje diferente (sin redirigir automáticamente)
+        // El mensaje de éxito indicará que debe esperar a que un admin le asigne un rol
+        console.log('User has no roles assigned yet, staying on success page');
+      }
     } catch (err: any) {
       console.error('Error setting password:', err);
       setError(err.message || 'Error al establecer la contraseña');
@@ -116,10 +133,30 @@ export default function SetPasswordPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
-            <p className="text-sm text-muted-foreground mb-4">
-              Redirigiendo al sistema...
-            </p>
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            {hasRoles ? (
+              <>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Redirigiendo al sistema...
+                </p>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Tu cuenta está lista, pero aún no tienes permisos asignados.
+                </p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Por favor contacta al administrador para que te asigne un rol y puedas acceder al sistema.
+                </p>
+                <Button
+                  variant="outline"
+                  className="w-full mt-4"
+                  onClick={() => router.push('/login')}
+                >
+                  Volver al Login
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
