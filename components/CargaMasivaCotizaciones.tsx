@@ -24,20 +24,27 @@ export default function CargaMasivaCotizaciones({ predicciones, onSuccess }: Pro
       const XLSX = await import('xlsx')
 
       // Preparar datos para el template
-      // Ahora incluye predicciones pero también permite agregar filas manualmente
-      const datos = predicciones.map(p => ({
-        'SKU': p.sku,
-        'Descripción': p.descripcion || '',
-        'Stock Actual': p.stock_actual || 0,
-        'Días Stock': p.dias_stock_actual || 0,
-        'Sugerencia Sistema': p.sugerencia_reposicion || 0,
-        'Cantidad a Cotizar': p.sugerencia_reposicion || 0, // Pre-llenado con sugerencia
-        'Notas': ''
-      }))
+      const datos = []
 
-      // Agregar 20 filas vacías al final para SKUs manuales
+      // Si hay predicciones, incluirlas
+      if (predicciones && predicciones.length > 0) {
+        predicciones.forEach(p => {
+          datos.push({
+            'SKU': p.sku,
+            'Descripción': p.descripcion || '',
+            'Stock Actual': p.stock_actual || 0,
+            'Días Stock': p.dias_stock_actual || 0,
+            'Sugerencia Sistema': p.sugerencia_reposicion || 0,
+            'Cantidad a Cotizar': p.sugerencia_reposicion || 0, // Pre-llenado con sugerencia
+            'Notas': ''
+          })
+        })
+      }
+
+      // Agregar 20 filas vacías para SKUs manuales
       // NOTA: El usuario puede agregar CUANTAS filas quiera, no hay límite
-      for (let i = 0; i < 20; i++) {
+      const emptyRows = predicciones && predicciones.length > 0 ? 20 : 30
+      for (let i = 0; i < emptyRows; i++) {
         datos.push({
           'SKU': '',
           'Descripción': '',
@@ -69,7 +76,11 @@ export default function CargaMasivaCotizaciones({ predicciones, onSuccess }: Pro
       const fecha = new Date().toISOString().split('T')[0]
       XLSX.writeFile(wb, `Template_Solicitud_Cotizacion_${fecha}.xlsx`)
 
-      showSuccess('Template descargado\n\nInstrucciones:\n1. Edita la columna "Cantidad a Cotizar"\n2. Puedes agregar SKUs nuevos en las filas vacías\n3. Agrega notas si es necesario\n4. Guarda y sube el archivo')
+      const mensaje = predicciones && predicciones.length > 0
+        ? 'Template descargado con productos sugeridos\n\nInstrucciones:\n1. Edita la columna "Cantidad a Cotizar"\n2. Puedes agregar SKUs nuevos en las filas vacías\n3. Agrega notas si es necesario\n4. Guarda y sube el archivo'
+        : 'Template descargado con filas vacías\n\nInstrucciones:\n1. Completa SKU y Descripción\n2. Define la "Cantidad a Cotizar"\n3. Agrega notas si es necesario\n4. Guarda y sube el archivo\n\nPuedes agregar tantas filas como necesites!'
+
+      showSuccess(mensaje)
     } catch (error: any) {
       console.error('Error descargando template:', error)
       showError('Error al descargar template: ' + error.message)
@@ -174,7 +185,7 @@ export default function CargaMasivaCotizaciones({ predicciones, onSuccess }: Pro
             Solicitar Cotizaciones Masivamente
           </h2>
           <p className="text-sm text-gray-600">
-            Descarga el template con todos los productos, edita las cantidades y súbelo para crear cotizaciones
+            Descarga el template (con o sin productos sugeridos), completa los SKUs y cantidades, y súbelo para crear cotizaciones
           </p>
         </div>
       </div>
@@ -188,16 +199,18 @@ export default function CargaMasivaCotizaciones({ predicciones, onSuccess }: Pro
           </div>
 
           <p className="text-sm text-blue-700 mb-4">
-            Descarga el template con productos sugeridos, edita cantidades y puedes agregar SKUs nuevos en las filas vacías.
+            {predicciones && predicciones.length > 0
+              ? 'Descarga el template con productos sugeridos, edita cantidades y puedes agregar SKUs nuevos en las filas vacías.'
+              : 'Descarga el template vacío para solicitar cotizaciones de cualquier SKU, incluso sin análisis de reposición.'}
           </p>
 
           <div className="space-y-3">
             <button
               onClick={descargarTemplateSolicitud}
-              disabled={loading || predicciones.length === 0}
+              disabled={loading}
               className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              📥 Descargar Template ({predicciones.length} productos)
+              📥 Descargar Template {predicciones.length > 0 ? `(${predicciones.length} productos + filas vacías)` : '(Solo filas vacías)'}
             </button>
 
             <div>
