@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { getSupabaseClient } from '@/lib/supabase'
+import { useUserPermissions } from '@/hooks/usePermissions'
+import { useRouter } from 'next/navigation'
 import ConfiguracionDefontana from './ConfiguracionDefontana'
 import DefontanaSync from './DefontanaSync'
 import { showSuccess, showError } from '@/lib/utils/toast'
@@ -24,12 +26,17 @@ interface Props {
   onSave?: () => void
 }
 
-type Tab = 'parametros' | 'integraciones'
+type Tab = 'parametros' | 'integraciones' | 'administracion'
 
 export default function ConfiguracionModal({ isOpen, onClose, configuraciones, onSave }: Props) {
   const [saving, setSaving] = useState(false)
   const [editedValues, setEditedValues] = useState<Record<string, number>>({})
   const [activeTab, setActiveTab] = useState<Tab>('parametros')
+  const { roles } = useUserPermissions()
+  const router = useRouter()
+
+  // Verificar si el usuario es admin
+  const isAdmin = roles.includes('ADMIN')
 
   // Inicializar valores editados cuando se reciben las configuraciones
   useEffect(() => {
@@ -116,7 +123,9 @@ export default function ConfiguracionModal({ isOpen, onClose, configuraciones, o
           <p className="text-sm text-gray-600 mt-2">
             {activeTab === 'parametros'
               ? 'Ajusta los parámetros del algoritmo de forecasting'
-              : 'Configura integraciones con sistemas externos'}
+              : activeTab === 'integraciones'
+              ? 'Configura integraciones con sistemas externos'
+              : 'Administra usuarios y permisos del sistema'}
           </p>
 
           {/* Tabs */}
@@ -141,12 +150,66 @@ export default function ConfiguracionModal({ isOpen, onClose, configuraciones, o
             >
               🔗 Integraciones
             </button>
+            {isAdmin && (
+              <button
+                onClick={() => setActiveTab('administracion')}
+                className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+                  activeTab === 'administracion'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                👥 Administración
+              </button>
+            )}
           </div>
         </div>
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          {activeTab === 'parametros' ? (
+          {activeTab === 'administracion' ? (
+            /* Tab de Administración */
+            <div className="space-y-6">
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center">
+                    <span className="text-2xl">👥</span>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      Gestión de Usuarios
+                    </h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Administra los usuarios del sistema, asigna roles y permisos, invita nuevos usuarios y controla el acceso a las diferentes funcionalidades.
+                    </p>
+                    <button
+                      onClick={() => {
+                        onClose()
+                        router.push('/admin/usuarios')
+                      }}
+                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
+                    >
+                      <span>👥</span>
+                      <span>Ir a Gestión de Usuarios</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <p className="text-sm text-gray-700 font-medium mb-2">
+                  🔐 Capacidades de Administración
+                </p>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>• Invitar nuevos usuarios al sistema</li>
+                  <li>• Asignar y modificar roles de usuario</li>
+                  <li>• Gestionar permisos de acceso</li>
+                  <li>• Reenviar invitaciones por correo</li>
+                  <li>• Eliminar usuarios cuando sea necesario</li>
+                </ul>
+              </div>
+            </div>
+          ) : activeTab === 'parametros' ? (
             configuraciones.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-gray-600 mb-4">No hay configuraciones disponibles.</p>
